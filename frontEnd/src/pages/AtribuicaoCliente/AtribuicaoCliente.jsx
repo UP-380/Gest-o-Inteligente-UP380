@@ -174,12 +174,21 @@ const AtribuicaoCliente = () => {
     fim: null,
     datasIndividuais: [],
     habilitarFinaisSemana: false,
-    habilitarFeriados: false
+    habilitarFeriados: false,
+    source: null,
+    source: null,
+    recorrenciaConfig: null
   });
+
+  // Estados para Escalonamento (A partir de)
+  const [escalonamentoGlobalAtivo, setEscalonamentoGlobalAtivo] = useState(false);
+  const [vigenciasGlobais, setVigenciasGlobais] = useState({}); // { [responsavelId]: dataInicio }
+  const [escalonamentoPorTarefaAtivo, setEscalonamentoPorTarefaAtivo] = useState({}); // { [key]: boolean }
+  const [vigenciasPorTarefa, setVigenciasPorTarefa] = useState({}); // { [key]: { [responsavelId]: dataInicio } }
 
   // Valores aplicados pela última vez (para comparar e desabilitar botão após aplicar)
   const [valoresAplicados, setValoresAplicados] = useState({
-    periodo: { inicio: null, fim: null, datasIndividuais: [], habilitarFinaisSemana: false, habilitarFeriados: false },
+    periodo: { inicio: null, fim: null, datasIndividuais: [], habilitarFinaisSemana: false, habilitarFeriados: false, recorrenciaConfig: null },
     responsaveis: [],
     tempo: 0
   });
@@ -282,6 +291,71 @@ const AtribuicaoCliente = () => {
         return novo;
       }
     });
+
+    // Se remover ou ficar com menos de 2, desativar escalonamento
+    if (novosResponsaveis.length < 2) {
+      setEscalonamentoPorTarefaAtivo(prev => {
+        const novo = { ...prev };
+        delete novo[key];
+        return novo;
+      });
+      setVigenciasPorTarefa(prev => {
+        const novo = { ...prev };
+        delete novo[key];
+        return novo;
+      });
+    }
+  };
+
+  // Funções para Escalonamento
+  const handleVigenciaGlobalChange = (responsavelId, data) => {
+    setVigenciasGlobais(prev => ({ ...prev, [responsavelId]: data }));
+  };
+
+  const handleVigenciaTarefaChange = (produtoId, tarefaId, responsavelId, data) => {
+    const key = getResponsavelKey(produtoId, tarefaId);
+    setVigenciasPorTarefa(prev => {
+      const current = prev[key] || {};
+      return { ...prev, [key]: { ...current, [responsavelId]: data } };
+    });
+  };
+
+  const handleToggleEscalonamentoGlobal = (enabled) => {
+    setEscalonamentoGlobalAtivo(enabled);
+    if (enabled && Object.keys(vigenciasGlobais).length === 0) {
+      // Pré-preencher com a data de início global se disponível
+      const dataPadrao = periodoGlobal.inicio || new Date().toISOString().split('T')[0];
+      const novasVigencias = {};
+      responsaveisGlobais.forEach(id => {
+        novasVigencias[id] = dataPadrao;
+      });
+      setVigenciasGlobais(novasVigencias);
+    }
+  };
+
+  const handleToggleEscalonamentoTarefa = (produtoId, tarefaId, enabled) => {
+    const key = getResponsavelKey(produtoId, tarefaId);
+    setEscalonamentoPorTarefaAtivo(prev => ({ ...prev, [key]: enabled }));
+
+    if (enabled) {
+      const keyPeriodo = getPeriodoKey(produtoId, tarefaId);
+      const periodo = periodosPorTarefa[keyPeriodo];
+      const dataPadrao = periodo?.inicio || periodoGlobal.inicio || new Date().toISOString().split('T')[0];
+
+      setVigenciasPorTarefa(prev => {
+        const current = prev[key] || {};
+        const responsaveis = responsaveisPorTarefa[key] || [];
+        const novasVigencias = { ...current };
+
+        responsaveis.forEach(id => {
+          if (!novasVigencias[id]) {
+            novasVigencias[id] = dataPadrao;
+          }
+        });
+
+        return { ...prev, [key]: novasVigencias };
+      });
+    }
   };
 
   const handlePeriodoTarefaChange = (produtoId, tarefaId, updates) => {
@@ -312,6 +386,8 @@ const AtribuicaoCliente = () => {
     setResponsaveisGlobais([]);
     setTempoGlobal(0);
     setTempoGlobalParaAplicar(0);
+    setEscalonamentoGlobalAtivo(false);
+    setVigenciasGlobais({});
     showToast('info', 'Campos globais limpos');
   };
 
@@ -329,8 +405,8 @@ const AtribuicaoCliente = () => {
     let responsavelAplicado = false;
     let tempoAplicado = false;
 
-    // Aplicar período global se preenchido (período completo OU datas individuais)
-    if (temPeriodoCompleto || temDatasIndividuais) {
+    // Aplicar período global se preenchido (período completo OU datas individuais OU recorrência)
+    if (temPeriodoCompleto || temDatasIndividuais || periodoGlobal.recorrenciaConfig) {
       setPeriodosPorTarefa(prev => {
         const next = { ...prev };
         let changed = false;
@@ -346,7 +422,8 @@ const AtribuicaoCliente = () => {
               datasIndividuais: [...globalDatas],
               habilitarFinaisSemana: !!periodoGlobal.habilitarFinaisSemana,
               habilitarFeriados: !!periodoGlobal.habilitarFeriados,
-              source: 'global'
+              recorrenciaConfig: periodoGlobal.recorrenciaConfig ? { ...periodoGlobal.recorrenciaConfig } : null,
+              source: periodoGlobal.source || 'global'
             };
             changed = true;
           });
@@ -401,6 +478,33 @@ const AtribuicaoCliente = () => {
       });
     }
 
+    // Aplicar Escalonamento global se ativo
+    if (escalonamentoGlobalAtivo) {
+      setEscalonamentoPorTarefaAtivo(prev => {
+        const next = { ...prev };
+        Object.entries(tarefasSelecionadasPorProduto).forEach(([produtoId, tarefasDoProduto]) => {
+          Object.entries(tarefasDoProduto || {}).forEach(([tarefaId, dadosTarefa]) => {
+            if (dadosTarefa?.selecionada !== true) return;
+            const key = getResponsavelKey(produtoId, tarefaId);
+            next[key] = true;
+          });
+        });
+        return next;
+      });
+
+      setVigenciasPorTarefa(prev => {
+        const next = { ...prev };
+        Object.entries(tarefasSelecionadasPorProduto).forEach(([produtoId, tarefasDoProduto]) => {
+          Object.entries(tarefasDoProduto || {}).forEach(([tarefaId, dadosTarefa]) => {
+            if (dadosTarefa?.selecionada !== true) return;
+            const key = getResponsavelKey(produtoId, tarefaId);
+            next[key] = { ...vigenciasGlobais };
+          });
+        });
+        return next;
+      });
+    }
+
     // Feedback ao usuário
     const itensAplicados = [];
     if (periodoAplicado) {
@@ -427,7 +531,8 @@ const AtribuicaoCliente = () => {
           fim: periodoGlobal.fim,
           datasIndividuais: Array.isArray(periodoGlobal.datasIndividuais) ? [...periodoGlobal.datasIndividuais] : [],
           habilitarFinaisSemana: !!periodoGlobal.habilitarFinaisSemana,
-          habilitarFeriados: !!periodoGlobal.habilitarFeriados
+          habilitarFeriados: !!periodoGlobal.habilitarFeriados,
+          recorrenciaConfig: periodoGlobal.recorrenciaConfig ? { ...periodoGlobal.recorrenciaConfig } : null
         },
         responsaveis: Array.isArray(responsaveisGlobais) ? [...responsaveisGlobais] : [],
         tempo: tempoGlobal !== undefined && tempoGlobal !== null ? tempoGlobal : null
@@ -1900,6 +2005,7 @@ const AtribuicaoCliente = () => {
     const temValoresPreenchidos =
       (periodoGlobal.inicio && periodoGlobal.fim) ||
       temDatasIndividuais ||
+      periodoGlobal.recorrenciaConfig ||
       (Array.isArray(responsaveisGlobais) && responsaveisGlobais.length > 0) ||
       (tempoGlobal !== undefined && tempoGlobal !== null);
 
@@ -1914,6 +2020,7 @@ const AtribuicaoCliente = () => {
     const temValoresAplicados =
       (valoresAplicados.periodo.inicio && valoresAplicados.periodo.fim) ||
       temDatasIndividuaisAplicadas ||
+      valoresAplicados.periodo.recorrenciaConfig ||
       (Array.isArray(valoresAplicados.responsaveis) && valoresAplicados.responsaveis.length > 0) ||
       (valoresAplicados.tempo !== undefined && valoresAplicados.tempo !== null);
 
@@ -1928,14 +2035,16 @@ const AtribuicaoCliente = () => {
       fim: periodoGlobal.fim,
       datasIndividuais: Array.isArray(periodoGlobal.datasIndividuais) ? periodoGlobal.datasIndividuais.sort().join(',') : '',
       habilitarFinaisSemana: !!periodoGlobal.habilitarFinaisSemana,
-      habilitarFeriados: !!periodoGlobal.habilitarFeriados
+      habilitarFeriados: !!periodoGlobal.habilitarFeriados,
+      recorrenciaConfig: JSON.stringify(periodoGlobal.recorrenciaConfig)
     };
     const periodoAplicado = {
       inicio: valoresAplicados.periodo.inicio,
       fim: valoresAplicados.periodo.fim,
       datasIndividuais: Array.isArray(valoresAplicados.periodo.datasIndividuais) ? valoresAplicados.periodo.datasIndividuais.sort().join(',') : '',
       habilitarFinaisSemana: !!valoresAplicados.periodo.habilitarFinaisSemana,
-      habilitarFeriados: !!valoresAplicados.periodo.habilitarFeriados
+      habilitarFeriados: !!valoresAplicados.periodo.habilitarFeriados,
+      recorrenciaConfig: JSON.stringify(valoresAplicados.periodo.recorrenciaConfig)
     };
 
     const periodoMudou =
@@ -1943,7 +2052,8 @@ const AtribuicaoCliente = () => {
       periodoAtual.fim !== periodoAplicado.fim ||
       periodoAtual.datasIndividuais !== periodoAplicado.datasIndividuais ||
       periodoAtual.habilitarFinaisSemana !== periodoAplicado.habilitarFinaisSemana ||
-      periodoAtual.habilitarFeriados !== periodoAplicado.habilitarFeriados;
+      periodoAtual.habilitarFeriados !== periodoAplicado.habilitarFeriados ||
+      periodoAtual.recorrenciaConfig !== periodoAplicado.recorrenciaConfig;
 
     // Verificar responsáveis
     const responsaveisAtuais = Array.isArray(responsaveisGlobais) ? responsaveisGlobais.map(id => String(id).trim()).sort().join(',') : '';
@@ -2189,6 +2299,18 @@ const AtribuicaoCliente = () => {
             // CORREÇÃO: Se tem período completo E datas individuais (exceções marcadas com Ctrl),
             // calular a lista exata de datas válidas (Range - Exceções) e enviar apenas essa lista.
             if (temPeriodoCompleto && temDatasIndividuais) {
+              // Se a fonte for recorrência, as datas individuais JÁ SÃO a whitelist (datas a incluir)
+              if (p.source === 'recorrencia') {
+                return {
+                  inicio: null,
+                  fim: null,
+                  incluir_finais_semana: !!p.habilitarFinaisSemana,
+                  incluir_feriados: !!p.habilitarFeriados,
+                  datas_individuais: p.datasIndividuais
+                };
+              }
+
+              // Caso contrário (manual), são exceções a serem removidas do range
               const todasDatas = gerarDatasIntervalo(p.inicio, p.fim);
               const datasValidas = todasDatas.filter(d => !p.datasIndividuais.includes(d));
 
@@ -2229,6 +2351,17 @@ const AtribuicaoCliente = () => {
         const temDatasIndividuaisGlobal = Array.isArray(periodoGlobal.datasIndividuais) && periodoGlobal.datasIndividuais.length > 0;
 
         if (temPeriodoGlobal && temDatasIndividuaisGlobal) {
+          // Se a fonte global for recorrência, usar como whitelist
+          if (periodoGlobal.source === 'recorrencia') {
+            return {
+              inicio: null,
+              fim: null,
+              incluir_finais_semana: !!habilitarFinaisSemana,
+              incluir_feriados: !!habilitarFeriados,
+              datas_individuais: periodoGlobal.datasIndividuais
+            };
+          }
+
           const todasDatas = gerarDatasIntervalo(dataInicio, dataFim);
           const datasValidas = todasDatas.filter(d => !periodoGlobal.datasIndividuais.includes(d));
           if (datasValidas.length > 0) {
@@ -2268,17 +2401,70 @@ const AtribuicaoCliente = () => {
               tempo = tempoGlobalParaAplicar;
             }
             const tempoInt = Math.round(Number(tempo));
-            const periodo = obterPeriodoPara(produtoIdStr, tarefaId);
+            const periodoOriginal = obterPeriodoPara(produtoIdStr, tarefaId);
             const responsaveisIds = getResponsavelTarefa(produtoIdStr, tarefaId);
-            const keyPeriodo = stringifyPeriodo(periodo);
 
-            // Se tem múltiplos responsáveis, criar registros para cada um
+            const keyTarefa = `${produtoIdStr}_${tarefaId}`;
+            const escalonamentoAtivo = escalonamentoPorTarefaAtivo[keyTarefa] || false;
+            const vigencias = vigenciasPorTarefa[keyTarefa] || {};
+
+            if (escalonamentoAtivo && responsaveisIds.length > 1) {
+              // Lógica de Escalonamento: Criar grupos segmentados por data
+              // 1. Obter e filtrar apenas vigências dos responsáveis selecionados
+              const vigilantes = responsaveisIds
+                .map(id => ({ id, data: vigencias[id] }))
+                .filter(v => v.data)
+                .sort((a, b) => a.data.localeCompare(b.data));
+
+              if (vigilantes.length > 0) {
+                vigilantes.forEach((v, index) => {
+                  const dataInicioSet = v.data;
+                  let dataFimSet = periodoOriginal.fim;
+
+                  // Se não é o último, o fim é o dia anterior à próxima vigência
+                  if (index < vigilantes.length - 1) {
+                    const dataProxima = new Date(vigilantes[index + 1].data + 'T12:00:00');
+                    dataProxima.setDate(dataProxima.getDate() - 1);
+                    dataFimSet = dataProxima.toISOString().split('T')[0];
+                  }
+
+                  const novoPeriodo = {
+                    ...periodoOriginal,
+                    inicio: dataInicioSet,
+                    fim: dataFimSet
+                  };
+
+                  const keyPeriodo = stringifyPeriodo(novoPeriodo);
+                  const keyGrupo = `${keyPeriodo}_${v.id}`;
+
+                  if (!gruposPorPeriodoEResponsavel[keyGrupo]) {
+                    gruposPorPeriodoEResponsavel[keyGrupo] = {
+                      periodo: novoPeriodo,
+                      responsavel_id: v.id,
+                      produtos_com_tarefas: {}
+                    };
+                  }
+                  if (!gruposPorPeriodoEResponsavel[keyGrupo].produtos_com_tarefas[produtoIdStr]) {
+                    gruposPorPeriodoEResponsavel[keyGrupo].produtos_com_tarefas[produtoIdStr] = [];
+                  }
+                  gruposPorPeriodoEResponsavel[keyGrupo].produtos_com_tarefas[produtoIdStr].push({
+                    tarefa_id: String(tarefaId).trim(),
+                    tempo_estimado_dia: tempoInt,
+                    responsavel_id: v.id
+                  });
+                });
+                return; // Pular adição padrão
+              }
+            }
+
+            // Comportamento padrão (sem escalonamento ou apenas 1 responsável)
+            const keyPeriodo = stringifyPeriodo(periodoOriginal);
             responsaveisIds.forEach(responsavelId => {
               const keyGrupo = `${keyPeriodo}_${responsavelId || 'sem-responsavel'}`;
 
               if (!gruposPorPeriodoEResponsavel[keyGrupo]) {
                 gruposPorPeriodoEResponsavel[keyGrupo] = {
-                  periodo,
+                  periodo: periodoOriginal,
                   responsavel_id: responsavelId ? String(responsavelId).trim() : null,
                   produtos_com_tarefas: {}
                 };
@@ -2596,6 +2782,11 @@ const AtribuicaoCliente = () => {
                               datasIndividuais={periodoGlobal.datasIndividuais || []}
                               onDatasIndividuaisChange={(arr) => setPeriodoGlobal(prev => ({ ...prev, datasIndividuais: Array.isArray(arr) ? arr : [] }))}
                               disabled={loading || submitting || !clienteSelecionado || produtosSelecionados.length === 0}
+                              source={periodoGlobal.source}
+                              onSourceChange={(src) => setPeriodoGlobal(prev => ({ ...prev, source: src }))}
+                              recorrenciaConfig={periodoGlobal.recorrenciaConfig}
+                              onRecorrenciaConfigChange={(cfg) => setPeriodoGlobal(prev => ({ ...prev, recorrenciaConfig: cfg }))}
+                              showRecurrence={true}
                             />
                           </div>
                           <div style={{ minWidth: '182px', position: 'relative', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '8px' }} className="responsavel-card-global-wrapper">
@@ -2611,6 +2802,11 @@ const AtribuicaoCliente = () => {
                                   label: c.cpf ? `${c.nome} (${c.cpf})` : c.nome
                                 }))}
                                 colaboradores={colaboradores}
+                                showAPartirDe={true}
+                                isAPartirDeEnabled={escalonamentoGlobalAtivo}
+                                onAPartirDeToggle={handleToggleEscalonamentoGlobal}
+                                vigenciaDatas={vigenciasGlobais}
+                                onVigenciaChange={handleVigenciaGlobalChange}
                               />
                             </div>
                             {!podePreencherResponsavel() && (
@@ -2770,13 +2966,18 @@ const AtribuicaoCliente = () => {
                           initialTarefas={initialTarefas} // Passar tarefas iniciais
                           // Período por tarefa e modo em lote
                           periodosPorTarefa={periodosPorTarefa}
-                          onPeriodoChange={(produtoId, tarefaId, updates) => handlePeriodoTarefaChange(produtoId, tarefaId, { ...updates, source: 'manual' })}
+                          onPeriodoChange={(produtoId, tarefaId, updates) => handlePeriodoTarefaChange(produtoId, tarefaId, updates)}
                           modoPeriodoParaMuitos={modoPeriodoParaMuitos}
                           filterPeriodoUiVariant="atribuicao-mini"
                           // Responsáveis por tarefa
                           responsaveisPorTarefa={responsaveisPorTarefa}
                           onResponsavelChange={handleResponsavelTarefaChange}
                           colaboradores={colaboradores}
+                          // Escalonamento por tarefa
+                          escalonamentoPorTarefaAtivo={escalonamentoPorTarefaAtivo}
+                          onToggleEscalonamento={handleToggleEscalonamentoTarefa}
+                          vigenciasPorTarefa={vigenciasPorTarefa}
+                          onVigenciaChange={handleVigenciaTarefaChange}
                           // Ordem de preenchimento e tempo disponível
                           ordemPreenchimento={{
                             podePreencherResponsavel: (produtoId, tarefaId) => {

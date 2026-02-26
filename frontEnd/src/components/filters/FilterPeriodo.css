@@ -78,18 +78,22 @@
   position: absolute;
   top: 100%;
   left: 0;
-  right: 0;
+  right: auto;
   background: white;
   border: 1px solid #dee2e6;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
   z-index: 1000;
-  margin-top: 4px;
+  margin-top: 8px;
   min-width: 280px;
-  max-width: 320px;
-  max-height: 85vh;
-  overflow-y: auto;
-  overflow-x: visible;
+  width: max-content;
+  max-width: 95vw;
+  overflow: visible;
+}
+
+.periodo-dropdown.has-recurrence-side {
+  width: auto;
+  max-width: 95vw;
 }
 
 .periodo-dropdown-content {
@@ -98,14 +102,17 @@
 
 /* Estilos do calendário do date range picker */
 .periodo-calendar-container {
-  margin-top: 8px;
+  margin-top: 12px;
   border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  padding: 6px;
+  border-radius: 8px;
+  padding: 12px;
   background-color: #fafafa;
-  max-width: 240px;
+  width: 280px;
+  min-width: 280px;
+  box-sizing: border-box;
   margin-left: auto;
   margin-right: auto;
+  overflow: hidden;
 }
 
 .periodo-calendar-header {
@@ -149,21 +156,23 @@
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 2px;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
 }
 
-.periodo-calendar-weekdays > div {
+.periodo-calendar-weekdays>div {
   text-align: center;
-  font-size: 9px;
-  font-weight: 600;
-  color: #6b7280;
-  padding: 2px 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: #9ca3af;
+  padding: 4px 0;
+  text-transform: uppercase;
 }
 
 .periodo-calendar-days {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 2px;
+  width: 100%;
 }
 
 .periodo-calendar-day {
@@ -171,15 +180,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 500;
   color: #374151;
   cursor: pointer;
-  border-radius: 3px;
+  border-radius: 6px;
   transition: all 0.2s ease;
   background: transparent;
   border: 1px solid transparent;
-  min-height: 22px;
-  max-height: 22px;
   width: 100%;
   padding: 0;
 }
@@ -305,13 +313,13 @@
 /* Variante específica da tela de Nova Atribuição (mini calendário por tarefa).
    Só ativa quando `variant-atribuicao-mini` estiver presente no container. */
 .periodo-filter-container.variant-atribuicao-mini .periodo-dropdown {
-  max-width: 260px;
-  min-width: 240px;
+  width: auto;
 }
 
 .periodo-filter-container.variant-atribuicao-mini .periodo-calendar-container {
-  max-width: 210px;
-  padding: 4px;
+  width: 240px;
+  min-width: 240px;
+  padding: 6px;
   margin-top: 6px;
 }
 
@@ -323,15 +331,13 @@
   font-size: 11px;
 }
 
-.periodo-filter-container.variant-atribuicao-mini .periodo-calendar-weekdays > div {
+.periodo-filter-container.variant-atribuicao-mini .periodo-calendar-weekdays>div {
   font-size: 8px;
   padding: 1px 0;
 }
 
 .periodo-filter-container.variant-atribuicao-mini .periodo-calendar-day {
   font-size: 10px;
-  min-height: 18px;
-  max-height: 18px;
   border-radius: 2px;
 }
 
@@ -366,40 +372,92 @@
 }
 
 /* Estilo para datas individuais selecionadas/desselecionadas */
-.periodo-calendar-day.individual-selected {
-  border: 2px dashed #f59e0b !important;
-  background: #fef3c7 !important;
-  color: #92400e !important;
-  font-weight: 600 !important;
-  position: relative;
-}
-
-.periodo-calendar-day.individual-selected::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  width: 6px;
-  height: 6px;
-  background: #f59e0b;
-  border-radius: 50%;
-}
-
-.periodo-calendar-day.individual-selected:hover {
-  background: #fde68a !important;
-  border-color: #f59e0b !important;
-}
-
-.periodo-calendar-day.individual-selected.selected,
-.periodo-calendar-day.individual-selected.start-date,
-.periodo-calendar-day.individual-selected.end-date {
-  background: #0e3b6f !important;
-  border: 2px dashed #f59e0b !important;
+.periodo-calendar-day.is-recurrent-selection {
+  background-color: #2563eb !important;
   color: white !important;
+  border-radius: 50% !important;
+  font-weight: 700 !important;
+  border: none !important;
+  position: relative;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);
 }
 
-.periodo-calendar-day.individual-selected.in-range {
-  background: #fef3c7 !important;
-  border: 2px dashed #f59e0b !important;
-  color: #92400e !important;
+.periodo-calendar-day.is-recurrent-selection:hover {
+  background-color: #1d4ed8 !important;
+}
+
+.periodo-calendar-day.is-recurrent-selection.selected {
+  background-color: #0c4a6e !important;
+  border: 2px solid white !important;
+}
+
+.periodo-calendar-day.is-recurrent-selection.selected {
+  background-color: #0e3b6f !important;
+  color: white !important;
+  border-radius: 4px !important;
+}
+
+/* Layout Lado a Lado (Estilo ClickUp) */
+.periodo-picker-main-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+  padding: 20px;
+  background-color: #fff;
+}
+
+.periodo-calendar-section-wrapper {
+  width: 312px;
+  min-width: 312px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.periodo-recurrence-section-wrapper {
+  width: 300px;
+  border-left: 1px solid #e2e8f0;
+  padding-left: 20px;
+  padding-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Ajustes no sumário para o painel lateral */
+.periodo-recurrence-summary {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid #f1f5f9;
+}
+
+@media (max-width: 900px) {
+  .periodo-picker-main-layout {
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .periodo-recurrence-section-wrapper {
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid #e2e8f0;
+    padding-left: 0;
+    padding-top: 16px;
+  }
+}
+
+/* Tooltip de feriado mais robusto */
+.holiday-tooltip {
+  position: fixed;
+  background-color: #1e293b;
+  color: white;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  pointer-events: none;
+  z-index: 10000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  border-bottom: 2px solid #f59e0b;
 }

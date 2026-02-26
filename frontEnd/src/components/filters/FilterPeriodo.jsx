@@ -1,10 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { gerarDatasRecorrencia } from '../../utils/gerarDatasRecorrencia';
 import './FilterPeriodo.css';
 
-const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disabled = false, size = 'default', uiVariant, showWeekendToggle = false, onWeekendToggleChange, showHolidayToggle = false, onHolidayToggleChange, datasIndividuais = [], onDatasIndividuaisChange, habilitarFinaisSemana: propHabilitarFinaisSemana, habilitarFeriados: propHabilitarFeriados, onClose }) => {
+const FilterPeriodo = ({
+  dataInicio, dataFim, onInicioChange, onFimChange,
+  disabled = false, size = 'default', uiVariant,
+  showWeekendToggle = false, onWeekendToggleChange,
+  showHolidayToggle = false, onHolidayToggleChange,
+  datasIndividuais = [], onDatasIndividuaisChange,
+  habilitarFinaisSemana: propHabilitarFinaisSemana,
+  habilitarFeriados: propHabilitarFeriados,
+  onClose,
+  source, // NOVO
+  onSourceChange, // Propriedade opcional para notificar mudança de source
+  recorrenciaConfig: propRecorrenciaConfig, // Configuração original da recorrência
+  onRecorrenciaConfigChange, // Callback para salvar configuração
+  showRecurrence = false // NOVO: Controle de exibição do painel de recorrência
+}) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [localInicio, setLocalInicio] = useState(dataInicio || '');
+  const [localInicio, setLocalInicio] = useState(dataInicio || propRecorrenciaConfig?.anchorInicio || '');
   const [localFim, setLocalFim] = useState(dataFim || '');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectingStart, setSelectingStart] = useState(true);
@@ -21,6 +36,16 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
   const editandoLocalmenteRef = useRef(false);
   const [showQuickSelect, setShowQuickSelect] = useState(true);
 
+  // Estados para Recorrência
+  const [recorrenciaAtiva, setRecorrenciaAtiva] = useState(source === 'recorrencia');
+  const [recorrenciaTipo, setRecorrenciaTipo] = useState(propRecorrenciaConfig?.tipo || 'nao_repetir');
+  const [recorrenciaDiasSemana, setRecorrenciaDiasSemana] = useState(propRecorrenciaConfig?.diasSemana || []);
+  const [recorrenciaMensalOpcao, setRecorrenciaMensalOpcao] = useState(propRecorrenciaConfig?.mensalOpcao || 'mesmo_dia_mes');
+  const [recorrenciaPersonalizado, setRecorrenciaPersonalizado] = useState(propRecorrenciaConfig?.personalizado || { repeteCada: 1, intervalo: 'dias' });
+  const [exibirPanelRecorrencia, setExibirPanelRecorrencia] = useState(source === 'recorrencia');
+  const [recorrenciaTermina, setRecorrenciaTermina] = useState(propRecorrenciaConfig?.termina || 'nunca');
+  const [recorrenciaTerminaData, setRecorrenciaTerminaData] = useState(propRecorrenciaConfig?.terminaData || '');
+
   // Formatar data para exibição
   const formatarData = (dataStr) => {
     if (!dataStr) return '';
@@ -28,13 +53,188 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
     return `${dia}/${mes}/${ano}`;
   };
 
-  const textoDisplay = (localInicio && localFim)
-    ? `${formatarData(localInicio)} - ${formatarData(localFim)}${datasIndividuaisLocal.size > 0 ? ` (${datasIndividuaisLocal.size} dia${datasIndividuaisLocal.size > 1 ? 's' : ''} específico${datasIndividuaisLocal.size > 1 ? 's' : ''})` : ''}`
-    : localInicio
-      ? `${formatarData(localInicio)} - ...${datasIndividuaisLocal.size > 0 ? ` (${datasIndividuaisLocal.size} dia${datasIndividuaisLocal.size > 1 ? 's' : ''} específico${datasIndividuaisLocal.size > 1 ? 's' : ''})` : ''}`
-      : datasIndividuaisLocal.size > 0
-        ? `${datasIndividuaisLocal.size} dia${datasIndividuaisLocal.size > 1 ? 's' : ''} específico${datasIndividuaisLocal.size > 1 ? 's' : ''} selecionado${datasIndividuaisLocal.size > 1 ? 's' : ''}`
-        : 'Selecionar período';
+  // Efeito para sincronizar recorrencia com props apenas uma vez ao abrir ou quando source explicitamente mudar para recorrencia
+  const lastSourceRef = useRef(source);
+  useEffect(() => {
+    // Se a origem mudou explicitamente para recorrência, ou o modal abriu com recorrência
+    if (source === 'recorrencia' && (lastSourceRef.current !== 'recorrencia' || isOpen)) {
+      setRecorrenciaAtiva(true);
+      setExibirPanelRecorrencia(true);
+      if (propRecorrenciaConfig) {
+        setRecorrenciaTipo(prev => (prev === (propRecorrenciaConfig.tipo || 'nao_repetir')) ? prev : (propRecorrenciaConfig.tipo || 'nao_repetir'));
+
+        // Comparação profunda simples para arrays e objetos
+        setRecorrenciaDiasSemana(prev => {
+          const next = propRecorrenciaConfig.diasSemana || [];
+          if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
+          return next;
+        });
+
+        setRecorrenciaMensalOpcao(prev => (prev === (propRecorrenciaConfig.mensalOpcao || 'mesmo_dia_mes')) ? prev : (propRecorrenciaConfig.mensalOpcao || 'mesmo_dia_mes'));
+
+        setRecorrenciaPersonalizado(prev => {
+          const next = propRecorrenciaConfig.personalizado || { repeteCada: 1, intervalo: 'dias' };
+          if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
+          return next;
+        });
+
+        setRecorrenciaTermina(prev => (prev === (propRecorrenciaConfig.termina || 'nunca')) ? prev : (propRecorrenciaConfig.termina || 'nunca'));
+        setRecorrenciaTerminaData(prev => (prev === (propRecorrenciaConfig.terminaData || '')) ? prev : (propRecorrenciaConfig.terminaData || ''));
+      }
+    }
+    // Se a origem mudou de recorrência para OUTRA COISA, desativamos
+    else if (source !== 'recorrencia' && lastSourceRef.current === 'recorrencia') {
+      setRecorrenciaAtiva(false);
+      setExibirPanelRecorrencia(false);
+    }
+    lastSourceRef.current = source;
+  }, [source, isOpen, propRecorrenciaConfig]); // Adicionado propRecorrenciaConfig para reagir a mudanças legítimas externas
+
+  // Função para gerar o sumário textual da recorrência
+  const renderSumarioRecorrencia = () => {
+    if (!recorrenciaAtiva || recorrenciaTipo === 'nao_repetir') return null;
+
+    let resumo = '';
+    const termoTermino = recorrenciaTermina === 'nunca' ? 'para sempre' : `até ${formatarData(recorrenciaTerminaData)}`;
+
+    switch (recorrenciaTipo) {
+      case 'diariamente':
+        resumo = 'Todo dia';
+        break;
+      case 'semanalmente':
+        const dias = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
+        const selecionados = (recorrenciaDiasSemana || []).map(d => dias[d]);
+        resumo = `Toda ${selecionados.join(', ')}`;
+        break;
+      case 'mensalmente':
+        if (recorrenciaMensalOpcao === 'mesmo_dia_mes') resumo = 'Todo mês (mesmo dia)';
+        else if (recorrenciaMensalOpcao === 'primeiro_dia_util') resumo = 'Todo 1º dia útil do mês';
+        else if (recorrenciaMensalOpcao === 'ultimo_dia_util') resumo = 'Todo último dia útil do mês';
+        else resumo = 'Todo mês (mesmo dia da semana)';
+        break;
+      case 'personalizado':
+        resumo = `A cada ${recorrenciaPersonalizado.repeteCada} ${recorrenciaPersonalizado.intervalo === 'dias' ? 'dia(s)' : recorrenciaPersonalizado.intervalo === 'semanas' ? 'semana(s)' : 'mês(es)'}`;
+        break;
+      default: resumo = 'Repetindo...';
+    }
+
+    return `${resumo} ${termoTermino}`;
+  };
+
+  // Aplicar Recorrência quando qualquer parâmetro mudar
+  useEffect(() => {
+    if (!recorrenciaAtiva || recorrenciaTipo === 'nao_repetir') {
+      // Se parou de ser recorrência, o pai deve saber
+      if (source === 'recorrencia' && onSourceChange) {
+        onSourceChange(null);
+      }
+      return;
+    }
+
+    // Se estiver ativa mas não tiver data início (âncora), definimos uma agora.
+    // Usamos o primeiro dia do mês atual para garantir que o calendário mostre algo.
+    if (!localInicio) {
+      const agora = new Date();
+      const primeiroDoMes = new Date(agora.getFullYear(), agora.getMonth(), 1, 12, 0, 0);
+      const dataPadrao = formatDateForInput(primeiroDoMes);
+      editandoLocalmenteRef.current = true;
+      setLocalInicio(dataPadrao);
+      // Notificamos o pai que agora somos fonte de recorrência e não de período fixo
+      if (onInicioChange) onInicioChange({ target: { value: null } });
+      if (onFimChange) onFimChange({ target: { value: null } });
+      if (onSourceChange) onSourceChange('recorrencia');
+      return;
+    }
+
+    try {
+      // Se termina "nunca", usamos um limite de 5 anos por segurança
+      let fimParaGerar = recorrenciaTermina === 'nunca' ? '' : recorrenciaTerminaData;
+      if (!fimParaGerar) {
+        const d = new Date(localInicio + 'T12:00:00');
+        d.setFullYear(d.getFullYear() + 5);
+        fimParaGerar = d.toISOString().split('T')[0];
+      }
+
+      const datas = gerarDatasRecorrencia({
+        inicio: localInicio,
+        fim: fimParaGerar,
+        tipo: recorrenciaTipo,
+        diasSemana: recorrenciaDiasSemana || [],
+        mensalOpcao: recorrenciaMensalOpcao,
+        personalizado: recorrenciaPersonalizado,
+        feriados: feriados
+      });
+
+      // Atualizamos o estado local de datas individuais
+      const novasDatasSet = new Set(datas);
+
+      // Bloqueamos a sincronização vindo do pai para esta alteração
+      isSyncingFromProps.current = true;
+
+      // Atualizar localmente
+      setDatasIndividuaisLocal(novasDatasSet);
+
+      // Notificar componente pai apenas se mudou
+      const currentStr = Array.from(datasIndividuaisLocal).sort().join(',');
+      const newStr = [...datas].sort().join(',');
+
+      if (currentStr !== newStr && onDatasIndividuaisChange) {
+        onDatasIndividuaisChange(datas);
+      }
+
+      // Garantir que a fonte seja recorrência
+      if (onSourceChange && source !== 'recorrencia') {
+        onSourceChange('recorrencia');
+      }
+
+      // Notificar configuração se disponível
+      if (onRecorrenciaConfigChange) {
+        const newConfig = {
+          tipo: recorrenciaTipo,
+          diasSemana: recorrenciaDiasSemana,
+          mensalOpcao: recorrenciaMensalOpcao,
+          personalizado: recorrenciaPersonalizado,
+          termina: recorrenciaTermina,
+          terminaData: recorrenciaTerminaData,
+          anchorInicio: localInicio
+        };
+
+        if (JSON.stringify(newConfig) !== JSON.stringify(propRecorrenciaConfig)) {
+          onRecorrenciaConfigChange(newConfig);
+        }
+      }
+
+      // Se recorrencia ativa, garantimos que inicio/fim reais sejam null no pai
+      if (onInicioChange && dataInicio !== null) {
+        onInicioChange({ target: { value: null } });
+      }
+      if (onFimChange && dataFim !== null) {
+        onFimChange({ target: { value: null } });
+      }
+    } catch (e) {
+      console.error("Recorrência error:", e);
+    }
+  }, [
+    recorrenciaAtiva,
+    recorrenciaTipo,
+    JSON.stringify(recorrenciaDiasSemana),
+    recorrenciaMensalOpcao,
+    JSON.stringify(recorrenciaPersonalizado),
+    recorrenciaTermina,
+    recorrenciaTerminaData,
+    localInicio,
+    feriados
+  ]);
+
+  const textoDisplay = (recorrenciaAtiva && recorrenciaTipo !== 'nao_repetir')
+    ? (renderSumarioRecorrencia() || 'Recorrência Ativa')
+    : (localInicio && localFim)
+      ? `${formatarData(localInicio)} - ${formatarData(localFim)}${datasIndividuaisLocal.size > 0 ? ` (${datasIndividuaisLocal.size} dia${datasIndividuaisLocal.size > 1 ? 's' : ''} específico${datasIndividuaisLocal.size > 1 ? 's' : ''})` : ''}`
+      : localInicio
+        ? `${formatarData(localInicio)} - ...${datasIndividuaisLocal.size > 0 ? ` (${datasIndividuaisLocal.size} dia${datasIndividuaisLocal.size > 1 ? 's' : ''} específico${datasIndividuaisLocal.size > 1 ? 's' : ''})` : ''}`
+        : datasIndividuaisLocal.size > 0
+          ? `${datasIndividuaisLocal.size} dia${datasIndividuaisLocal.size > 1 ? 's' : ''} específico${datasIndividuaisLocal.size > 1 ? 's' : ''} selecionado${datasIndividuaisLocal.size > 1 ? 's' : ''}`
+          : 'Selecionar período';
 
   useEffect(() => {
     // Não sincronizar se estamos editando localmente (para evitar conflitos)
@@ -42,8 +242,13 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
       editandoLocalmenteRef.current = false;
       return;
     }
-    setLocalInicio(dataInicio || '');
-    setLocalFim(dataFim || '');
+    // Só sincroniza inicio/fim se não estiver em modo recorrência ou se vierem novos valores não nulos
+    if (source !== 'recorrencia' || (dataInicio && dataInicio !== localInicio)) {
+      setLocalInicio(dataInicio || propRecorrenciaConfig?.anchorInicio || '');
+    }
+    if (source !== 'recorrencia' || (dataFim && dataFim !== localFim)) {
+      setLocalFim(dataFim || '');
+    }
     // Marcar que estamos sincronizando das props para evitar que o efeito de datas individuais sobrescreva
     isSyncingFromProps.current = true;
   }, [dataInicio, dataFim]);
@@ -53,7 +258,9 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
     if (!Array.isArray(datasIndividuais)) return;
     const newSet = new Set(datasIndividuais);
     setDatasIndividuaisLocal(prev => {
-      if (prev.size === newSet.size && [...prev].every(v => newSet.has(v))) {
+      const prevArr = Array.from(prev).sort();
+      const nextArr = Array.from(newSet).sort();
+      if (prevArr.join(',') === nextArr.join(',')) {
         return prev;
       }
       return newSet;
@@ -81,6 +288,13 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
     // Se a atualização veio das props, não sobrescrever datas individuais
     if (isSyncingFromProps.current) {
       isSyncingFromProps.current = false;
+      return;
+    }
+
+    // Se a recorrência estiver ativa, este efeito NÃO deve limpar ou filtrar as datas
+    // pois a recorrência gerencia suas próprias datas selecionadas (whitelist)
+    if (recorrenciaAtiva) {
+      periodoAnteriorRef.current = { inicio: localInicio, fim: localFim };
       return;
     }
 
@@ -312,11 +526,15 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
     const isCtrlPressed = event && (event.ctrlKey || event.metaKey);
 
     // Verificações de finais de semana e feriados
-    if (showWeekendToggle && !habilitarFinaisSemana && isWeekend(date)) {
-      return;
-    }
-    if (showHolidayToggle && !habilitarFeriados && isHoliday(date)) {
-      return;
+    // Se a recorrência estiver ativa, permitimos o clique para definir a data âncora, 
+    // mesmo em dias "desabilitados" visualmente para o range manual.
+    if (!recorrenciaAtiva) {
+      if (showWeekendToggle && !habilitarFinaisSemana && isWeekend(date)) {
+        return;
+      }
+      if (showHolidayToggle && !habilitarFeriados && isHoliday(date)) {
+        return;
+      }
     }
 
     const dateStr = formatDateForInput(date);
@@ -326,6 +544,18 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
     const temPeriodoCompleto = localInicio && localFim;
     const temApenasDatasIndividuais = !temPeriodoCompleto && datasIndividuaisLocal.size > 0;
     const naoTemNada = !temPeriodoCompleto && !temApenasDatasIndividuais;
+
+    // NOVO: Se recorrência está ativa, o clique define a data âncora (início)
+    if (recorrenciaAtiva && !isCtrlPressed) {
+      editandoLocalmenteRef.current = true;
+      setLocalInicio(dateStr);
+      setLocalFim(''); // Limpamos o fim pois recorrência usa regra + data término
+      setSelectingStart(false);
+
+      if (onInicioChange) onInicioChange({ target: { value: dateStr } });
+      if (onFimChange) onFimChange({ target: { value: '' } });
+      return;
+    }
 
     // CASO 1: Ctrl pressionado - sempre tratar como dia específico
     if (isCtrlPressed) {
@@ -665,85 +895,71 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
       'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
     const monthYear = `${monthNames[month]} de ${year}`;
 
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const firstDayWeekday = firstDay.getDay();
+    // Usar meio-dia para evitar problemas de fuso horário/horário de verão ao pegar o dia
+    const firstDay = new Date(year, month, 1, 12, 0, 0);
+    const lastDay = new Date(year, month + 1, 0, 12, 0, 0);
+    const firstDayWeekday = firstDay.getDay(); // 0 a 6 (Domingo a Sábado)
     const daysInMonth = lastDay.getDate();
 
     const days = [];
 
-    // Dias vazios do início
+    // 1. Preencher dias vazios do início (até o primeiro dia do mês)
     for (let i = 0; i < firstDayWeekday; i++) {
-      days.push(<div key={`empty-${i}`} className="periodo-calendar-day empty"></div>);
+      days.push(<div key={`empty-start-${i}`} className="periodo-calendar-day empty"></div>);
     }
 
-    // Dias do mês
+    // 2. Preencher dias do mês atual
     for (let day = 1; day <= daysInMonth; day++) {
-      const currentDate = new Date(year, month, day);
+      const currentDate = new Date(year, month, day, 12, 0, 0);
+      const dateStr = formatDateForInput(currentDate);
+
       let dayClasses = 'periodo-calendar-day';
-      const isWeekendDay = isWeekend(currentDate);
+      const isWeekendDay = currentDate.getDay() === 0 || currentDate.getDay() === 6;
       const isHolidayDay = isHoliday(currentDate);
       const holidayName = isHolidayDay ? getHolidayName(currentDate) : null;
       const isDisabledWeekend = showWeekendToggle && !habilitarFinaisSemana && isWeekendDay;
       const isDisabledHoliday = showHolidayToggle && !habilitarFeriados && isHolidayDay;
       const isDisabled = isDisabledWeekend || isDisabledHoliday;
 
-      // Adicionar classe para finais de semana desabilitados
-      if (isDisabledWeekend) {
-        dayClasses += ' weekend-disabled';
-      }
-
-      // Adicionar classe para feriados
+      if (isDisabledWeekend) dayClasses += ' weekend-disabled';
       if (isHolidayDay) {
         dayClasses += ' holiday';
-        if (isDisabledHoliday) {
-          dayClasses += ' holiday-disabled';
-        }
+        if (isDisabledHoliday) dayClasses += ' holiday-disabled';
       }
 
-      // Verificar se é data de início ou fim
+      // Lógica de seleção (Início/Fim)
       if (localInicio) {
-        const inicioDate = new Date(localInicio + 'T00:00:00');
-        const inicioDateObj = new Date(inicioDate.getFullYear(), inicioDate.getMonth(), inicioDate.getDate());
-        const isStartDate = isSameDay(currentDate, inicioDateObj);
-
-        if (isStartDate) {
-          dayClasses += ' selected start-date';
-        }
+        const dInicio = new Date(localInicio + 'T12:00:00');
+        const isStartDate = isSameDay(currentDate, dInicio);
+        if (isStartDate) dayClasses += ' selected start-date';
 
         if (localFim) {
-          const fimDate = new Date(localFim + 'T00:00:00');
-          const fimDateObj = new Date(fimDate.getFullYear(), fimDate.getMonth(), fimDate.getDate());
-          const isEndDate = isSameDay(currentDate, fimDateObj);
-
-          if (isEndDate) {
-            dayClasses += ' selected end-date';
-          }
-
-          // Adicionar classe in-range apenas para datas entre início e fim
-          if (!isStartDate && !isEndDate && isDateInRange(currentDate, inicioDateObj, fimDateObj)) {
+          const dFim = new Date(localFim + 'T12:00:00');
+          const isEndDate = isSameDay(currentDate, dFim);
+          if (isEndDate) dayClasses += ' selected end-date';
+          if (!isStartDate && !isEndDate && currentDate > dInicio && currentDate < dFim) {
             dayClasses += ' in-range';
           }
         }
       }
 
-      // Verificar se é uma data individual selecionada/desselecionada
-      const dateStr = formatDateForInput(currentDate);
-      const isIndividualSelected = datasIndividuaisLocal.has(dateStr);
-      if (isIndividualSelected) {
+      // Lógica de seleção individual/recorrência
+      if (datasIndividuaisLocal.has(dateStr)) {
         dayClasses += ' individual-selected';
+        if (recorrenciaAtiva && recorrenciaTipo !== 'nao_repetir') {
+          dayClasses += ' is-recurrent-selection';
+        }
       }
 
       days.push(
         <div
-          key={day}
+          key={`day-${dateStr}`}
           className={dayClasses}
           onClick={(e) => !isDisabled && handleDateClick(currentDate, e)}
           onMouseEnter={(e) => {
             if (isHolidayDay && holidayName) {
-              const rect = e.currentTarget.getBoundingClientRect();
               setHoveredHoliday({
-                date: formatDateForInput(currentDate),
+                date: dateStr,
                 name: holidayName,
                 x: e.clientX,
                 y: e.clientY
@@ -752,37 +968,28 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
           }}
           onMouseMove={(e) => {
             if (isHolidayDay && holidayName && hoveredHoliday) {
-              setHoveredHoliday({
-                date: formatDateForInput(currentDate),
-                name: holidayName,
-                x: e.clientX,
-                y: e.clientY
-              });
+              setHoveredHoliday({ ...hoveredHoliday, x: e.clientX, y: e.clientY });
             }
           }}
-          onMouseLeave={() => {
-            setHoveredHoliday(null);
-          }}
-          style={{
-            ...(isDisabled ? { cursor: 'not-allowed', opacity: 0.4 } : {}),
-            position: 'relative'
-          }}
+          onMouseLeave={() => setHoveredHoliday(null)}
+          style={{ position: 'relative', cursor: isDisabled ? 'not-allowed' : 'pointer' }}
         >
           {day}
           {isHolidayDay && (
             <span className="holiday-indicator" style={{
-              position: 'absolute',
-              top: '2px',
-              right: '2px',
-              width: '6px',
-              height: '6px',
-              borderRadius: '50%',
-              backgroundColor: isDisabledHoliday ? '#ef4444' : '#f59e0b',
-              display: 'block'
-            }}></span>
+              position: 'absolute', top: '2px', right: '2px', width: '6px', height: '6px',
+              borderRadius: '50%', backgroundColor: isDisabledHoliday ? '#ef4444' : '#f59e0b'
+            }} />
           )}
         </div>
       );
+    }
+
+    // 3. Preencher dias vazios do fim para fechar sempre 6 linhas (42 células total)
+    const requiredTotal = 42;
+    const currentTotal = days.length;
+    for (let i = 0; i < (requiredTotal - currentTotal); i++) {
+      days.push(<div key={`empty-end-${i}`} className="periodo-calendar-day empty"></div>);
     }
 
     return { monthYear, days };
@@ -816,6 +1023,7 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
         </div>,
         document.body
       )}
+
       <div className={`periodo-filter-container ${size === 'small' ? 'size-small' : ''} ${isAtribuicaoMini ? 'variant-atribuicao-mini' : ''}`} ref={containerRef}>
         <div
           className="periodo-select-field"
@@ -843,6 +1051,7 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
             </span>
             <i className={`fas ${isOpen ? 'fa-chevron-down' : 'fa-chevron-up'} periodo-select-arrow ${isOpen ? 'rotated' : ''}`}></i>
           </div>
+
           {isOpen && !disabled && typeof document !== 'undefined' && createPortal(
             <div
               ref={dropdownRef}
@@ -860,306 +1069,513 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
               }}
             >
               <div
-                className="periodo-dropdown"
+                className={`periodo-dropdown ${showQuickSelect ? 'with-quick-select' : ''} ${showRecurrence ? 'has-recurrence-side' : ''}`}
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
                 style={{
-                  position: 'relative', // Reset position so it flows in flex
-                  width: isAtribuicaoMini ? 260 : (size === 'small' ? 320 : Math.max(340, dropdownPos.width)),
-                  boxShadow: dropdownPos.placement === 'top'
-                    ? '0 -8px 24px rgba(0,0,0,0.2)'
-                    : '0 8px 24px rgba(0,0,0,0.2)',
                   backgroundColor: '#fff',
-                  borderRadius: '12px', // Ensure rounded corners from CSS are consistent if missing
-                  overflow: 'hidden'
+                  boxShadow: dropdownPos.placement === 'top'
+                    ? '0 -8px 24px rgba(0,0,0,0.15)'
+                    : '0 8px 24px rgba(0,0,0,0.15)',
+                  borderRadius: '12px',
+                  border: '1px solid #e5e7eb',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'row'
                 }}
               >
-                <div className="periodo-dropdown-content">
-                  <div style={{ padding: isAtribuicaoMini ? '8px' : '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: isAtribuicaoMini ? '4px' : (size === 'small' ? '6px' : '10px') }}>
-                      <i className="fas fa-calendar-alt" style={{ color: '#4b5563', fontSize: size === 'small' ? '12px' : '14px' }}></i>
-                      <span style={{ fontWeight: 600, color: '#111827', fontSize: isAtribuicaoMini ? '11px' : (size === 'small' ? '12px' : '13px'), flex: 1 }}>Filtro de período</span>
+                <div className="periodo-dropdown-content" style={{ display: 'flex', width: '100%' }}>
+                  <div className="periodo-picker-main-layout" style={{ display: 'flex', flexDirection: 'row' }}>
+                    {/* LADO ESQUERDO: CALENDÁRIO E CONTROLES */}
+                    <div className="periodo-calendar-section-wrapper" style={{ padding: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '16px' }}>
+                        <i className="fas fa-calendar-alt" style={{ color: '#4b5563', fontSize: '14px' }}></i>
+                        <span style={{ fontWeight: 600, color: '#111827', fontSize: '14px', flex: 1 }}>Filtro de período</span>
 
-                      <button
-                        type="button"
-                        onClick={() => setShowQuickSelect(!showQuickSelect)}
-                        title="Seleção Rápida"
-                        style={{
-                          border: 'none',
-                          background: showQuickSelect ? '#eff6ff' : 'transparent',
-                          color: showQuickSelect ? '#2563eb' : '#6b7280',
-                          cursor: 'pointer',
-                          padding: '4px',
-                          borderRadius: '4px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          transition: 'all 0.2s'
-                        }}
-                      >
-                        <i className="fas fa-magic" style={{ fontSize: '12px' }}></i>
-                      </button>
-                    </div>
-
-                    {/* Na variante da Nova Atribuição, o período é mostrado no display (compacto) e não precisa desses inputs */}
-                    {!isAtribuicaoMini && (
-                      <div style={{ display: 'flex', gap: '8px', marginBottom: size === 'small' ? '8px' : '10px', maxWidth: size === 'small' ? '220px' : '240px', marginLeft: 'auto', marginRight: 'auto' }}>
-                        <div style={{ flex: 1 }}>
-                          <label style={{ display: 'block', fontSize: size === 'small' ? '10px' : '11px', color: '#6c757d', fontWeight: 500, marginBottom: '4px' }}>Início</label>
-                          <input
-                            type="text"
-                            readOnly
-                            value={formatarData(localInicio)}
-                            style={{ width: '100%', padding: size === 'small' ? '4px 8px' : '6px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: size === 'small' ? '12px' : '14px', fontFamily: 'inherit', background: '#f9fafb', cursor: 'pointer', color: '#495057' }}
-                          />
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <label style={{ display: 'block', fontSize: size === 'small' ? '10px' : '11px', color: '#6c757d', fontWeight: 500, marginBottom: '4px' }}>Vencimento</label>
-                          <input
-                            type="text"
-                            readOnly
-                            value={formatarData(localFim)}
-                            style={{ width: '100%', padding: size === 'small' ? '4px 8px' : '6px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: size === 'small' ? '12px' : '14px', fontFamily: 'inherit', background: '#f9fafb', cursor: 'pointer', color: '#495057' }}
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Toggle para habilitar finais de semana - apenas se showWeekendToggle for true */}
-                    {showWeekendToggle && (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: isAtribuicaoMini ? 'flex-start' : 'center', gap: isAtribuicaoMini ? '6px' : '8px', marginBottom: isAtribuicaoMini ? '4px' : (size === 'small' ? '8px' : '10px') }}>
-                        <label style={{ fontSize: isAtribuicaoMini ? '10px' : (size === 'small' ? '11px' : '12px'), fontWeight: '500', color: '#374151', whiteSpace: 'nowrap' }}>
-                          Habilitar finais de semana:
-                        </label>
-                        <div style={{ position: 'relative', display: 'inline-block' }}>
-                          <input
-                            type="checkbox"
-                            id="toggleFinaisSemana"
-                            checked={habilitarFinaisSemana}
-                            onChange={(e) => {
-                              const novoValor = e.target.checked;
-                              setHabilitarFinaisSemana(novoValor);
-                              if (onWeekendToggleChange) {
-                                onWeekendToggleChange(novoValor);
-                              }
-                            }}
-                            style={{
-                              width: isAtribuicaoMini ? '34px' : '44px',
-                              height: isAtribuicaoMini ? '18px' : '24px',
-                              appearance: 'none',
-                              backgroundColor: habilitarFinaisSemana ? 'var(--primary-blue, #0e3b6f)' : '#cbd5e1',
-                              borderRadius: isAtribuicaoMini ? '10px' : '12px',
-                              position: 'relative',
-                              cursor: 'pointer',
-                              transition: 'background-color 0.2s',
-                              outline: 'none',
-                              border: 'none'
-                            }}
-                          />
-                          <span
-                            style={{
-                              position: 'absolute',
-                              top: isAtribuicaoMini ? '2px' : '2px',
-                              left: habilitarFinaisSemana ? (isAtribuicaoMini ? '18px' : '22px') : '2px',
-                              width: isAtribuicaoMini ? '14px' : '20px',
-                              height: isAtribuicaoMini ? '14px' : '20px',
-                              borderRadius: '50%',
-                              backgroundColor: '#fff',
-                              transition: 'left 0.2s',
-                              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                              pointerEvents: 'none'
-                            }}
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Toggle para habilitar feriados - apenas se showHolidayToggle for true */}
-                    {showHolidayToggle && (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: isAtribuicaoMini ? 'flex-start' : 'center', gap: isAtribuicaoMini ? '6px' : '8px', marginBottom: isAtribuicaoMini ? '4px' : (size === 'small' ? '8px' : '10px') }}>
-                        <label style={{ fontSize: isAtribuicaoMini ? '10px' : (size === 'small' ? '11px' : '12px'), fontWeight: '500', color: '#374151', whiteSpace: 'nowrap' }}>
-                          Habilitar feriados:
-                        </label>
-                        <div style={{ position: 'relative', display: 'inline-block' }}>
-                          <input
-                            type="checkbox"
-                            id="toggleFeriados"
-                            checked={habilitarFeriados}
-                            onChange={(e) => {
-                              const novoValor = e.target.checked;
-                              setHabilitarFeriados(novoValor);
-                              if (onHolidayToggleChange) {
-                                onHolidayToggleChange(novoValor);
-                              }
-                            }}
-                            style={{
-                              width: isAtribuicaoMini ? '34px' : '44px',
-                              height: isAtribuicaoMini ? '18px' : '24px',
-                              appearance: 'none',
-                              backgroundColor: habilitarFeriados ? 'var(--primary-blue, #0e3b6f)' : '#cbd5e1',
-                              borderRadius: isAtribuicaoMini ? '10px' : '12px',
-                              position: 'relative',
-                              cursor: 'pointer',
-                              transition: 'background-color 0.2s',
-                              outline: 'none',
-                              border: 'none'
-                            }}
-                          />
-                          <span
-                            style={{
-                              position: 'absolute',
-                              top: isAtribuicaoMini ? '2px' : '2px',
-                              left: habilitarFeriados ? (isAtribuicaoMini ? '18px' : '22px') : '2px',
-                              width: isAtribuicaoMini ? '14px' : '20px',
-                              height: isAtribuicaoMini ? '14px' : '20px',
-                              borderRadius: '50%',
-                              backgroundColor: '#fff',
-                              transition: 'left 0.2s',
-                              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                              pointerEvents: 'none'
-                            }}
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Texto de ajuda para seleção de dias específicos */}
-                    <div style={{
-                      fontSize: isAtribuicaoMini ? '9px' : (size === 'small' ? '10px' : '11px'),
-                      color: '#6b7280',
-                      textAlign: 'center',
-                      marginTop: isAtribuicaoMini ? '4px' : (size === 'small' ? '6px' : '8px'),
-                      marginBottom: isAtribuicaoMini ? '4px' : (size === 'small' ? '6px' : '8px'),
-                      padding: isAtribuicaoMini ? '4px 8px' : (size === 'small' ? '6px 10px' : '8px 12px'),
-                      backgroundColor: '#f9fafb',
-                      borderRadius: '4px',
-                      fontStyle: 'italic'
-                    }}>
-                      💡 Clique segurando <strong>Ctrl</strong> para selecionar dias específicos.
-                    </div>
-
-                    <div className="periodo-calendar-container">
-                      <div className="periodo-calendar-header">
-                        <button className="periodo-calendar-nav" type="button" onClick={handlePrevMonth}>
-                          <i className="fas fa-chevron-left"></i>
-                        </button>
-                        <span className="periodo-calendar-month-year">{monthYear}</span>
-                        <button className="periodo-calendar-nav" type="button" onClick={handleNextMonth}>
-                          <i className="fas fa-chevron-right"></i>
-                        </button>
-                      </div>
-                      <div className="periodo-calendar-weekdays">
-                        <div>D</div>
-                        <div>S</div>
-                        <div>T</div>
-                        <div>Q</div>
-                        <div>Q</div>
-                        <div>S</div>
-                        <div>S</div>
-                      </div>
-                      <div className="periodo-calendar-days">
-                        {days}
-                      </div>
-                    </div>
-
-                    {/* Botão Limpar - abaixo do calendário, alinhado à direita */}
-                    {(localInicio || localFim || datasIndividuaisLocal.size > 0) && (
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'flex-end',
-                        marginTop: isAtribuicaoMini ? '4px' : (size === 'small' ? '4px' : '6px'),
-                        paddingRight: isAtribuicaoMini ? '4px' : (size === 'small' ? '4px' : '6px')
-                      }}>
                         <button
                           type="button"
-                          onClick={handleLimpar}
+                          onClick={() => setShowQuickSelect(!showQuickSelect)}
+                          title="Seleção Rápida"
                           style={{
+                            border: 'none',
+                            background: showQuickSelect ? '#eff6ff' : 'transparent',
+                            color: showQuickSelect ? '#2563eb' : '#6b7280',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            borderRadius: '4px',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '6px',
-                            padding: isAtribuicaoMini ? '4px 12px' : (size === 'small' ? '6px 14px' : '8px 16px'),
-                            fontSize: isAtribuicaoMini ? '11px' : (size === 'small' ? '12px' : '13px'),
-                            fontWeight: 500,
-                            color: '#dc2626',
-                            backgroundColor: '#fef2f2',
-                            border: '1px solid #fecaca',
-                            borderRadius: '6px',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease',
-                            fontFamily: 'inherit'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = '#fee2e2';
-                            e.currentTarget.style.borderColor = '#fca5a5';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = '#fef2f2';
-                            e.currentTarget.style.borderColor = '#fecaca';
+                            justifyContent: 'center',
+                            transition: 'all 0.2s'
                           }}
                         >
-                          <i className="fas fa-times-circle" style={{ fontSize: isAtribuicaoMini ? '12px' : (size === 'small' ? '13px' : '14px') }}></i>
-                          <span>Limpar</span>
+                          <i className="fas fa-magic" style={{ fontSize: '12px' }}></i>
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsOpen(false)}
+                          style={{ border: 'none', background: 'transparent', color: '#9ca3af', cursor: 'pointer', padding: '4px' }}
+                        >
+                          <i className="fas fa-times"></i>
+                        </button>
+                      </div>
+
+                      {/* Na variante da Nova Atribuição, o período é mostrado no display (compacto) e não precisa desses inputs */}
+                      {!isAtribuicaoMini && (
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: size === 'small' ? '8px' : '10px', maxWidth: size === 'small' ? '220px' : '240px', marginLeft: 'auto', marginRight: 'auto' }}>
+                          <div style={{ flex: 1 }}>
+                            <label style={{ display: 'block', fontSize: size === 'small' ? '10px' : '11px', color: '#6c757d', fontWeight: 500, marginBottom: '4px' }}>Início</label>
+                            <input
+                              type="text"
+                              readOnly
+                              value={formatarData(localInicio)}
+                              style={{ width: '100%', padding: size === 'small' ? '4px 8px' : '6px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: size === 'small' ? '12px' : '14px', fontFamily: 'inherit', background: '#f9fafb', cursor: 'pointer', color: '#495057' }}
+                            />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <label style={{ display: 'block', fontSize: size === 'small' ? '10px' : '11px', color: '#6c757d', fontWeight: 500, marginBottom: '4px' }}>Vencimento</label>
+                            <input
+                              type="text"
+                              readOnly
+                              value={formatarData(localFim)}
+                              style={{ width: '100%', padding: size === 'small' ? '4px 8px' : '6px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: size === 'small' ? '12px' : '14px', fontFamily: 'inherit', background: '#f9fafb', cursor: 'pointer', color: '#495057' }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Toggle para habilitar finais de semana - apenas se showWeekendToggle for true */}
+                      {showWeekendToggle && (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: isAtribuicaoMini ? 'flex-start' : 'center', gap: isAtribuicaoMini ? '6px' : '8px', marginBottom: isAtribuicaoMini ? '4px' : (size === 'small' ? '8px' : '10px') }}>
+                          <label style={{ fontSize: isAtribuicaoMini ? '10px' : (size === 'small' ? '11px' : '12px'), fontWeight: '500', color: '#374151', whiteSpace: 'nowrap' }}>
+                            Habilitar finais de semana:
+                          </label>
+                          <div style={{ position: 'relative', display: 'inline-block' }}>
+                            <input
+                              type="checkbox"
+                              id="toggleFinaisSemana"
+                              checked={habilitarFinaisSemana}
+                              onChange={(e) => {
+                                const novoValor = e.target.checked;
+                                setHabilitarFinaisSemana(novoValor);
+                                if (onWeekendToggleChange) {
+                                  onWeekendToggleChange(novoValor);
+                                }
+                              }}
+                              style={{
+                                width: isAtribuicaoMini ? '34px' : '44px',
+                                height: isAtribuicaoMini ? '18px' : '24px',
+                                appearance: 'none',
+                                backgroundColor: habilitarFinaisSemana ? 'var(--primary-blue, #0e3b6f)' : '#cbd5e1',
+                                borderRadius: isAtribuicaoMini ? '10px' : '12px',
+                                position: 'relative',
+                                cursor: 'pointer',
+                                transition: 'background-color 0.2s',
+                                outline: 'none',
+                                border: 'none'
+                              }}
+                            />
+                            <span
+                              style={{
+                                position: 'absolute',
+                                top: isAtribuicaoMini ? '2px' : '2px',
+                                left: habilitarFinaisSemana ? (isAtribuicaoMini ? '18px' : '22px') : '2px',
+                                width: isAtribuicaoMini ? '14px' : '20px',
+                                height: isAtribuicaoMini ? '14px' : '20px',
+                                borderRadius: '50%',
+                                backgroundColor: '#fff',
+                                transition: 'left 0.2s',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                                pointerEvents: 'none'
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Toggle para habilitar feriados - apenas se showHolidayToggle for true */}
+                      {showHolidayToggle && (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: isAtribuicaoMini ? 'flex-start' : 'center', gap: isAtribuicaoMini ? '6px' : '8px', marginBottom: isAtribuicaoMini ? '4px' : (size === 'small' ? '8px' : '10px') }}>
+                          <label style={{ fontSize: isAtribuicaoMini ? '10px' : (size === 'small' ? '11px' : '12px'), fontWeight: '500', color: '#374151', whiteSpace: 'nowrap' }}>
+                            Habilitar feriados:
+                          </label>
+                          <div style={{ position: 'relative', display: 'inline-block' }}>
+                            <input
+                              type="checkbox"
+                              id="toggleFeriados"
+                              checked={habilitarFeriados}
+                              onChange={(e) => {
+                                const novoValor = e.target.checked;
+                                setHabilitarFeriados(novoValor);
+                                if (onHolidayToggleChange) {
+                                  onHolidayToggleChange(novoValor);
+                                }
+                              }}
+                              style={{
+                                width: isAtribuicaoMini ? '34px' : '44px',
+                                height: isAtribuicaoMini ? '18px' : '24px',
+                                appearance: 'none',
+                                backgroundColor: habilitarFeriados ? 'var(--primary-blue, #0e3b6f)' : '#cbd5e1',
+                                borderRadius: isAtribuicaoMini ? '10px' : '12px',
+                                position: 'relative',
+                                cursor: 'pointer',
+                                transition: 'background-color 0.2s',
+                                outline: 'none',
+                                border: 'none'
+                              }}
+                            />
+                            <span
+                              style={{
+                                position: 'absolute',
+                                top: isAtribuicaoMini ? '2px' : '2px',
+                                left: habilitarFeriados ? (isAtribuicaoMini ? '18px' : '22px') : '2px',
+                                width: isAtribuicaoMini ? '14px' : '20px',
+                                height: isAtribuicaoMini ? '14px' : '20px',
+                                borderRadius: '50%',
+                                backgroundColor: '#fff',
+                                transition: 'left 0.2s',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                                pointerEvents: 'none'
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Texto de ajuda para seleção de dias específicos */}
+                      <div style={{
+                        fontSize: isAtribuicaoMini ? '9px' : (size === 'small' ? '10px' : '11px'),
+                        color: '#6b7280',
+                        textAlign: 'center',
+                        marginTop: isAtribuicaoMini ? '4px' : (size === 'small' ? '6px' : '8px'),
+                        marginBottom: isAtribuicaoMini ? '4px' : (size === 'small' ? '6px' : '8px'),
+                        padding: isAtribuicaoMini ? '4px 8px' : (size === 'small' ? '6px 10px' : '8px 12px'),
+                        backgroundColor: '#f9fafb',
+                        borderRadius: '4px',
+                        fontStyle: 'italic'
+                      }}>
+                        💡 Clique segurando <strong>Ctrl</strong> para selecionar dias específicos.
+                      </div>
+
+                      <div className="periodo-calendar-container">
+                        <div className="periodo-calendar-header" style={{ marginBottom: '12px' }}>
+                          <button className="periodo-calendar-nav" type="button" onClick={handlePrevMonth}>
+                            <i className="fas fa-chevron-left"></i>
+                          </button>
+                          <span className="periodo-calendar-month-year" style={{ fontSize: '14px', fontWeight: 700 }}>{monthYear}</span>
+                          <button className="periodo-calendar-nav" type="button" onClick={handleNextMonth}>
+                            <i className="fas fa-chevron-right"></i>
+                          </button>
+                        </div>
+                        <div className="periodo-calendar-weekdays">
+                          <div>D</div><div>S</div><div>T</div><div>Q</div><div>Q</div><div>S</div><div>S</div>
+                        </div>
+                        <div className="periodo-calendar-days">
+                          {days}
+                        </div>
+                      </div>
+
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginTop: '20px',
+                        paddingTop: '16px',
+                        borderTop: '1px solid #f1f5f9'
+                      }}>
+                        {(localInicio || localFim || datasIndividuaisLocal.size > 0) ? (
+                          <button
+                            type="button"
+                            onClick={handleLimpar}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              padding: '8px 16px',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              color: '#dc2626',
+                              backgroundColor: '#fef2f2',
+                              border: '1px solid #fecaca',
+                              borderRadius: '8px',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fee2e2'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fef2f2'}
+                          >
+                            <i className="fas fa-trash-alt"></i>
+                            <span>Limpar</span>
+                          </button>
+                        ) : <div />}
+
+                        {(!showRecurrence || !recorrenciaAtiva) && (
+                          <button
+                            type="button"
+                            onClick={() => setIsOpen(false)}
+                            style={{
+                              padding: '6px 20px',
+                              backgroundColor: '#2563eb',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Pronto
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* LADO DIREITO: RECORRÊNCIA */}
+                    {showRecurrence && (
+                      <div className="periodo-recurrence-section-wrapper" style={{ width: '300px', padding: '16px', borderLeft: '1px solid #e2e8f0', backgroundColor: '#fcfcfd' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                          <input
+                            type="checkbox"
+                            checked={recorrenciaAtiva}
+                            onChange={(e) => {
+                              const active = e.target.checked;
+                              setRecorrenciaAtiva(active);
+                              if (!active) {
+                                setRecorrenciaTipo('nao_repetir');
+                                if (onSourceChange) onSourceChange(null);
+                              } else {
+                                // Se ativou recorrência, limpamos a seleção de período normal (fim e datas avulsas)
+                                // para não haver conflito visual ou de lógica.
+                                setLocalFim('');
+                                if (onFimChange) onFimChange({ target: { value: null } });
+                                setDatasIndividuaisLocal(new Set());
+                                if (onDatasIndividuaisChange) onDatasIndividuaisChange([]);
+                                setSelectingStart(true);
+
+                                if (onSourceChange) onSourceChange('recorrencia');
+
+                                if (recorrenciaTipo === 'nao_repetir') {
+                                  setRecorrenciaTipo('semanalmente');
+                                }
+
+                                if (!localInicio) {
+                                  const agora = new Date();
+                                  const d = formatDateForInput(new Date(agora.getFullYear(), agora.getMonth(), 1));
+                                  setLocalInicio(d);
+                                  if (onInicioChange) onInicioChange({ target: { value: null } });
+                                } else {
+                                  if (onInicioChange) onInicioChange({ target: { value: null } });
+                                }
+                              }
+                            }}
+                            style={{ width: '18px', height: '18px', accentColor: '#2563eb', cursor: 'pointer' }}
+                          />
+                          <label style={{ fontSize: '13px', fontWeight: 600, color: '#334155', cursor: 'pointer' }}>Recorrência</label>
+                        </div>
+
+                        {recorrenciaAtiva && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              <label style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Repetir</label>
+                              <select
+                                value={recorrenciaTipo}
+                                onChange={(e) => {
+                                  const novoTipo = e.target.value;
+                                  setRecorrenciaTipo(novoTipo);
+                                  // No need to set recorrenciaAtiva here, it's controlled by the checkbox
+                                  if (novoTipo !== 'nao_repetir' && !localInicio) {
+                                    const agora = new Date();
+                                    const d = formatDateForInput(new Date(agora.getFullYear(), agora.getMonth(), 1));
+                                    setLocalInicio(d);
+                                    if (onInicioChange) onInicioChange({ target: { value: d } });
+                                  }
+                                }}
+                                style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid #cbd5e1', borderRadius: '6px', color: '#334155' }}
+                              >
+                                <option value="nao_repetir">Não repetir</option>
+                                <option value="diariamente">Todo dia</option>
+                                <option value="semanalmente">Toda semana</option>
+                                <option value="mensalmente">Todo mês</option>
+                                <option value="personalizado">Personalizar</option>
+                              </select>
+                            </div>
+
+                            {recorrenciaTipo === 'semanalmente' && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <label style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Repetir em:</label>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '4px' }}>
+                                  {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((day, idx) => (
+                                    <button
+                                      key={idx}
+                                      type="button"
+                                      onClick={() => setRecorrenciaDiasSemana(prev => {
+                                        const current = prev || [];
+                                        const novo = current.includes(idx) ? current.filter(d => d !== idx) : [...current, idx];
+                                        return [...novo];
+                                      })}
+                                      style={{
+                                        width: '32px', height: '32px', borderRadius: '50%', border: 'none',
+                                        backgroundColor: (recorrenciaDiasSemana || []).includes(idx) ? '#2563eb' : '#f1f5f9',
+                                        color: (recorrenciaDiasSemana || []).includes(idx) ? '#fff' : '#64748b',
+                                        fontSize: '11px', fontWeight: 700, cursor: 'pointer',
+                                        transition: 'all 0.2s'
+                                      }}
+                                    >
+                                      {day}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {recorrenciaTipo === 'mensalmente' && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <label style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Configuração Mensal</label>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                  {[
+                                    { id: 'mesmo_dia_mes', label: `No dia ${localInicio ? localInicio.split('-')[2] : 'X'} de cada mês` },
+                                    { id: 'primeiro_dia_util', label: 'No primeiro dia útil' },
+                                    { id: 'ultimo_dia_util', label: 'No último dia útil' },
+                                    { id: 'mesmo_dia_semana', label: 'Mesmo dia da semana' },
+                                  ].map(opt => (
+                                    <label key={opt.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', cursor: 'pointer', color: '#334155' }}>
+                                      <input type="radio" checked={recorrenciaMensalOpcao === opt.id} onChange={() => setRecorrenciaMensalOpcao(opt.id)} style={{ accentColor: '#2563eb' }} />
+                                      {opt.label}
+                                    </label>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {(recorrenciaTipo === 'diariamente' || recorrenciaTipo === 'personalizado') && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <label style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>
+                                  {recorrenciaTipo === 'diariamente' ? 'Frequência' : 'Repetir a cada:'}
+                                </label>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  {recorrenciaTipo === 'personalizado' ? (
+                                    <>
+                                      <input
+                                        type="number" min="1"
+                                        value={recorrenciaPersonalizado.repeteCada || 1}
+                                        onChange={(e) => setRecorrenciaPersonalizado({ ...recorrenciaPersonalizado, repeteCada: Math.max(1, parseInt(e.target.value) || 1) })}
+                                        onClick={(e) => e.stopPropagation()}
+                                        onMouseDown={(e) => e.stopPropagation()}
+                                        onMouseUp={(e) => e.stopPropagation()}
+                                        style={{ width: '50px', padding: '6px', fontSize: '13px', border: '1px solid #cbd5e1', borderRadius: '6px', textAlign: 'center' }}
+                                      />
+                                      <select
+                                        value={recorrenciaPersonalizado.intervalo || 'dias'}
+                                        onChange={(e) => setRecorrenciaPersonalizado({ ...recorrenciaPersonalizado, intervalo: e.target.value })}
+                                        style={{ padding: '6px', fontSize: '13px', border: '1px solid #cbd5e1', borderRadius: '6px', backgroundColor: '#fff' }}
+                                      >
+                                        <option value="dias">dia(s)</option>
+                                        <option value="semanas">semana(s)</option>
+                                        <option value="meses">mês(es)</option>
+                                      </select>
+                                    </>
+                                  ) : (
+                                    <span style={{ fontSize: '13px', color: '#334155' }}>A cada 1 dia</span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
+                              <label style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Termina</label>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', cursor: 'pointer' }}>
+                                  <input type="radio" checked={recorrenciaTermina === 'nunca'} onChange={() => setRecorrenciaTermina('nunca')} /> Nunca
+                                </label>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <input type="radio" checked={recorrenciaTermina === 'data'} onChange={() => setRecorrenciaTermina('data')} />
+                                  <span style={{ fontSize: '12px' }}>Em:</span>
+                                  <input
+                                    type="date"
+                                    value={recorrenciaTerminaData}
+                                    onChange={(e) => { setRecorrenciaTerminaData(e.target.value); setRecorrenciaTermina('data'); }}
+                                    style={{ border: '1px solid #cbd5e1', borderRadius: '4px', padding: '2px 6px', fontSize: '11px' }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="periodo-recurrence-summary" style={{ marginTop: 'auto' }}>
+                              <div style={{ marginBottom: '12px', fontSize: '12px', color: '#2563eb', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <i className="fas fa-redo-alt" style={{ fontSize: '10px' }}></i>
+                                <span>{renderSumarioRecorrencia()}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setIsOpen(false)}
+                                style={{ width: '100%', padding: '10px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+                              >
+                                Pronto
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
                 </div>
-              </div>
 
-              {/* Card Secundário - Seleção Rápida */}
-              {showQuickSelect && (
-                <div
-                  className="periodo-quick-select"
-                  style={{
-                    width: '140px',
-                    backgroundColor: '#fff',
-                    borderRadius: '12px',
-                    boxShadow: dropdownPos.placement === 'top'
-                      ? '0 -8px 24px rgba(0,0,0,0.2)'
-                      : '0 8px 24px rgba(0,0,0,0.2)',
-                    padding: '8px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '4px',
-                    maxHeight: '380px', // Altura similar ao calendário
-                    overflowY: 'auto'
-                  }}>
-                  <div style={{ padding: '4px 8px', fontSize: '11px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase' }}>
-                    Agrupamento
+                {showQuickSelect && (
+                  <div
+                    className="periodo-quick-select"
+                    style={{
+                      width: '140px',
+                      backgroundColor: '#fff',
+                      borderRadius: '0 12px 12px 0',
+                      borderLeft: '1px solid #e5e7eb',
+                      padding: '8px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '4px',
+                      maxHeight: '380px',
+                      overflowY: 'auto'
+                    }}
+                  >
+                    <div style={{ padding: '4px 8px', fontSize: '11px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase' }}>
+                      Agrupamento
+                    </div>
+                    {[
+                      { label: 'Hoje', id: 'hoje' },
+                      { label: 'Ontem', id: 'ontem' },
+                      { label: 'Semana Atual', id: 'semana_atual' },
+                      { label: 'Semana Passada', id: 'semana_passada' },
+                      { label: 'Mês Atual', id: 'mes_atual' },
+                      { label: 'Mês Passado', id: 'mes_passado' },
+                      { label: 'Próximo Mês', id: 'proximo_mes' },
+                    ].map(opt => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => handleQuickSelect(opt.id)}
+                        style={{
+                          textAlign: 'left',
+                          padding: '8px 12px',
+                          fontSize: '12px',
+                          color: '#374151',
+                          backgroundColor: 'transparent',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          transition: 'background-color 0.15s',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <i className="far fa-calendar-check" style={{ fontSize: '10px', color: '#9ca3af' }}></i>
+                        {opt.label}
+                      </button>
+                    ))}
                   </div>
-                  {[
-                    { label: 'Hoje', id: 'hoje' },
-                    { label: 'Ontem', id: 'ontem' },
-                    { label: 'Semana Atual', id: 'semana_atual' },
-                    { label: 'Semana Passada', id: 'semana_passada' },
-                    { label: 'Mês Atual', id: 'mes_atual' },
-                    { label: 'Mês Passado', id: 'mes_passado' },
-                    { label: 'Próximo Mês', id: 'proximo_mes' },
-                  ].map(opt => (
-                    <button
-                      key={opt.id}
-                      onClick={() => handleQuickSelect(opt.id)}
-                      style={{
-                        textAlign: 'left',
-                        padding: '8px 12px',
-                        fontSize: '12px',
-                        color: '#374151',
-                        backgroundColor: 'transparent',
-                        border: 'none',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        transition: 'background-color 0.15s',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                    >
-                      <i className="far fa-calendar-check" style={{ fontSize: '10px', color: '#9ca3af' }}></i>
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              )}
+                )}
+              </div>
             </div>,
             document.body
           )}

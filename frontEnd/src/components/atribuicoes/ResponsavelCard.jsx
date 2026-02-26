@@ -11,7 +11,12 @@ const ResponsavelCard = ({
   disabled = false,
   colaboradores = [],
   isMulti = false,
-  selectedValues = []
+  selectedValues = [],
+  showAPartirDe = false,
+  isAPartirDeEnabled = false,
+  onAPartirDeToggle = null,
+  vigenciaDatas = {},
+  onVigenciaChange = null
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -359,6 +364,50 @@ const ResponsavelCard = ({
       onMouseDown={(e) => e.stopPropagation()}
     >
       <div className="responsavel-card-dropdown-content custom-scrollbar">
+        {showAPartirDe && (
+          <div className="responsavel-card-escalonamento">
+            <div className="escalonamento-header">
+              <div className="escalonamento-toggle-wrapper">
+                <span className="escalonamento-label">Escalonar (A partir de)</span>
+                <label className="vigencia-toggle-switch">
+                  <input
+                    type="checkbox"
+                    checked={isAPartirDeEnabled}
+                    onChange={(e) => onAPartirDeToggle && onAPartirDeToggle(e.target.checked)}
+                  />
+                  <span className="vigencia-toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            {isAPartirDeEnabled && colaboradoresSelecionados.length > 0 && (
+              <div className="escalonamento-list">
+                {colaboradoresSelecionados.map(c => (
+                  <div key={`vigencia-${c.id}`} className="escalonamento-item">
+                    <div className="escalonamento-item-info">
+                      <Avatar
+                        avatarId={c.foto_perfil || null}
+                        nomeUsuario={c.nome}
+                        size="small"
+                        className="responsavel-card-option-avatar"
+                      />
+                      <span className="escalonamento-item-name">{c.nome}</span>
+                    </div>
+                    <div className="escalonamento-item-date">
+                      <input
+                        type="date"
+                        value={vigenciaDatas[c.id] || ''}
+                        onChange={(e) => onVigenciaChange && onVigenciaChange(c.id, e.target.value)}
+                        className="escalonamento-date-input"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="responsavel-card-search">
           <div className="responsavel-card-search-wrapper">
             <i className="fas fa-search" style={{ color: '#9ca3af', fontSize: '14px' }}></i>
@@ -394,20 +443,10 @@ const ResponsavelCard = ({
 
             return (
               <div
-                key={option.value}
+                key={val}
                 className={`responsavel-card-option ${isSelected ? 'selected' : ''}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  handleSelect(option.value);
-                }}
-                onMouseDown={(e) => e.stopPropagation()}
+                onClick={() => handleSelect(option.value)}
               >
-                {isMulti && (
-                  <div className="responsavel-card-option-checkbox">
-                    {isSelected && <i className="fas fa-check"></i>}
-                  </div>
-                )}
                 {colaboradorOption ? (
                   <Avatar
                     avatarId={colaboradorOption.foto_perfil || null}
@@ -416,24 +455,20 @@ const ResponsavelCard = ({
                     className="responsavel-card-option-avatar"
                   />
                 ) : (
-                  <div className="responsavel-card-option-avatar-placeholder">
-                    <i className="fas fa-user" style={{ fontSize: '12px', color: '#9ca3af' }}></i>
+                  <div className="responsavel-card-option-avatar">
+                    <i className="fas fa-user"></i>
                   </div>
                 )}
                 <span className="responsavel-card-option-label">{option.label}</span>
-                {!isMulti && isSelected && (
-                  <i className="fas fa-check" style={{
-                    marginLeft: 'auto',
-                    color: '#0e3b6f',
-                    fontSize: '14px'
-                  }}></i>
+                {isSelected && isMulti && (
+                  <i className="fas fa-check" style={{ marginLeft: 'auto', fontSize: '12px', color: '#0e3b6f' }}></i>
                 )}
               </div>
             );
           })
         ) : (
           <div className="responsavel-card-option no-results">
-            <span>Nenhum colaborador encontrado</span>
+            Nenhum colaborador encontrado
           </div>
         )}
       </div>
@@ -443,7 +478,7 @@ const ResponsavelCard = ({
   return (
     <>
       {cardElement}
-      {dropdownElement && createPortal(dropdownElement, document.body)}
+      {isOpen && createPortal(dropdownElement, document.body)}
     </>
   );
 };

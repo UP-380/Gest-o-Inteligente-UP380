@@ -46,7 +46,12 @@ const SelecaoTarefasPorProduto = ({
   calcularTempoDisponivel = null, // função para calcular tempo disponível
   formatarTempoEstimado = null, // função para formatar tempo
   tarefasSelecionadasPorProduto = null, // objeto com todas as tarefas selecionadas para cálculo de tempo disponível
-  initialTarefas = null // Nova prop: tarefas iniciais para carregar (evita fetch automático)
+  initialTarefas = null, // Nova prop: tarefas iniciais para carregar (evita fetch automático)
+  // Novos props para Escalonamento
+  escalonamentoPorTarefaAtivo = {},
+  onToggleEscalonamento = null,
+  vigenciasPorTarefa = {},
+  onVigenciaChange = null
 }) => {
   const [tarefasPorProduto, setTarefasPorProduto] = useState({}); // { produtoId: [{ id, nome, selecionada }] }
   const tarefasPorProdutoRef = useRef({}); // Referência para acessar o estado atualizado
@@ -1087,9 +1092,29 @@ const SelecaoTarefasPorProduto = ({
                                   fontWeight: '500',
                                   overflow: 'hidden',
                                   textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap'
+                                  whiteSpace: 'nowrap',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px'
                                 }}>
                                   {tarefa.nome}
+                                  {periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.source === 'recorrencia' && (
+                                    <span style={{
+                                      color: '#2563eb',
+                                      backgroundColor: '#eff6ff',
+                                      padding: '2px 6px',
+                                      borderRadius: '4px',
+                                      fontSize: '10px',
+                                      fontWeight: 600,
+                                      marginLeft: '6px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      border: '1px solid #dbeafe'
+                                    }} title="Tarefa Recorrente">
+                                      🔁 Recorrente
+                                    </span>
+                                  )}
                                 </div>
                                 {tarefa.tipoTarefa && (
                                   <div style={{
@@ -1137,6 +1162,11 @@ const SelecaoTarefasPorProduto = ({
                                       onHolidayToggleChange={(v) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { habilitarFeriados: !!v })}
                                       datasIndividuais={periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.datasIndividuais || []}
                                       onDatasIndividuaisChange={(arr) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { datasIndividuais: Array.isArray(arr) ? arr : [] })}
+                                      source={periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.source}
+                                      onSourceChange={(src) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { source: src })}
+                                      recorrenciaConfig={periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.recorrenciaConfig}
+                                      onRecorrenciaConfigChange={(cfg) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { recorrenciaConfig: cfg })}
+                                      showRecurrence={true}
                                     />
                                   </div>
                                 </div>
@@ -1175,6 +1205,11 @@ const SelecaoTarefasPorProduto = ({
                                       placeholder="Selecione responsáveis"
                                       disabled={disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id))}
                                       colaboradores={colaboradores}
+                                      showAPartirDe={true}
+                                      isAPartirDeEnabled={escalonamentoPorTarefaAtivo[`${produtoIdNum}_${tarefa.id}`] || false}
+                                      onAPartirDeToggle={(enabled) => onToggleEscalonamento && onToggleEscalonamento(produtoIdNum, tarefa.id, enabled)}
+                                      vigenciaDatas={vigenciasPorTarefa[`${produtoIdNum}_${tarefa.id}`] || {}}
+                                      onVigenciaChange={(respId, data) => onVigenciaChange && onVigenciaChange(produtoIdNum, tarefa.id, respId, data)}
                                     />
                                   </div>
                                   {ordemPreenchimento && !ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && (

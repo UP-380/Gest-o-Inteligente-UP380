@@ -46,6 +46,8 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
   const [datasIndividuais, setDatasIndividuais] = useState([]); // List of exception dates when a range is selected
   const [incluirFinaisSemana, setIncluirFinaisSemana] = useState(false);
   const [incluirFeriados, setIncluirFeriados] = useState(false);
+  const [recorrenciaConfig, setRecorrenciaConfig] = useState(null);
+  const [source, setSource] = useState(null);
 
   // Carregar dados iniciais
   useEffect(() => {
@@ -181,6 +183,8 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
     setDatasIndividuais([]);
     setIncluirFinaisSemana(false);
     setIncluirFeriados(false);
+    setRecorrenciaConfig(null);
+    setSource(null);
   };
 
   // Verificar duplicatas quando período, tarefas, cliente, produto ou responsável mudarem
@@ -921,16 +925,23 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
       let fimEnvio = dataFim;
 
       if (dataInicio && dataFim && datasIndividuais.length > 0) {
-        // Gerar todas as datas do período
-        const todasDatas = gerarDatasIntervalo(dataInicio, dataFim);
-        // Remover as exceções (datasIndividuais contém os dias clicados com Ctrl)
-        const datasValidas = todasDatas.filter(d => !datasIndividuais.includes(d));
-
-        if (datasValidas.length > 0) {
-          datasIndividuaisParaEnvio = datasValidas;
-          // IMPORTANTÍSSIMO: Anular inicio/fim para forçar o backend a usar apenas a lista de datas individuais
+        // Se a fonte for recorrência, as datas individuais JÁ SÃO a whitelist (datas a incluir)
+        if (source === 'recorrencia') {
+          datasIndividuaisParaEnvio = datasIndividuais;
           inicioEnvio = undefined;
           fimEnvio = undefined;
+        } else {
+          // Gerar todas as datas do período
+          const todasDatas = gerarDatasIntervalo(dataInicio, dataFim);
+          // Remover as exceções (datasIndividuais contém os dias clicados com Ctrl)
+          const datasValidas = todasDatas.filter(d => !datasIndividuais.includes(d));
+
+          if (datasValidas.length > 0) {
+            datasIndividuaisParaEnvio = datasValidas;
+            // IMPORTANTÍSSIMO: Anular inicio/fim para forçar o backend a usar apenas a lista de datas individuais
+            inicioEnvio = undefined;
+            fimEnvio = undefined;
+          }
         }
       }
 
@@ -1171,6 +1182,12 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
                 showHolidayToggle={true}
                 habilitarFeriados={incluirFeriados}
                 onHolidayToggleChange={setIncluirFeriados}
+
+                recorrenciaConfig={recorrenciaConfig}
+                onRecorrenciaConfigChange={setRecorrenciaConfig}
+                showRecurrence={true}
+                source={source}
+                onSourceChange={setSource}
               />
               {verificandoDuplicata && (
                 <p className="help-message" style={{ marginTop: '8px', fontSize: '11px', color: '#6b7280' }}>
@@ -1314,7 +1331,8 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
               type="button"
               onClick={handleSave}
               disabled={submitting || !responsavelSelecionado || !clienteSelecionado || produtosSelecionados.length === 0 ||
-                !dataInicio || !dataFim || tarefasSelecionadas.length === 0 ||
+                (source !== 'recorrencia' && (!dataInicio || !dataFim)) ||
+                tarefasSelecionadas.length === 0 ||
                 tarefasSelecionadas.some(tarefaId => {
                   return !tempoEstimadoDia[tarefaId] || tempoEstimadoDia[tarefaId] <= 0;
                 })}
