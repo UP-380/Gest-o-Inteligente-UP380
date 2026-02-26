@@ -9,6 +9,7 @@ import TempoEstimadoInput from '../../components/common/TempoEstimadoInput';
 import ToggleSwitch from '../../components/common/ToggleSwitch';
 import SelecaoTarefasPorProduto from '../../components/clients/SelecaoTarefasPorProduto';
 import ResponsavelCard from '../../components/atribuicoes/ResponsavelCard';
+import TempoConfigCard from '../../components/atribuicoes/TempoConfigCard';
 import { useToast } from '../../hooks/useToast';
 import { clientesAPI, colaboradoresAPI, cacheAPI } from '../../services/api';
 import { calcularDiasComOpcoesEDatasIndividuais, obterDatasValidasNoPeriodo, calcularDiasApenasComDatasIndividuais } from '../../utils/dateUtils';
@@ -176,7 +177,6 @@ const AtribuicaoCliente = () => {
     habilitarFinaisSemana: false,
     habilitarFeriados: false,
     source: null,
-    source: null,
     recorrenciaConfig: null
   });
 
@@ -186,11 +186,18 @@ const AtribuicaoCliente = () => {
   const [escalonamentoPorTarefaAtivo, setEscalonamentoPorTarefaAtivo] = useState({}); // { [key]: boolean }
   const [vigenciasPorTarefa, setVigenciasPorTarefa] = useState({}); // { [key]: { [responsavelId]: dataInicio } }
 
+  // Estados para Escalonamento de Tempo (Configuração de Tempo)
+  const [tempoConfigGlobal, setTempoConfigGlobal] = useState({}); // { [respId]: [{ tempo_minutos, data_inicio }] }
+  const [showTempoConfigGlobal, setShowTempoConfigGlobal] = useState(false);
+  const [tempoConfigPorTarefa, setTempoConfigPorTarefa] = useState({}); // { [key]: { [respId]: [{ tempo_minutos, data_inicio }] } }
+  const [showTempoConfigTarefa, setShowTempoConfigTarefa] = useState({}); // { [key]: boolean }
+
   // Valores aplicados pela última vez (para comparar e desabilitar botão após aplicar)
   const [valoresAplicados, setValoresAplicados] = useState({
     periodo: { inicio: null, fim: null, datasIndividuais: [], habilitarFinaisSemana: false, habilitarFeriados: false, recorrenciaConfig: null },
     responsaveis: [],
-    tempo: 0
+    tempo: 0,
+    tempoConfig: {}
   });
 
   // Estados para tempo disponível
@@ -305,6 +312,32 @@ const AtribuicaoCliente = () => {
         return novo;
       });
     }
+
+    // Sincronizar Configuração de Tempo (remover segmentos de quem não é mais responsável)
+    setTempoConfigPorTarefa(prev => {
+      const configTarefa = prev[key];
+      if (!configTarefa) return prev;
+
+      if (novosResponsaveis.length === 0) {
+        const novo = { ...prev };
+        delete novo[key];
+        return novo;
+      }
+
+      // Manter apenas as chaves (os IDs dos responsáveis) que ainda estão na lista
+      const novaConfig = {};
+      let mudou = false;
+      novosResponsaveis.forEach(id => {
+        if (configTarefa[id]) {
+          novaConfig[id] = configTarefa[id];
+        }
+      });
+
+      if (Object.keys(novaConfig).length !== Object.keys(configTarefa).length) {
+        return { ...prev, [key]: novaConfig };
+      }
+      return prev;
+    });
   };
 
   // Funções para Escalonamento
@@ -318,6 +351,20 @@ const AtribuicaoCliente = () => {
       const current = prev[key] || {};
       return { ...prev, [key]: { ...current, [responsavelId]: data } };
     });
+  };
+
+  const handleTempoConfigGlobalChange = (config) => {
+    setTempoConfigGlobal(config);
+    setShowTempoConfigGlobal(false);
+
+    // Calcular um "tempo global médio" ou do primeiro para manter compatibilidade com o input antigo
+    // se o usuário quiser ver algo no card. Mas o prompt diz para substituir o input por um botão.
+  };
+
+  const handleTempoConfigTarefaChange = (produtoId, tarefaId, config) => {
+    const key = getResponsavelKey(produtoId, tarefaId);
+    setTempoConfigPorTarefa(prev => ({ ...prev, [key]: config }));
+    setShowTempoConfigTarefa(prev => ({ ...prev, [key]: false }));
   };
 
   const handleToggleEscalonamentoGlobal = (enabled) => {
@@ -388,6 +435,8 @@ const AtribuicaoCliente = () => {
     setTempoGlobalParaAplicar(0);
     setEscalonamentoGlobalAtivo(false);
     setVigenciasGlobais({});
+    setTempoConfigGlobal({});
+    setShowTempoConfigGlobal(false);
     showToast('info', 'Campos globais limpos');
   };
 
@@ -505,6 +554,22 @@ const AtribuicaoCliente = () => {
       });
     }
 
+    // Aplicar Escalonamento de Tempo global se configurado
+    if (Object.keys(tempoConfigGlobal).length > 0) {
+      setTempoConfigPorTarefa(prev => {
+        const next = { ...prev };
+        Object.entries(tarefasSelecionadasPorProduto).forEach(([produtoId, tarefasDoProduto]) => {
+          Object.entries(tarefasDoProduto || {}).forEach(([tarefaId, dadosTarefa]) => {
+            if (dadosTarefa?.selecionada !== true) return;
+            const key = getResponsavelKey(produtoId, tarefaId);
+            next[key] = { ...tempoConfigGlobal };
+          });
+        });
+        return next;
+      });
+      tempoAplicado = true;
+    }
+
     // Feedback ao usuário
     const itensAplicados = [];
     if (periodoAplicado) {
@@ -535,7 +600,8 @@ const AtribuicaoCliente = () => {
           recorrenciaConfig: periodoGlobal.recorrenciaConfig ? { ...periodoGlobal.recorrenciaConfig } : null
         },
         responsaveis: Array.isArray(responsaveisGlobais) ? [...responsaveisGlobais] : [],
-        tempo: tempoGlobal !== undefined && tempoGlobal !== null ? tempoGlobal : null
+        tempo: tempoGlobal,
+        tempoConfig: { ...tempoConfigGlobal }
       });
     } else {
       showToast('warning', 'Preencha pelo menos o período, responsáveis ou tempo');
@@ -761,23 +827,46 @@ const AtribuicaoCliente = () => {
           if (typeof setDataInicio === 'function') setDataInicio(dataInicioGeral);
           if (typeof setDataFim === 'function') setDataFim(dataFimGeral);
 
-          // Carregar tempos e responsáveis por tarefa (Agrupando dados primeiro)
-          const dadosPorTarefa = {}; // key -> { tempo, responsaveis: Set, datas: Set }
+          // Carregar tempos, responsáveis e configurações de tempo por tarefa
+          const dadosPorTarefa = {}; // key -> { tempo, responsaveis: Set, datas: Set, segments: { [respId]: [] } }
+          const tempoConfigPorTarefaCarregado = {};
 
           registros.forEach(reg => {
             const produtoId = String(reg.produto_id);
             const tarefaId = String(reg.tarefa_id);
             const key = `${produtoId}_${tarefaId}`;
+            const respId = reg.responsavel_id ? String(reg.responsavel_id).trim() : 'sem-responsavel';
+            const dataStr = reg.data ? reg.data.split('T')[0] : '';
+            const tempoMinutos = reg.tempo_minutos || Math.round((reg.tempo_estimado_dia || 0) / 60000);
 
             if (!dadosPorTarefa[key]) {
               dadosPorTarefa[key] = {
                 tempo: reg.tempo_estimado_dia,
                 responsaveis: new Set(),
-                datas: new Set()
+                datas: new Set(),
+                segments: {}
               };
             }
-            if (reg.responsavel_id) dadosPorTarefa[key].responsaveis.add(String(reg.responsavel_id).trim());
-            if (reg.data) dadosPorTarefa[key].datas.add(reg.data.split('T')[0]);
+
+            if (reg.responsavel_id) dadosPorTarefa[key].responsaveis.add(respId);
+            if (dataStr) {
+              dadosPorTarefa[key].datas.add(dataStr);
+
+              // Rastrear mudanças de tempo para Escalonamento de Tempo
+              if (!dadosPorTarefa[key].segments[respId]) {
+                dadosPorTarefa[key].segments[respId] = [];
+              }
+
+              const currentSegments = dadosPorTarefa[key].segments[respId];
+              const lastSegment = currentSegments[currentSegments.length - 1];
+
+              if (!lastSegment || lastSegment.tempo_minutos !== tempoMinutos) {
+                currentSegments.push({
+                  tempo_minutos: tempoMinutos,
+                  data_inicio: dataStr
+                });
+              }
+            }
           });
 
           const temposPorTarefa = {};
@@ -791,6 +880,12 @@ const AtribuicaoCliente = () => {
 
             if (dados.responsaveis.size > 0) {
               responsaveisPorTarefaCarregado[key] = Array.from(dados.responsaveis);
+            }
+
+            // Converter segmentos para o formato final se houver mais de um ou tempo diferente do padrão
+            const hasMultipleSegments = Object.values(dados.segments).some(s => s.length > 1);
+            if (hasMultipleSegments) {
+              tempoConfigPorTarefaCarregado[key] = dados.segments;
             }
 
             const datasTarefa = [...dados.datas].sort();
@@ -816,6 +911,7 @@ const AtribuicaoCliente = () => {
           setTempoEstimadoDia(temposPorTarefa);
           setResponsaveisPorTarefa(responsaveisPorTarefaCarregado);
           setPeriodosPorTarefa(periodosPorTarefaCarregado);
+          setTempoConfigPorTarefa(tempoConfigPorTarefaCarregado);
 
           // Buscar horas contratadas para todos os responsáveis únicos
           const responsaveisUnicos = [...new Set(Object.values(responsaveisPorTarefaCarregado).flat())];
@@ -2134,23 +2230,29 @@ const AtribuicaoCliente = () => {
     const tarefasSemTempo = [];
     const tarefasSemResponsavel = [];
     Object.entries(tarefasSelecionadasPorProduto).forEach(([produtoId, tarefasDoProduto]) => {
+      const pId = String(produtoId).trim();
       Object.entries(tarefasDoProduto).forEach(([tarefaId, dadosTarefa]) => {
         if (dadosTarefa.selecionada === true) {
+          const tId = String(tarefaId).trim();
+          const key = getResponsavelKey(pId, tId);
+          const hasTempoConfig = tempoConfigPorTarefa[key] && Object.keys(tempoConfigPorTarefa[key]).length > 0;
+
           // Verificar tempo
-          if (modoSelecionarVarios && tarefasSelecionadasParaTempo.has(tarefaId)) {
-            if (!tempoGlobalParaAplicar || tempoGlobalParaAplicar <= 0) {
-              tarefasSemTempo.push({ produtoId, tarefaId });
+          if (modoSelecionarVarios && tarefasSelecionadasParaTempo.has(tId)) {
+            const hasGlobalConfig = tempoConfigGlobal && Object.keys(tempoConfigGlobal).length > 0;
+            if ((!tempoGlobalParaAplicar || tempoGlobalParaAplicar <= 0) && !hasGlobalConfig) {
+              tarefasSemTempo.push({ produtoId: pId, tarefaId: tId });
             }
           } else {
-            const tempo = getTempoEstimado(produtoId, tarefaId);
-            if (!tempo || tempo <= 0) {
-              tarefasSemTempo.push({ produtoId, tarefaId });
+            const tempo = getTempoEstimado(pId, tId);
+            if ((!tempo || tempo <= 0) && !hasTempoConfig) {
+              tarefasSemTempo.push({ produtoId: pId, tarefaId: tId });
             }
           }
           // Verificar responsável
-          const responsavelId = getResponsavelTarefa(produtoId, tarefaId);
-          if (!responsavelId) {
-            tarefasSemResponsavel.push({ produtoId, tarefaId });
+          const responsaveisTarefa = getResponsavelTarefa(pId, tId);
+          if (!responsaveisTarefa || responsaveisTarefa.length === 0) {
+            tarefasSemResponsavel.push({ produtoId: pId, tarefaId: tId });
           }
         }
       });
@@ -2389,102 +2491,131 @@ const AtribuicaoCliente = () => {
         return `${per.inicio}|${per.fim}|${per.incluir_finais_semana ? 1 : 0}|${per.incluir_feriados ? 1 : 0}|${di}`;
       };
 
-      // Agrupar por período E responsável (tarefas com responsáveis diferentes ou períodos diferentes vão em grupos separados)
-      const gruposPorPeriodoEResponsavel = {}; // keyPeriodo_Responsavel -> { periodo, responsavel_id, produtos_com_tarefas }
+      // Agrupar por período E responsável E tempo (agora suportando escalonamento de tempo no mesmo agrupador)
+      const gruposParaSalvar = []; // { periodo, responsavel_id, tempo_minutos, produto_id, tarefa_id }
+
       produtosSelecionados.forEach(produtoId => {
         const produtoIdStr = String(produtoId).trim();
         const tarefasDoProduto = tarefasSelecionadasPorProduto[parseInt(produtoIdStr, 10)] || {};
+
         Object.entries(tarefasDoProduto).forEach(([tarefaId, dadosTarefa]) => {
-          if (dadosTarefa.selecionada === true) {
-            let tempo = getTempoEstimado(produtoIdStr, tarefaId);
-            if (modoSelecionarVarios && tarefasSelecionadasParaTempo.has(tarefaId) && tempoGlobalParaAplicar > 0) {
-              tempo = tempoGlobalParaAplicar;
-            }
-            const tempoInt = Math.round(Number(tempo));
-            const periodoOriginal = obterPeriodoPara(produtoIdStr, tarefaId);
-            const responsaveisIds = getResponsavelTarefa(produtoIdStr, tarefaId);
+          if (dadosTarefa.selecionada !== true) return;
 
-            const keyTarefa = `${produtoIdStr}_${tarefaId}`;
-            const escalonamentoAtivo = escalonamentoPorTarefaAtivo[keyTarefa] || false;
-            const vigencias = vigenciasPorTarefa[keyTarefa] || {};
+          const keyTarefa = `${produtoIdStr}_${tarefaId}`;
+          const periodoOriginal = obterPeriodoPara(produtoIdStr, tarefaId);
+          const responsaveisIds = getResponsavelTarefa(produtoIdStr, tarefaId);
+          const configTempo = tempoConfigPorTarefa[keyTarefa] || tempoConfigGlobal || {};
 
-            if (escalonamentoAtivo && responsaveisIds.length > 1) {
-              // Lógica de Escalonamento: Criar grupos segmentados por data
-              // 1. Obter e filtrar apenas vigências dos responsáveis selecionados
-              const vigilantes = responsaveisIds
-                .map(id => ({ id, data: vigencias[id] }))
-                .filter(v => v.data)
-                .sort((a, b) => a.data.localeCompare(b.data));
+          let tempoPadrao = getTempoEstimado(produtoIdStr, tarefaId);
+          if (modoSelecionarVarios && tarefasSelecionadasParaTempo.has(tarefaId) && tempoGlobalParaAplicar > 0) {
+            tempoPadrao = tempoGlobalParaAplicar;
+          }
+          const tempoPadraoMinutos = Math.round(Number(tempoPadrao) / 60000);
 
-              if (vigilantes.length > 0) {
-                vigilantes.forEach((v, index) => {
-                  const dataInicioSet = v.data;
-                  let dataFimSet = periodoOriginal.fim;
+          const escalonamentoAtivo = escalonamentoPorTarefaAtivo[keyTarefa] || false;
+          const vigencias = vigenciasPorTarefa[keyTarefa] || {};
 
-                  // Se não é o último, o fim é o dia anterior à próxima vigência
-                  if (index < vigilantes.length - 1) {
-                    const dataProxima = new Date(vigilantes[index + 1].data + 'T12:00:00');
-                    dataProxima.setDate(dataProxima.getDate() - 1);
-                    dataFimSet = dataProxima.toISOString().split('T')[0];
-                  }
+          // 1. Preparar lista de responsáveis com seus intervalos de "vincular"
+          let vigilantes = [];
+          if (escalonamentoAtivo && responsaveisIds.length > 1) {
+            vigilantes = responsaveisIds
+              .map(id => ({ id: String(id), data: vigencias[id] }))
+              .filter(v => v.data)
+              .sort((a, b) => a.data.localeCompare(b.data));
+          } else {
+            // Se não houver escalonamento, um único bloco para cada responsável (ou sem responsável)
+            const resps = responsaveisIds.length > 0 ? responsaveisIds : [null];
+            vigilantes = resps.map(id => ({ id: id ? String(id) : null, data: periodoOriginal.inicio }));
+          }
 
-                  const novoPeriodo = {
-                    ...periodoOriginal,
-                    inicio: dataInicioSet,
-                    fim: dataFimSet
-                  };
+          // 2. Para cada responsável, processar seus segmentos de tempo
+          vigilantes.forEach((v, index) => {
+            const respId = v.id;
+            const respInicio = v.data;
+            let respFim = periodoOriginal.fim;
 
-                  const keyPeriodo = stringifyPeriodo(novoPeriodo);
-                  const keyGrupo = `${keyPeriodo}_${v.id}`;
-
-                  if (!gruposPorPeriodoEResponsavel[keyGrupo]) {
-                    gruposPorPeriodoEResponsavel[keyGrupo] = {
-                      periodo: novoPeriodo,
-                      responsavel_id: v.id,
-                      produtos_com_tarefas: {}
-                    };
-                  }
-                  if (!gruposPorPeriodoEResponsavel[keyGrupo].produtos_com_tarefas[produtoIdStr]) {
-                    gruposPorPeriodoEResponsavel[keyGrupo].produtos_com_tarefas[produtoIdStr] = [];
-                  }
-                  gruposPorPeriodoEResponsavel[keyGrupo].produtos_com_tarefas[produtoIdStr].push({
-                    tarefa_id: String(tarefaId).trim(),
-                    tempo_estimado_dia: tempoInt,
-                    responsavel_id: v.id
-                  });
-                });
-                return; // Pular adição padrão
-              }
+            // Se escalonado, o fim deste responsável é o dia anterior ao próximo
+            if (escalonamentoAtivo && index < vigilantes.length - 1) {
+              const dataProxima = new Date(vigilantes[index + 1].data + 'T12:00:00');
+              dataProxima.setDate(dataProxima.getDate() - 1);
+              respFim = dataProxima.toISOString().split('T')[0];
             }
 
-            // Comportamento padrão (sem escalonamento ou apenas 1 responsável)
-            const keyPeriodo = stringifyPeriodo(periodoOriginal);
-            responsaveisIds.forEach(responsavelId => {
-              const keyGrupo = `${keyPeriodo}_${responsavelId || 'sem-responsavel'}`;
+            // Obter segmentos de tempo para este responsável
+            let segments = configTempo[respId];
+            if (!segments || !Array.isArray(segments) || segments.length === 0) {
+              // Fallback: Segmento único com o tempo padrão da tarefa
+              segments = [{ tempo_minutos: tempoPadraoMinutos, data_inicio: respInicio }];
+            }
 
-              if (!gruposPorPeriodoEResponsavel[keyGrupo]) {
-                gruposPorPeriodoEResponsavel[keyGrupo] = {
-                  periodo: periodoOriginal,
-                  responsavel_id: responsavelId ? String(responsavelId).trim() : null,
-                  produtos_com_tarefas: {}
-                };
+            // Ordenar segmentos e filtrar/ajustar para o intervalo [respInicio, respFim]
+            const sortedSegments = [...segments].sort((a, b) => a.data_inicio.localeCompare(b.data_inicio));
+
+            sortedSegments.forEach((seg, sIdx) => {
+              let segInicio = seg.data_inicio;
+              let segFim = respFim;
+
+              // Se não for o último segmento de tempo deste responsável, o fim é antes do próximo segmento
+              if (sIdx < sortedSegments.length - 1) {
+                const dataProximaSeg = new Date(sortedSegments[sIdx + 1].data_inicio + 'T12:00:00');
+                dataProximaSeg.setDate(dataProximaSeg.getDate() - 1);
+                segFim = dataProximaSeg.toISOString().split('T')[0];
               }
-              if (!gruposPorPeriodoEResponsavel[keyGrupo].produtos_com_tarefas[produtoIdStr]) {
-                gruposPorPeriodoEResponsavel[keyGrupo].produtos_com_tarefas[produtoIdStr] = [];
-              }
-              gruposPorPeriodoEResponsavel[keyGrupo].produtos_com_tarefas[produtoIdStr].push({
-                tarefa_id: String(tarefaId).trim(),
-                tempo_estimado_dia: tempoInt,
-                responsavel_id: responsavelId ? String(responsavelId).trim() : null
+
+              // Validação de intervalo: O segmento deve estar dentro do tempo de responsabilidade ou ser o inicial
+              // Se o segmento começa ANTES da responsabilidade do cara, mas é o único ou o mais próximo,
+              // devemos "puxar" ele para o início da responsabilidade.
+              if (segInicio < respInicio) segInicio = respInicio;
+
+              // Se o segmento já termina antes de começar a responsabilidade, ignora
+              if (segFim < respInicio) return;
+
+              // Se o segmento começa após o fim da responsabilidade, ignora
+              if (segInicio > respFim) return;
+
+              gruposParaSalvar.push({
+                periodo: { ...periodoOriginal, inicio: segInicio, fim: segFim },
+                responsavel_id: respId,
+                tempo_minutos: seg.tempo_minutos,
+                produto_id: produtoIdStr,
+                tarefa_id: String(tarefaId).trim()
               });
             });
-          }
+          });
         });
       });
 
-      const grupos = Object.values(gruposPorPeriodoEResponsavel);
+      // 3. Converter gruposParaSalvar em formato para o controller (produtos_com_tarefas agrupados por periodo+responsavel)
+      const gruposPorPeriodoEResponsavelETempo = {};
 
-      console.log('💾 [ATRIBUICAO] Total de grupos de período e responsável:', grupos.length);
+      gruposParaSalvar.forEach(item => {
+        const keyPeriodo = stringifyPeriodo(item.periodo);
+        const keyGrupo = `${keyPeriodo}_${item.responsavel_id || 'sem-responsavel'}_${item.tempo_minutos}`;
+
+        if (!gruposPorPeriodoEResponsavelETempo[keyGrupo]) {
+          gruposPorPeriodoEResponsavelETempo[keyGrupo] = {
+            periodo: item.periodo,
+            responsavel_id: item.responsavel_id,
+            tempo_minutos: item.tempo_minutos,
+            produtos_com_tarefas: {}
+          };
+        }
+
+        const g = gruposPorPeriodoEResponsavelETempo[keyGrupo];
+        if (!g.produtos_com_tarefas[item.produto_id]) {
+          g.produtos_com_tarefas[item.produto_id] = [];
+        }
+        g.produtos_com_tarefas[item.produto_id].push({
+          tarefa_id: item.tarefa_id,
+          tempo_estimado_dia: item.tempo_minutos * 60000, // milissegundos para compatibilidade se não mudar backend
+          tempo_minutos: item.tempo_minutos,
+          responsavel_id: item.responsavel_id
+        });
+      });
+
+      const grupos = Object.values(gruposPorPeriodoEResponsavelETempo);
+
+      console.log('💾 [ATRIBUICAO] Total de grupos de período, responsável e tempo:', grupos.length);
 
       const urlBase = editingAgrupamento
         ? `${API_BASE_URL}/tempo-estimado/agrupador/${editingAgrupamento.agrupador_id}`
@@ -2495,12 +2626,12 @@ const AtribuicaoCliente = () => {
 
       if (editingAgrupamento) {
         // MODO EDIÇÃO (PUT): Enviar todos os grupos em uma única requisição para atualização atômica
-        // Isso evita que chamadas sequenciais apaguem dados uns dos outros no backend
         const gruposPayload = grupos.map(grupo => ({
           produtos_com_tarefas: grupo.produtos_com_tarefas,
           data_inicio: grupo.periodo.inicio,
           data_fim: grupo.periodo.fim,
-          responsavel_id: grupo.responsavel_id, // Responsável padrão do grupo
+          responsavel_id: grupo.responsavel_id,
+          tempo_minutos: grupo.tempo_minutos,
           incluir_finais_semana: grupo.periodo.incluir_finais_semana,
           incluir_feriados: grupo.periodo.incluir_feriados,
           datas_individuais: grupo.periodo.datas_individuais
@@ -2514,7 +2645,7 @@ const AtribuicaoCliente = () => {
         console.log('💾 [ATRIBUICAO] Salvando atualização em lote (PUT):', JSON.stringify(payload, null, 2));
 
         const response = await fetch(urlBase, {
-          method: 'PUT', // Já definido, mas reforçando
+          method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify(payload),
@@ -2536,17 +2667,15 @@ const AtribuicaoCliente = () => {
         totalLinhas = result.count || 0;
 
       } else {
-        // MODO CRIAÇÃO (POST): Manter comportamento de criar múltiplos agrupamentos se houver múltiplos grupos
-        // (Ou futuramente migrar para POST em lote se desejado criar um único agrupador)
+        // MODO CRIAÇÃO (POST)
         for (const grupo of grupos) {
-          const responsavelComum = grupo.responsavel_id;
-
           const payload = {
             cliente_id: clienteSelecionado,
             produtos_com_tarefas: grupo.produtos_com_tarefas,
             data_inicio: grupo.periodo.inicio,
             data_fim: grupo.periodo.fim,
-            responsavel_id: responsavelComum,
+            responsavel_id: grupo.responsavel_id,
+            tempo_minutos: grupo.tempo_minutos,
             incluir_finais_semana: grupo.periodo.incluir_finais_semana,
             incluir_feriados: grupo.periodo.incluir_feriados,
             datas_individuais: grupo.periodo.datas_individuais
@@ -2555,10 +2684,8 @@ const AtribuicaoCliente = () => {
           console.log('💾 [ATRIBUICAO] Salvando novo grupo (POST):', JSON.stringify(payload, null, 2));
 
           const response = await fetch(urlBase, {
-            method: 'POST', // method variable handled logic, but hardcoding here since we split branches
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
             body: JSON.stringify(payload),
           });
@@ -2844,14 +2971,44 @@ const AtribuicaoCliente = () => {
                               })()
                             )}
                           </div>
-                          <div style={{ minWidth: '140px', width: '140px', position: 'relative', display: 'flex', flexDirection: 'column' }} className="tempo-global-wrapper">
+                          <div style={{ minWidth: '140px', width: '140px', position: 'relative', display: 'flex', flexDirection: 'column', zIndex: showTempoConfigGlobal ? 9999 : 10 }} className="tempo-global-wrapper">
                             <div style={{ width: '100%' }}>
-                              <TempoEstimadoInput
-                                value={tempoGlobal}
-                                onChange={(tempoEmMs) => setTempoGlobal(tempoEmMs || 0)}
+                              <button
+                                type="button"
+                                className="btn-configurar-tempo"
+                                onClick={() => setShowTempoConfigGlobal(!showTempoConfigGlobal)}
                                 disabled={loading || submitting || !clienteSelecionado || produtosSelecionados.length === 0 || !podePreencherTempo()}
-                                placeholder="0h 0min"
-                              />
+                                style={{
+                                  width: '100%',
+                                  height: '40px',
+                                  padding: '0 12px',
+                                  backgroundColor: '#fff',
+                                  border: '1px solid #cbd5e1',
+                                  borderRadius: '6px',
+                                  fontSize: '13px',
+                                  color: '#475569',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '8px',
+                                  cursor: (loading || submitting || !clienteSelecionado || produtosSelecionados.length === 0 || !podePreencherTempo()) ? 'not-allowed' : 'pointer',
+                                  transition: 'all 0.2s'
+                                }}
+                              >
+                                <i className="fas fa-cog"></i>
+                                {Object.keys(tempoConfigGlobal).length > 0 ? 'Tempo Configurado' : 'Configurar Tempo'}
+                              </button>
+
+                              {showTempoConfigGlobal && (
+                                <TempoConfigCard
+                                  responsaveis={responsaveisGlobais}
+                                  colaboradores={colaboradores}
+                                  initialConfig={tempoConfigGlobal}
+                                  onSave={handleTempoConfigGlobalChange}
+                                  onClose={() => setShowTempoConfigGlobal(false)}
+                                  dataInicioPadrao={periodoGlobal.inicio}
+                                />
+                              )}
                             </div>
                             {!podePreencherTempo() && podePreencherResponsavel() && (
                               <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000 }}>
@@ -2978,6 +3135,9 @@ const AtribuicaoCliente = () => {
                           onToggleEscalonamento={handleToggleEscalonamentoTarefa}
                           vigenciasPorTarefa={vigenciasPorTarefa}
                           onVigenciaChange={handleVigenciaTarefaChange}
+                          // Escalonamento de Tempo por tarefa
+                          tempoConfigPorTarefa={tempoConfigPorTarefa}
+                          onTempoConfigChange={handleTempoConfigTarefaChange}
                           // Ordem de preenchimento e tempo disponível
                           ordemPreenchimento={{
                             podePreencherResponsavel: (produtoId, tarefaId) => {
@@ -3293,23 +3453,28 @@ const AtribuicaoCliente = () => {
                       for (const [tarefaId, dadosTarefa] of Object.entries(tarefasDoProduto)) {
                         if (dadosTarefa.selecionada === true) {
                           const tarefaIdNormalizado = String(tarefaId).trim();
+                          const key = getResponsavelKey(produtoIdNormalizado, tarefaIdNormalizado);
+
                           // Verificar tempo
+                          const hasTempoConfig = tempoConfigPorTarefa[key];
                           if (modoSelecionarVarios && tarefasSelecionadasParaTempo.has(tarefaIdNormalizado)) {
-                            if (!tempoGlobalParaAplicar || tempoGlobalParaAplicar <= 0) {
+                            const hasGlobalConfig = tempoConfigGlobal && Object.keys(tempoConfigGlobal).length > 0;
+                            if ((!tempoGlobalParaAplicar || tempoGlobalParaAplicar <= 0) && !hasGlobalConfig) {
                               return true;
                             }
                           } else {
                             const tempo = getTempoEstimado(produtoIdNormalizado, tarefaIdNormalizado);
-                            if (!tempo || tempo <= 0) {
+                            const hasConfig = hasTempoConfig && Object.keys(hasTempoConfig).length > 0;
+                            if ((!tempo || tempo <= 0) && !hasConfig) {
                               return true;
                             }
                           }
                           // Verificar responsável
-                          const responsavelId = getResponsavelTarefa(produtoIdNormalizado, tarefaIdNormalizado);
-                          if (!responsavelId) {
+                          const responsaveisTarefa = getResponsavelTarefa(produtoIdNormalizado, tarefaIdNormalizado);
+                          if (!responsaveisTarefa || responsaveisTarefa.length === 0) {
                             return true;
                           }
-                          // Verificar período (período completo OU apenas datas individuais)
+                          // Verificar período (período completo OU apenas datas individuais OU recorrência)
                           const periodoKey = getPeriodoKey(produtoIdNormalizado, tarefaIdNormalizado);
                           const periodo = periodosPorTarefa[periodoKey];
                           if (!periodo) {
@@ -3317,7 +3482,9 @@ const AtribuicaoCliente = () => {
                           }
                           const temPeriodoCompleto = periodo.inicio && periodo.fim;
                           const temDatasIndividuais = Array.isArray(periodo.datasIndividuais) && periodo.datasIndividuais.length > 0;
-                          if (!temPeriodoCompleto && !temDatasIndividuais) {
+                          const isRecorrente = periodo.source === 'recorrencia';
+
+                          if (!temPeriodoCompleto && !temDatasIndividuais && !isRecorrente) {
                             return true;
                           }
                         }

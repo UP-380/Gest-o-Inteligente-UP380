@@ -511,7 +511,7 @@ async function criarTempoEstimado(req, res) {
     console.log('📥 Recebendo requisição para criar tempo estimado');
     console.log('📦 Body recebido:', JSON.stringify(req.body, null, 2));
 
-    const { cliente_id, produto_ids, tarefa_ids, tarefas, produtos_com_tarefas, data_inicio, data_fim, tempo_estimado_dia, responsavel_id, incluir_finais_semana = true, incluir_feriados = true, datas_individuais = [] } = req.body;
+    const { cliente_id, produto_ids, tarefa_ids, tarefas, produtos_com_tarefas, data_inicio, data_fim, tempo_estimado_dia, tempo_minutos, responsavel_id, incluir_finais_semana = true, incluir_feriados = true, datas_individuais = [] } = req.body;
 
     // Validações
     if (!cliente_id) {
@@ -1039,7 +1039,17 @@ async function criarTempoEstimado(req, res) {
     Object.entries(produtosComTarefasMap).forEach(([produtoId, tarefasDoProduto]) => {
       tarefasDoProduto.forEach(tarefaObj => {
         const tarefaId = String(tarefaObj.tarefa_id).trim();
-        const tempoEstimado = parseInt(tarefaObj.tempo_estimado_dia, 10);
+        let tempoEstimado = parseInt(tarefaObj.tempo_estimado_dia, 10);
+        let tempoMinutos = tarefaObj.tempo_minutos ? parseInt(tarefaObj.tempo_minutos, 10) : null;
+
+        // Fallback: se tempo_minutos não existe, calcular a partir de tempo_estimado_dia
+        if (tempoMinutos === null && tempoEstimado > 0) {
+          tempoMinutos = Math.round(tempoEstimado / 60000);
+        }
+        // Fallback: se tempo_estimado_dia não existe, calcular a partir de tempo_minutos
+        if ((!tempoEstimado || tempoEstimado <= 0) && tempoMinutos !== null && tempoMinutos > 0) {
+          tempoEstimado = tempoMinutos * 60000;
+        }
 
         if (!tempoEstimado || tempoEstimado <= 0) {
           console.warn(`⚠️ Tarefa ${tarefaId} do produto ${produtoId} não tem tempo estimado válido, pulando...`);
@@ -1072,6 +1082,7 @@ async function criarTempoEstimado(req, res) {
             data_inicio: segmento.inicio,
             data_fim: segmento.fim,
             tempo_estimado_dia: tempoEstimado, // em milissegundos
+            tempo_minutos: tempoMinutos,
             incluir_finais_semana: incluirFinaisSemana,
             incluir_feriados: incluirFeriados,
             created_by: membroIdCriador
@@ -2191,9 +2202,19 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
           const tId = String(t.tarefa_id).trim();
           const tipoId = tipoTarefaMap.get(tId) || null;
           const respId = t.responsavel_id || responsavel_id;
-          const tempoDia = t.tempo_estimado_dia;
+          let tempoEstimado = t.tempo_estimado_dia ? parseInt(t.tempo_estimado_dia, 10) : null;
+          let tempoMinutos = t.tempo_minutos ? parseInt(t.tempo_minutos, 10) : null;
 
-          if (!respId || !tempoDia) continue;
+          // Fallback: se tempo_minutos não existe, calcular a partir de tempo_estimado_dia
+          if (tempoMinutos === null && tempoEstimado !== null && tempoEstimado > 0) {
+            tempoMinutos = Math.round(tempoEstimado / 60000);
+          }
+          // Fallback: se tempo_estimado_dia não existe, calcular a partir de tempo_minutos
+          if ((tempoEstimado === null || tempoEstimado <= 0) && tempoMinutos !== null && tempoMinutos > 0) {
+            tempoEstimado = tempoMinutos * 60000;
+          }
+
+          if (!respId || !tempoEstimado || tempoEstimado <= 0) continue;
 
           for (const seg of segmentos) {
             regrasDoGrupo.push({
@@ -2205,7 +2226,8 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
               responsavel_id: String(respId).trim(),
               data_inicio: seg.inicio,
               data_fim: seg.fim,
-              tempo_estimado_dia: parseInt(tempoDia, 10),
+              tempo_estimado_dia: tempoEstimado,
+              tempo_minutos: tempoMinutos,
               incluir_finais_semana: incFinaisSemanaBool,
               incluir_feriados: incFeriadosBool,
               created_at: new Date().toISOString(),

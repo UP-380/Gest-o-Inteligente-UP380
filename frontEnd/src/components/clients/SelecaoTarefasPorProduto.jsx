@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import CustomSelect from '../vinculacoes/CustomSelect';
 import ResponsavelCard from '../atribuicoes/ResponsavelCard';
+import TempoConfigCard from '../atribuicoes/TempoConfigCard';
 import TempoEstimadoInput from '../common/TempoEstimadoInput';
 import FilterPeriodo from '../filters/FilterPeriodo';
 import './SelecaoTarefasPorProduto.css';
@@ -51,13 +52,17 @@ const SelecaoTarefasPorProduto = ({
   escalonamentoPorTarefaAtivo = {},
   onToggleEscalonamento = null,
   vigenciasPorTarefa = {},
-  onVigenciaChange = null
+  onVigenciaChange = null,
+  // Novos props para Escalonamento de Tempo
+  tempoConfigPorTarefa = {},
+  onTempoConfigChange = null
 }) => {
   const [tarefasPorProduto, setTarefasPorProduto] = useState({}); // { produtoId: [{ id, nome, selecionada }] }
   const tarefasPorProdutoRef = useRef({}); // Referência para acessar o estado atualizado
   const [loading, setLoading] = useState(false);
   const [expandedProdutos, setExpandedProdutos] = useState({});
   const [mostrarAdicionarTarefa, setMostrarAdicionarTarefa] = useState({}); // { produtoId: boolean }
+  const [showTempoConfigTarefa, setShowTempoConfigTarefa] = useState({}); // { [key]: boolean }
   const [tarefasDisponiveis, setTarefasDisponiveis] = useState([]); // Todas as tarefas disponíveis
   const [tarefasComTipos, setTarefasComTipos] = useState([]); // Tarefas agrupadas por tipo para o CustomSelect
   const [tiposTarefa, setTiposTarefa] = useState([]); // Tipos de tarefa
@@ -1016,7 +1021,7 @@ const SelecaoTarefasPorProduto = ({
 
                       {/* Tarefas Normais */}
                       {tarefasNormais.map(tarefa => (
-                        <div key={tarefa.id} style={{ marginBottom: '8px' }}>
+                        <div key={tarefa.id} style={{ marginBottom: '8px', position: 'relative', zIndex: showTempoConfigTarefa[`${produtoIdNum}_${tarefa.id}`] ? 9999 : 'auto' }}>
                           <div
                             className="selected-item-tag"
                             style={{
@@ -1281,22 +1286,58 @@ const SelecaoTarefasPorProduto = ({
                                     marginRight: '8px',
                                     pointerEvents: 'auto',
                                     position: 'relative',
-                                    zIndex: 10,
+                                    zIndex: showTempoConfigTarefa[`${produtoIdNum}_${tarefa.id}`] ? 9999 : 10,
                                     minWidth: '140px'
                                   }}
                                   onClick={(e) => e.stopPropagation()}
                                   onMouseDown={(e) => e.stopPropagation()}
                                 >
                                   <div style={{ width: '100%' }}>
-                                    <TempoEstimadoInput
-                                      value={tempoEstimadoDia[`${String(produtoIdNum).trim()}_${String(tarefa.id).trim()}`] || tempoEstimadoDia[String(tarefa.id).trim()] || 0}
-                                      onChange={(tempoEmMs) => {
-                                        if (onTempoChange) {
-                                          onTempoChange(produtoIdNum, tarefa.id, tempoEmMs);
-                                        }
+                                    <button
+                                      type="button"
+                                      className="btn-configurar-tempo"
+                                      onClick={() => {
+                                        const key = `${produtoIdNum}_${tarefa.id}`;
+                                        setShowTempoConfigTarefa(prev => ({ ...prev, [key]: !prev[key] }));
                                       }}
                                       disabled={disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id))}
-                                    />
+                                      style={{
+                                        width: '100%',
+                                        height: '32px',
+                                        padding: '0 8px',
+                                        backgroundColor: '#fff',
+                                        border: '1px solid #cbd5e1',
+                                        borderRadius: '4px',
+                                        fontSize: '11px',
+                                        color: '#475569',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '4px',
+                                        cursor: (disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id))) ? 'not-allowed' : 'pointer'
+                                      }}
+                                    >
+                                      <i className="fas fa-cog"></i>
+                                      {tempoConfigPorTarefa[`${produtoIdNum}_${tarefa.id}`] ? 'Configurado' : 'Tempo'}
+                                    </button>
+
+                                    {showTempoConfigTarefa[`${produtoIdNum}_${tarefa.id}`] && (
+                                      <TempoConfigCard
+                                        responsaveis={getResponsavelTarefa(produtoIdNum, tarefa.id)}
+                                        colaboradores={colaboradores}
+                                        initialConfig={tempoConfigPorTarefa[`${produtoIdNum}_${tarefa.id}`] || {}}
+                                        onSave={(config) => {
+                                          if (onTempoConfigChange) onTempoConfigChange(produtoIdNum, tarefa.id, config);
+                                          const key = `${produtoIdNum}_${tarefa.id}`;
+                                          setShowTempoConfigTarefa(prev => ({ ...prev, [key]: false }));
+                                        }}
+                                        onClose={() => {
+                                          const key = `${produtoIdNum}_${tarefa.id}`;
+                                          setShowTempoConfigTarefa(prev => ({ ...prev, [key]: false }));
+                                        }}
+                                        dataInicioPadrao={periodosPorTarefa[`${produtoIdNum}_${tarefa.id}`]?.inicio}
+                                      />
+                                    )}
                                   </div>
                                   {ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id) && ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && (
                                     <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000, whiteSpace: 'nowrap' }}>
@@ -1450,7 +1491,7 @@ const SelecaoTarefasPorProduto = ({
 
                       {/* Tarefas Exceção */}
                       {tarefasExcecao.map(tarefa => (
-                        <div key={tarefa.id} style={{ marginBottom: '8px' }}>
+                        <div key={tarefa.id} style={{ marginBottom: '8px', position: 'relative', zIndex: showTempoConfigTarefa[`${produtoIdNum}_${tarefa.id}`] ? 9999 : 'auto' }}>
                           <div
                             className="selected-item-tag tarefa-excecao"
                             style={{
@@ -1680,20 +1721,59 @@ const SelecaoTarefasPorProduto = ({
                                     marginRight: '8px',
                                     pointerEvents: 'auto',
                                     position: 'relative',
-                                    zIndex: 10
+                                    zIndex: showTempoConfigTarefa[`${produtoIdNum}_${tarefa.id}`] ? 9999 : 10
                                   }}
                                   onClick={(e) => e.stopPropagation()}
                                   onMouseDown={(e) => e.stopPropagation()}
                                 >
-                                  <TempoEstimadoInput
-                                    value={tempoEstimadoDia[`${String(produtoIdNum).trim()}_${String(tarefa.id).trim()}`] || tempoEstimadoDia[String(tarefa.id).trim()] || 0}
-                                    onChange={(tempoEmMs) => {
-                                      if (onTempoChange) {
-                                        onTempoChange(produtoIdNum, tarefa.id, tempoEmMs);
-                                      }
-                                    }}
-                                    disabled={disabledTempo}
-                                  />
+                                  <div style={{ width: '100%' }}>
+                                    <button
+                                      type="button"
+                                      className="btn-configurar-tempo"
+                                      onClick={() => {
+                                        const key = `${produtoIdNum}_${tarefa.id}`;
+                                        setShowTempoConfigTarefa(prev => ({ ...prev, [key]: !prev[key] }));
+                                      }}
+                                      disabled={disabledTempo}
+                                      style={{
+                                        width: '100%',
+                                        height: '32px',
+                                        padding: '0 8px',
+                                        backgroundColor: '#fff',
+                                        border: '1px solid #cbd5e1',
+                                        borderRadius: '4px',
+                                        fontSize: '11px',
+                                        color: '#475569',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '4px',
+                                        cursor: disabledTempo ? 'not-allowed' : 'pointer',
+                                        minWidth: '100px'
+                                      }}
+                                    >
+                                      <i className="fas fa-cog"></i>
+                                      {tempoConfigPorTarefa[`${produtoIdNum}_${tarefa.id}`] ? 'Configurado' : 'Tempo'}
+                                    </button>
+
+                                    {showTempoConfigTarefa[`${produtoIdNum}_${tarefa.id}`] && (
+                                      <TempoConfigCard
+                                        responsaveis={getResponsavelTarefa(produtoIdNum, tarefa.id)}
+                                        colaboradores={colaboradores}
+                                        initialConfig={tempoConfigPorTarefa[`${produtoIdNum}_${tarefa.id}`] || {}}
+                                        onSave={(config) => {
+                                          if (onTempoConfigChange) onTempoConfigChange(produtoIdNum, tarefa.id, config);
+                                          const key = `${produtoIdNum}_${tarefa.id}`;
+                                          setShowTempoConfigTarefa(prev => ({ ...prev, [key]: false }));
+                                        }}
+                                        onClose={() => {
+                                          const key = `${produtoIdNum}_${tarefa.id}`;
+                                          setShowTempoConfigTarefa(prev => ({ ...prev, [key]: false }));
+                                        }}
+                                        dataInicioPadrao={periodosPorTarefa[`${produtoIdNum}_${tarefa.id}`]?.inicio}
+                                      />
+                                    )}
+                                  </div>
                                 </div>
                               )}
                               {tarefa.ehExcecao === true && (
