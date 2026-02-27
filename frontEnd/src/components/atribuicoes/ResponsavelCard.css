@@ -21,9 +21,9 @@
 
 /* Quando usado dentro de selected-item-tag - mesmo estilo dos outros campos */
 .selected-item-tag .responsavel-card-container {
-  min-width: 117px !important;
-  width: 117px !important;
-  max-width: 117px !important;
+  min-width: 130px !important;
+  width: 130px !important;
+  max-width: 130px !important;
   flex-shrink: 0 !important;
 }
 
@@ -36,7 +36,7 @@
   flex-shrink: 0 !important;
   padding: 4px 10px !important;
   background: rgba(255, 255, 255, 0.2) !important;
-  border: 2px solid rgba(255, 255, 255, 0.3) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
   border-radius: 4px !important;
   font-size: 11px !important;
   min-height: 26px !important;
@@ -45,8 +45,8 @@
   margin: 0 !important;
   box-shadow: none !important;
   transition: all 0.2s ease !important;
-  width: 117px !important;
-  max-width: 117px !important;
+  width: 130px !important;
+  max-width: 130px !important;
   box-sizing: border-box !important;
 }
 
@@ -174,8 +174,10 @@
 }
 
 .responsavel-card-dropdown {
-  position: absolute !important;
-  z-index: 100001 !important;
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 10000 !important;
   background: white;
   border: 1px solid #e5e7eb;
   border-radius: 12px;

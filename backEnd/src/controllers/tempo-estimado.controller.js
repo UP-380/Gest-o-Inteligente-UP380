@@ -3411,6 +3411,10 @@ async function salvarConfiguracaoCliente(req, res) {
       // Se não houver estimativas, usar um fallback simples de 0 ou ignorar
       if (estimativas.length === 0) continue;
 
+      if (estimativas.length > 0 && (!responsaveis || responsaveis.length === 0)) {
+        console.warn(`⚠️ [SALVAR-CONFIG] Config com estimativas mas sem responsáveis (cliente=${cliente_id}, tarefa=${tarefa_id}). Regras serão gravadas com responsavel_id NULL.`);
+      }
+
       // Segmentar as estimativas de tempo ao longo do calendário
       const segmentosTempo = segmentarVigenciasTempo(estimativas, dataFimLimite);
 
@@ -3422,19 +3426,23 @@ async function salvarConfiguracaoCliente(req, res) {
 
       for (const resp of respsFinal) {
         for (const seg of segmentosTempo) {
+          const rawId = resp.id != null && resp.id !== '' ? String(resp.id).trim() : null;
+          const responsavelIdNum = rawId ? parseInt(rawId, 10) : null;
+          const responsavel_id = (responsavelIdNum != null && !Number.isNaN(responsavelIdNum)) ? responsavelIdNum : null;
+
           regrasParaInserir.push({
             agrupador_id,
             cliente_id: String(cliente_id).trim(),
-            produto_id: produto_id ? parseInt(produto_id, 10) : null,
-            tarefa_id: parseInt(tarefa_id, 10),
-            responsavel_id: resp.id ? parseInt(resp.id, 10) : null,
+            produto_id: produto_id ? String(produto_id).trim() : null,
+            tarefa_id: String(tarefa_id).trim(),
+            responsavel_id,
             data_inicio: seg.data_inicio,
             data_fim: seg.data_fim,
             tempo_minutos: seg.tempo_minutos,
             tempo_estimado_dia: seg.tempo_estimado_dia,
             incluir_finais_semana,
             incluir_feriados,
-            created_by: membroIdCriador
+            created_by: membroIdCriador ? String(membroIdCriador).trim() : null
           });
         }
       }

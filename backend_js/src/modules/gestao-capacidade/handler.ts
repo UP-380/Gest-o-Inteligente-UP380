@@ -289,7 +289,7 @@ function montarHierarquia({
     estimado?: EstimadoRegra
   ) => {
     if (!niveis.length) return;
-    const chaveRaw = mapNivel(niveis[0], registro) || mapNivel(niveis[0], estimado);
+    const chaveRaw = registro != null ? mapNivel(niveis[0], registro) : mapNivel(niveis[0], estimado);
     if (chaveRaw == null || chaveRaw === '') return;
     const chave = String(chaveRaw);
 
@@ -791,9 +791,7 @@ export async function cardsHandler(c: Context) {
       });
     }
     if (tarefaIds.length) {
-      const tarefaIdsNum = tarefaIds.map((id) => parseInt(id, 10)).filter((n) => !Number.isNaN(n));
-      const idsQuery = tarefaIdsNum.length === tarefaIds.length ? tarefaIdsNum : tarefaIds;
-      const { data: tarefas } = await supabase.schema(SCHEMA).from('cp_tarefa').select('id, nome').in('id', idsQuery);
+      const { data: tarefas } = await supabase.schema(SCHEMA).from('cp_tarefa').select('id, nome').in('id', tarefaIds);
       tarefas?.forEach((t: Record<string, unknown>) => {
         const key = String(t.id);
         const nome = String(t.nome ?? t.Nome ?? t.name ?? t.titulo ?? '').trim();

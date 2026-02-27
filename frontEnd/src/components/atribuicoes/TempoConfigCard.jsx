@@ -1,220 +1,183 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import './TempoConfigCard.css';
 
+const parseMinutesToHHMM = (totalMinutes) => {
+    const hours = Math.floor(Number(totalMinutes || 0) / 60);
+    const minutes = Number(totalMinutes || 0) % 60;
+    return { hours, minutes };
+};
+
 const TempoConfigCard = ({
-    responsaveis = [],
-    colaboradores = [],
     initialConfig = {},
     onSave,
     onClose,
-    dataInicioPadrao = null
+    dataInicioPadrao = null,
+    responsavelId = null
 }) => {
-    // Garantir que temos um estado local com a estrutura correta
-    const [tempoConfig, setTempoConfig] = useState(() => {
-        const config = { ...initialConfig };
+    const cardRef = useRef(null);
+    const [positionUp, setPositionUp] = useState(false);
 
-        // Se não houver responsáveis, garantir inicialização da chave 'null' (Structural)
-        if (!responsaveis || responsaveis.length === 0) {
-            if (!config['null'] || !Array.isArray(config['null'])) {
-                config['null'] = [
-                    { tempo_minutos: 0, data_inicio: dataInicioPadrao || new Date().toISOString().split('T')[0] }
-                ];
+    useEffect(() => {
+        if (cardRef.current && cardRef.current.parentElement) {
+            const parentRect = cardRef.current.parentElement.getBoundingClientRect();
+            const vh = window.innerHeight;
+            const spaceBelow = vh - parentRect.bottom;
+            const spaceAbove = parentRect.top;
+
+            // Se o espaço abaixo for insuficiente para o card (max 450px, mas 400px é um bom limiar)
+            // e houver mais espaço acima, abrimos para cima
+            if (spaceBelow < 400 && spaceAbove > spaceBelow) {
+                setPositionUp(true);
             }
-        } else {
-            // Inicializar para responsáveis que não têm config
-            responsaveis.forEach(respId => {
-                const idStr = String(respId);
-                if (!config[idStr] || !Array.isArray(config[idStr]) || config[idStr].length === 0) {
-                    config[idStr] = [
-                        { tempo_minutos: 0, data_inicio: dataInicioPadrao || new Date().toISOString().split('T')[0] }
-                    ];
-                }
-            });
         }
-        return config;
+    }, []);
+    // Garantimos que o estado é uma lista genérica de segmentos de tempo atrelados à Tarefa.
+    // Ignoramos completamente os 'responsaveis' (a chave 'null' garante a compatibilidade com o formato esperado pelo payload do backend = estimativa estrutural/geral).
+    const [segments, setSegments] = useState(() => {
+        // Tenta achar qualquer segmento preexistente (seja em "null" ou que sobrou de um antigo ID de responsável)
+        const allKeys = Object.keys(initialConfig);
+        if (allKeys.length > 0 && Array.isArray(initialConfig[allKeys[0]]) && initialConfig[allKeys[0]].length > 0) {
+            return [...initialConfig[allKeys[0]]];
+        }
+
+        return [
+            { tempo_minutos: 0, data_inicio: dataInicioPadrao || new Date().toISOString().split('T')[0] }
+        ];
     });
 
-    const getColaboradorNome = (id) => {
-        if (id === 'null' || id === null) return 'Estimativa Geral (Sem Responsável)';
-        const colab = colaboradores.find(c => String(c.id) === String(id));
-        return colab ? colab.nome : `Responsável ${id}`;
+    const handleAddSegment = () => {
+        setSegments(prev => [
+            ...prev,
+            { tempo_minutos: 0, data_inicio: '' }
+        ]);
     };
 
-    const handleAddSegment = (respId) => {
-        const idStr = String(respId);
-        setTempoConfig(prev => {
-            const currentSegments = prev[idStr] || [{ tempo_minutos: 0, data_inicio: dataInicioPadrao || new Date().toISOString().split('T')[0] }];
-            return {
-                ...prev,
-                [idStr]: [
-                    ...currentSegments,
-                    { tempo_minutos: 0, data_inicio: '' }
-                ]
+    const handleRemoveSegment = (index) => {
+        if (segments.length <= 1) return;
+        setSegments(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const handleChangeTime = (index, fieldStr, value) => {
+        setSegments(prev => {
+            const newSegments = [...prev];
+            const current = parseMinutesToHHMM(newSegments[index].tempo_minutos);
+
+            let newHours = current.hours;
+            let newMins = current.minutes;
+
+            if (fieldStr === 'h') newHours = parseInt(value) || 0;
+            if (fieldStr === 'm') newMins = parseInt(value) || 0;
+
+            newSegments[index] = {
+                ...newSegments[index],
+                tempo_minutos: (newHours * 60) + newMins
             };
+            return newSegments;
         });
     };
 
-    const handleRemoveSegment = (respId, index) => {
-        const idStr = String(respId);
-        if (!tempoConfig[idStr] || tempoConfig[idStr].length <= 1) return; // Não remove o último segment
-
-        setTempoConfig(prev => ({
-            ...prev,
-            [idStr]: prev[idStr].filter((_, i) => i !== index)
-        }));
-    };
-
-    const handleChangeSegment = (respId, index, field, value) => {
-        const idStr = String(respId);
-        setTempoConfig(prev => {
-            const currentSegments = prev[idStr] || [{ tempo_minutos: 0, data_inicio: dataInicioPadrao || new Date().toISOString().split('T')[0] }];
-            const newSegments = [...currentSegments];
-            newSegments[index] = { ...newSegments[index], [field]: field === 'tempo_minutos' ? parseInt(value) || 0 : value };
-            return { ...prev, [idStr]: newSegments };
+    const handleChangeDate = (index, value) => {
+        setSegments(prev => {
+            const newSegments = [...prev];
+            newSegments[index] = { ...newSegments[index], data_inicio: value };
+            return newSegments;
         });
     };
 
     const handleSaveInternal = () => {
-        // Validações básicas
-        const keysToValidate = responsaveis.length > 0 ? responsaveis.map(String) : ['null'];
-        for (const respId of keysToValidate) {
-            const segments = tempoConfig[respId];
-            if (segments) {
-                // Verificar datas vazias
-                if (segments.some(s => !s.data_inicio)) {
-                    alert('Preencha todas as datas de início.');
-                    return;
-                }
-
-                // Verificar datas duplicadas para o mesmo responsável
-                const dates = segments.map(s => s.data_inicio);
-                if (new Set(dates).size !== dates.length) {
-                    alert(`Datas duplicadas para ${getColaboradorNome(respId)}.`);
-                    return;
-                }
-            }
+        // Validar datas vazias
+        if (segments.some(s => !s.data_inicio)) {
+            alert('Preencha todas as datas de início.');
+            return;
         }
 
-        onSave(tempoConfig);
+        // Validar datas duplicadas
+        const dates = segments.map(s => s.data_inicio);
+        if (new Set(dates).size !== dates.length) {
+            alert('Você não pode ter datas de início duplicadas para a mesma tarefa.');
+            return;
+        }
+
+        // Retorna no formato estrutural {'null': [...]}; se houver um responsável único, também vincula a ele
+        const payload = { 'null': segments };
+        if (responsavelId != null && responsavelId !== '') {
+            payload[String(responsavelId)] = segments;
+        }
+        onSave(payload);
     };
 
-    // Filtrar apenas responsáveis que ainda estão selecionados
-    const responsaveisAtivos = responsaveis.map(String);
-
     return (
-        <div className="tempo-config-popover">
+        <div ref={cardRef} className={`tempo-config-popover ${positionUp ? 'position-up' : ''}`}>
             <div className="tempo-config-header">
-                <h4><i className="fas fa-cog"></i> Configurar Tempo</h4>
+                <h4><i className="fas fa-clock"></i> Configurar Estimativa</h4>
                 <button className="close-btn" onClick={onClose}>&times;</button>
             </div>
 
             <div className="tempo-config-body">
-                {responsaveisAtivos.length === 0 ? (
-                    (() => {
-                        // Se não houver responsáveis, mostrar a configuração para o 'null'
-                        const respId = 'null';
-                        return (
-                            <div key={respId} className="responsavel-tempo-group structural-config">
-                                <div className="responsavel-name-row">
-                                    <i className="fas fa-layer-group"></i>
-                                    <span>Estimativa Geral (Estrutural)</span>
-                                </div>
-                                <div className="segments-list">
-                                    {(tempoConfig[respId] || [{ tempo_minutos: 0, data_inicio: dataInicioPadrao || new Date().toISOString().split('T')[0] }]).map((segment, index) => (
-                                        <div key={index} className="tempo-segment-row">
-                                            <div className="segment-input-group">
-                                                <label>Tempo (minutos)</label>
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    value={segment.tempo_minutos}
-                                                    onChange={(e) => handleChangeSegment(respId, index, 'tempo_minutos', e.target.value)}
-                                                    placeholder="Minutos"
-                                                />
-                                            </div>
-                                            <div className="segment-input-group">
-                                                <label>A partir de</label>
-                                                <input
-                                                    type="date"
-                                                    value={segment.data_inicio}
-                                                    onChange={(e) => handleChangeSegment(respId, index, 'data_inicio', e.target.value)}
-                                                />
-                                            </div>
-                                            {index > 0 && (
-                                                <button
-                                                    className="remove-segment-btn"
-                                                    onClick={() => handleRemoveSegment(respId, index)}
-                                                    title="Remover mudança"
-                                                >
-                                                    <i className="fas fa-trash-alt"></i>
-                                                </button>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                                <button className="add-segment-btn" onClick={() => handleAddSegment(respId)}>
-                                    <i className="fas fa-plus"></i> Adicionar mudança de estimativa
-                                </button>
-                            </div>
-                        );
-                    })()
-                ) : (
-                    responsaveisAtivos.map(respId => (
-                        <div key={respId} className="responsavel-tempo-group">
-                            <div className="responsavel-name-row">
-                                <i className="fas fa-user-circle"></i>
-                                <span>{getColaboradorNome(respId)}</span>
-                            </div>
-
-                            <div className="segments-list">
-                                {(tempoConfig[respId] || []).map((segment, index) => (
-                                    <div key={index} className="tempo-segment-row">
-                                        <div className="segment-input-group">
-                                            <label>Tempo (minutos)</label>
+                <div className="responsavel-tempo-group structural-config">
+                    <div className="responsavel-name-row" style={{ backgroundColor: '#f1f5f9', color: '#334155' }}>
+                        <i className="fas fa-layer-group"></i>
+                        <span style={{ fontWeight: 600 }}>Estimativa Geral da Tarefa</span>
+                    </div>
+                    <div className="segments-list">
+                        {segments.map((segment, index) => {
+                            const { hours, minutes } = parseMinutesToHHMM(segment.tempo_minutos);
+                            return (
+                                <div key={index} className="tempo-segment-row">
+                                    <div className="segment-input-group time-hhmm-group">
+                                        <label>Tempo Estimado</label>
+                                        <div className="hhmm-inputs">
                                             <input
                                                 type="number"
                                                 min="0"
-                                                value={segment.tempo_minutos}
-                                                onChange={(e) => handleChangeSegment(respId, index, 'tempo_minutos', e.target.value)}
-                                                placeholder="Minutos"
+                                                className="time-input-hh"
+                                                value={hours || ''}
+                                                onChange={(e) => handleChangeTime(index, 'h', e.target.value)}
+                                                placeholder="00h"
                                             />
-                                        </div>
-                                        <div className="segment-input-group">
-                                            <label>A partir de</label>
+                                            <span>:</span>
                                             <input
-                                                type="date"
-                                                value={segment.data_inicio}
-                                                onChange={(e) => handleChangeSegment(respId, index, 'data_inicio', e.target.value)}
+                                                type="number"
+                                                min="0"
+                                                max="59"
+                                                className="time-input-mm"
+                                                value={minutes || ''}
+                                                onChange={(e) => handleChangeTime(index, 'm', e.target.value)}
+                                                placeholder="00m"
                                             />
                                         </div>
-                                        {index > 0 && (
-                                            <button
-                                                className="remove-segment-btn"
-                                                onClick={() => handleRemoveSegment(respId, index)}
-                                                title="Remover mudança"
-                                            >
-                                                <i className="fas fa-trash-alt"></i>
-                                            </button>
-                                        )}
                                     </div>
-                                ))}
-                            </div>
-
-                            <button
-                                className="add-segment-btn"
-                                onClick={() => handleAddSegment(respId)}
-                            >
-                                <i className="fas fa-plus"></i> Adicionar mudança de tempo
-                            </button>
-                        </div>
-                    ))
-                )}
+                                    <div className="segment-input-group">
+                                        <label>A partir de</label>
+                                        <input
+                                            type="date"
+                                            value={segment.data_inicio}
+                                            onChange={(e) => handleChangeDate(index, e.target.value)}
+                                        />
+                                    </div>
+                                    {index > 0 && (
+                                        <button
+                                            className="remove-segment-btn"
+                                            onClick={() => handleRemoveSegment(index)}
+                                            title="Remover mudança"
+                                        >
+                                            <i className="fas fa-trash-alt"></i>
+                                        </button>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <button className="add-segment-btn" onClick={handleAddSegment}>
+                        <i className="fas fa-plus"></i> Adicionar mudança na estimativa
+                    </button>
+                </div>
             </div>
 
             <div className="tempo-config-footer">
                 <button className="btn-cancel" onClick={onClose}>Cancelar</button>
                 <button className="btn-save" onClick={handleSaveInternal}>
-                    Confirmar Configuração
+                    Confirmar Estimativa
                 </button>
             </div>
         </div>

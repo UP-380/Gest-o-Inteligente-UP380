@@ -1,18 +1,23 @@
 .tempo-config-popover {
     position: absolute;
-    top: 45px;
+    top: 35px;
     right: 0;
-    width: 350px;
-    max-height: 500px;
+    width: 320px;
+    max-height: 450px;
     background: white;
-    border-radius: 12px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    border-radius: 10px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
     border: 1px solid #e2e8f0;
     z-index: 10000;
     display: flex;
     flex-direction: column;
     overflow: hidden;
     animation: slideIn 0.2s ease-out;
+}
+
+.tempo-config-popover.position-up {
+    top: auto;
+    bottom: 35px;
 }
 
 @keyframes slideIn {
@@ -28,7 +33,7 @@
 }
 
 .tempo-config-header {
-    padding: 14px 16px;
+    padding: 10px 14px;
     background: #f8fafc;
     border-bottom: 1px solid #e2e8f0;
     display: flex;
@@ -60,7 +65,7 @@
 }
 
 .tempo-config-body {
-    padding: 16px;
+    padding: 12px;
     overflow-y: auto;
     flex: 1;
 }
@@ -100,12 +105,12 @@
 
 .tempo-segment-row {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     align-items: flex-end;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
     background: #f1f5f9;
-    padding: 10px;
-    border-radius: 8px;
+    padding: 8px;
+    border-radius: 6px;
     position: relative;
 }
 
@@ -124,20 +129,41 @@
 }
 
 .segment-input-group input {
-    height: 32px;
-    padding: 4px 8px;
+    height: 28px;
+    padding: 2px 6px;
     border: 1px solid #cbd5e1;
     border-radius: 4px;
-    font-size: 13px;
+    font-size: 12px;
     color: #334155;
+    width: 100%;
+}
+
+.hhmm-inputs {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.hhmm-inputs input {
+    width: 45px;
+    text-align: center;
+}
+
+.hhmm-inputs span {
+    font-weight: bold;
+    color: #64748b;
+}
+
+.time-hhmm-group {
+    flex: 0 0 auto !important;
 }
 
 .remove-segment-btn {
     background: #fee2e2;
     color: #ef4444;
     border: none;
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     border-radius: 4px;
     display: flex;
     align-items: center;
@@ -153,12 +179,12 @@
 
 .add-segment-btn {
     width: 100%;
-    padding: 8px;
+    padding: 6px;
     background: white;
     border: 1px dashed #3b82f6;
     color: #3b82f6;
     border-radius: 6px;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 500;
     cursor: pointer;
     display: flex;
@@ -175,10 +201,10 @@
 }
 
 .tempo-config-footer {
-    padding: 12px 16px;
+    padding: 8px 12px;
     display: flex;
     justify-content: flex-end;
-    gap: 8px;
+    gap: 6px;
     background: #f8fafc;
     border-top: 1px solid #e2e8f0;
 }

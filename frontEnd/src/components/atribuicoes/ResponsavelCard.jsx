@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import Avatar from '../user/Avatar';
+import { createPortal } from 'react-dom';
 import './ResponsavelCard.css';
 
 const ResponsavelCard = ({
@@ -16,13 +16,30 @@ const ResponsavelCard = ({
   isAPartirDeEnabled = false,
   onAPartirDeToggle = null,
   vigenciaDatas = {},
-  onVigenciaChange = null
+  onVigenciaChange = null,
+  onOpenChange = null,
+  // Novos props para Cálculo de Tempo Disponível
+  periodo = null,
+  horasContratadasPorResponsavel = {},
+  tempoEstimadoDia = {},
+  tarefasSelecionadasPorProduto = null,
+  calcularTempoDisponivel = null,
+  formatarTempoEstimado = null,
+  produtoId = null,
+  tarefaId = null
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+
+  const onOpenChangeRef = useRef(onOpenChange);
+  useEffect(() => {
+    onOpenChangeRef.current = onOpenChange;
+  }, [onOpenChange]);
   const [searchQuery, setSearchQuery] = useState('');
   const containerRef = useRef(null);
   const dropdownRef = useRef(null);
   const searchInputRef = useRef(null);
+  const triggerRef = useRef(null);
+  const [dropdownPos, setDropdownPos] = useState({ top: -9999, left: -9999, width: 320 });
 
   // Normalizar valores para string
   const normalizeValue = (val) => String(val).trim();
@@ -48,6 +65,45 @@ const ResponsavelCard = ({
     return label.includes(query);
   });
 
+  // Cálculo de Posição do Dropdown
+  const calculatePosition = () => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      const dropdownWidth = 320;
+      const dropdownHeight = 400; // Altura máxima aproximada
+
+      let top = rect.bottom + window.scrollY + 6;
+      // Centralizar horizontalmente em relação ao gatilho
+      let left = rect.left + window.scrollX + (rect.width / 2) - (dropdownWidth / 2);
+
+      // Ajuste horizontal para manter dentro da tela
+      if (left < 10) {
+        left = 10;
+      } else if (left + dropdownWidth > window.innerWidth - 10) {
+        left = window.innerWidth - dropdownWidth - 10;
+      }
+
+      // Ajuste vertical se estourar o fundo da tela
+      if (rect.bottom + dropdownHeight > window.innerHeight && rect.top > dropdownHeight) {
+        top = rect.top + window.scrollY - dropdownHeight - 6;
+      }
+
+      setDropdownPos({ top, left, width: dropdownWidth });
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      calculatePosition();
+      window.addEventListener('scroll', calculatePosition, true);
+      window.addEventListener('resize', calculatePosition);
+    }
+    return () => {
+      window.removeEventListener('scroll', calculatePosition, true);
+      window.removeEventListener('resize', calculatePosition);
+    };
+  }, [isOpen]);
+
   // Fechar ao clicar fora (considerando que o dropdown está em portal)
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -58,183 +114,20 @@ const ResponsavelCard = ({
       if (!clickedInContainer && !clickedInDropdown) {
         setIsOpen(false);
         setSearchQuery('');
+        if (onOpenChangeRef.current) onOpenChangeRef.current(false);
       }
     };
 
     if (isOpen) {
-      // Usar mousedown para capturar antes que outros eventos sejam processados
       document.addEventListener('mousedown', handleClickOutside);
-      // Também usar click como fallback
-      document.addEventListener('click', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('click', handleClickOutside);
     };
   }, [isOpen]);
 
-  // Travar scroll da página quando dropdown estiver aberto - scroll apenas dentro do dropdown
-  useEffect(() => {
-    if (isOpen) {
-      // Salvar posição atual do scroll ANTES de qualquer alteração
-      const scrollY = window.scrollY || document.documentElement.scrollTop;
-      const scrollX = window.scrollX || document.documentElement.scrollLeft;
 
-      // Prevenir scroll da página - permitir apenas dentro do dropdown
-      const preventScroll = (e) => {
-        // Permitir scroll apenas dentro do dropdown
-        if (dropdownRef.current && dropdownRef.current.contains(e.target)) {
-          return; // Permitir scroll dentro do dropdown
-        }
-        // Prevenir scroll em qualquer outro lugar
-        e.preventDefault();
-        e.stopPropagation();
-      };
-
-      // Prevenir scroll via teclado também
-      const preventKeyScroll = (e) => {
-        if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(e.key)) {
-          // Permitir apenas se estiver dentro do dropdown
-          if (dropdownRef.current && dropdownRef.current.contains(e.target)) {
-            return;
-          }
-          e.preventDefault();
-        }
-      };
-
-      // Adicionar listeners para prevenir scroll
-      window.addEventListener('wheel', preventScroll, { passive: false });
-      window.addEventListener('touchmove', preventScroll, { passive: false });
-      window.addEventListener('scroll', preventScroll, { passive: false });
-      window.addEventListener('keydown', preventKeyScroll, { passive: false });
-
-      // Travar scroll do body usando position fixed (após calcular posição)
-      document.body.style.position = 'fixed';
-      document.body.style.top = `-${scrollY}px`;
-      document.body.style.left = `-${scrollX}px`;
-      document.body.style.width = '100%';
-      document.body.style.overflow = 'hidden';
-
-      return () => {
-        // Remover listeners primeiro
-        window.removeEventListener('wheel', preventScroll);
-        window.removeEventListener('touchmove', preventScroll);
-        window.removeEventListener('scroll', preventScroll);
-        window.removeEventListener('keydown', preventKeyScroll);
-
-        // Restaurar scroll quando fechar
-        document.body.style.position = '';
-        document.body.style.top = '';
-        document.body.style.left = '';
-        document.body.style.width = '';
-        document.body.style.overflow = '';
-
-        // Restaurar posição do scroll
-        window.scrollTo(scrollX, scrollY);
-      };
-    }
-  }, [isOpen]);
-
-  // Posicionar dropdown quando abrir
-  useEffect(() => {
-    if (!isOpen || !dropdownRef.current || !containerRef.current) return;
-
-    const updatePosition = () => {
-      if (!dropdownRef.current || !containerRef.current) return;
-
-      const rect = containerRef.current.getBoundingClientRect();
-      const bodyIsFixed = document.body.style.position === 'fixed';
-      let scrollTop, scrollLeft;
-
-      if (bodyIsFixed) {
-        const bodyTop = document.body.style.top;
-        const bodyLeft = document.body.style.left;
-        scrollTop = bodyTop ? Math.abs(parseFloat(bodyTop)) : 0;
-        scrollLeft = bodyLeft ? Math.abs(parseFloat(bodyLeft)) : 0;
-      } else {
-        scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-        scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-      }
-
-      const documentLeft = rect.left + scrollLeft;
-      const documentTop = rect.top + scrollTop;
-
-      const dropdownHeight = Math.min(dropdownRef.current.scrollHeight || 300, 400);
-      const dropdownWidth = 320;
-      const viewportHeight = window.innerHeight;
-      const viewportWidth = window.innerWidth;
-
-      let calculatedLeft = documentLeft + rect.width + 10;
-      let calculatedTop = documentTop;
-
-      if ((calculatedLeft - scrollLeft) + dropdownWidth > viewportWidth) {
-        calculatedLeft = documentLeft - dropdownWidth - 10;
-      }
-
-      if ((calculatedLeft - scrollLeft) < 10) {
-        calculatedLeft = scrollLeft + 10;
-      }
-
-      const topInViewport = calculatedTop - scrollTop;
-      if (topInViewport + dropdownHeight > viewportHeight) {
-        const spaceAbove = topInViewport;
-        const spaceBelow = viewportHeight - topInViewport;
-
-        if (spaceAbove > spaceBelow && spaceAbove >= dropdownHeight) {
-          calculatedTop = scrollTop + viewportHeight - dropdownHeight - 10;
-        }
-      }
-
-      if ((calculatedTop - scrollTop) < 10) {
-        calculatedTop = scrollTop + 10;
-      }
-
-      dropdownRef.current.style.position = 'absolute';
-      dropdownRef.current.style.left = `${calculatedLeft}px`;
-      dropdownRef.current.style.top = `${calculatedTop}px`;
-      dropdownRef.current.style.width = `${dropdownWidth}px`;
-      dropdownRef.current.style.maxHeight = '400px';
-      dropdownRef.current.style.zIndex = '100001';
-      dropdownRef.current.style.bottom = 'auto';
-    };
-
-    updatePosition();
-
-    let rafId = requestAnimationFrame(() => {
-      updatePosition();
-    });
-
-    const handleScroll = () => {
-      requestAnimationFrame(updatePosition);
-    };
-
-    const handleResize = () => {
-      updatePosition();
-    };
-
-    window.addEventListener('scroll', handleScroll, true);
-    document.addEventListener('scroll', handleScroll, true);
-    window.addEventListener('resize', handleResize);
-
-    const observer = new MutationObserver(updatePosition);
-    if (containerRef.current && containerRef.current.parentElement) {
-      observer.observe(document.body, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['style', 'class']
-      });
-    }
-
-    return () => {
-      if (rafId) cancelAnimationFrame(rafId);
-      window.removeEventListener('scroll', handleScroll, true);
-      document.removeEventListener('scroll', handleScroll, true);
-      window.removeEventListener('resize', handleResize);
-      observer.disconnect();
-    };
-  }, [isOpen, filteredOptions.length]);
 
   // Focar input de busca
   useEffect(() => {
@@ -267,13 +160,18 @@ const ResponsavelCard = ({
       }
       setIsOpen(false);
       setSearchQuery('');
+      if (onOpenChangeRef.current) onOpenChangeRef.current(false);
     }
   };
 
   const handleToggle = () => {
     if (!disabled) {
-      setIsOpen(!isOpen);
-      if (!isOpen) {
+      const nextOpen = !isOpen;
+      setIsOpen(nextOpen);
+      if (onOpenChangeRef.current) onOpenChangeRef.current(nextOpen);
+
+      if (nextOpen) {
+        calculatePosition();
         setTimeout(() => {
           if (searchInputRef.current) {
             searchInputRef.current.focus();
@@ -301,8 +199,13 @@ const ResponsavelCard = ({
   const cardElement = (
     <div className="responsavel-card-container" ref={containerRef}>
       <div
+        ref={triggerRef}
         className={`responsavel-card ${disabled ? 'disabled' : ''} ${isOpen ? 'active' : ''} ${isMulti ? 'multi' : ''}`}
-        onClick={handleToggle}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          handleToggle();
+        }}
         role="button"
         tabIndex={disabled ? -1 : 0}
         onKeyDown={(e) => {
@@ -314,36 +217,21 @@ const ResponsavelCard = ({
         title={isMulti && colaboradoresSelecionados.length > 0 ? colaboradoresSelecionados.map(c => c.nome).join(', ') : ''}
       >
         <div className="responsavel-card-content">
-          {!isMulti && colaboradorSelecionado ? (
+          {colaboradoresSelecionados.length === 1 ? (
             <Avatar
-              avatarId={colaboradorSelecionado.foto_perfil || null}
-              nomeUsuario={colaboradorSelecionado.nome}
+              avatarId={colaboradoresSelecionados[0].foto_perfil || null}
+              nomeUsuario={colaboradoresSelecionados[0].nome}
               size="small"
               className="responsavel-card-avatar"
             />
-          ) : isMulti && colaboradoresSelecionados.length > 0 ? (
-            <div className="responsavel-card-multi-avatars">
-              {colaboradoresSelecionados.slice(0, 2).map((c, i) => (
-                <Avatar
-                  key={c.id}
-                  avatarId={c.foto_perfil || null}
-                  nomeUsuario={c.nome}
-                  size="small"
-                  className="responsavel-card-avatar"
-                  style={{ marginLeft: i > 0 ? '-10px' : '0' }}
-                />
-              ))}
-              {colaboradoresSelecionados.length > 2 && (
-                <div className="avatar-plus-count">+{colaboradoresSelecionados.length - 2}</div>
-              )}
-            </div>
           ) : (
             <i
               className="fas fa-user-group"
               style={{
-                marginRight: '8px',
-                color: '#6b7280',
-                flexShrink: 0
+                marginRight: '4px',
+                color: 'inherit', // Permite que o estilo pai controle a cor (como branco na tag)
+                flexShrink: 0,
+                fontSize: '11px'
               }}
             ></i>
           )}
@@ -356,33 +244,68 @@ const ResponsavelCard = ({
     </div>
   );
 
-  const dropdownElement = isOpen && !disabled ? (
-    <div
-      className="responsavel-card-dropdown"
-      ref={dropdownRef}
-      onClick={(e) => e.stopPropagation()}
-      onMouseDown={(e) => e.stopPropagation()}
-    >
-      <div className="responsavel-card-dropdown-content custom-scrollbar">
-        {showAPartirDe && (
-          <div className="responsavel-card-escalonamento">
-            <div className="escalonamento-header">
-              <div className="escalonamento-toggle-wrapper">
-                <span className="escalonamento-label">Escalonar (A partir de)</span>
-                <label className="vigencia-toggle-switch">
-                  <input
-                    type="checkbox"
-                    checked={isAPartirDeEnabled}
-                    onChange={(e) => onAPartirDeToggle && onAPartirDeToggle(e.target.checked)}
-                  />
-                  <span className="vigencia-toggle-slider"></span>
-                </label>
-              </div>
+  const dropdownElement = (
+    <div className="responsavel-card-dropdown-content custom-scrollbar">
+      {showAPartirDe && (
+        <div className="responsavel-card-escalonamento">
+          <div className="escalonamento-header">
+            <div className="escalonamento-toggle-wrapper">
+              <span className="escalonamento-label">Escalonar (A partir de)</span>
+              <label className="vigencia-toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={isAPartirDeEnabled}
+                  onChange={(e) => onAPartirDeToggle && onAPartirDeToggle(e.target.checked)}
+                />
+                <span className="vigencia-toggle-slider"></span>
+              </label>
             </div>
+          </div>
 
-            {isAPartirDeEnabled && colaboradoresSelecionados.length > 0 && (
-              <div className="escalonamento-list">
-                {colaboradoresSelecionados.map(c => (
+          {colaboradoresSelecionados.length > 0 && (
+            <div className="escalonamento-list">
+              {colaboradoresSelecionados.map(c => {
+                // Cálculo de tempo disponível
+                let tempoElement = null;
+                if (calcularTempoDisponivel && formatarTempoEstimado && periodo && (periodo.inicio && periodo.fim || (Array.isArray(periodo.datasIndividuais) && periodo.datasIndividuais.length > 0))) {
+                  const tarefasParaCalculo = tarefasSelecionadasPorProduto || { [produtoId]: { [tarefaId]: { selecionada: true } } };
+                  const tempoDisponivel = calcularTempoDisponivel(c.id, periodo, horasContratadasPorResponsavel, tempoEstimadoDia, tarefasParaCalculo, null);
+
+                  if (tempoDisponivel !== undefined && tempoDisponivel !== null) {
+                    const isExcedido = tempoDisponivel < 0;
+                    const dias = (periodo.inicio && periodo.fim)
+                      ? "no período"
+                      : `${Array.isArray(periodo.datasIndividuais) ? periodo.datasIndividuais.length : 0} dias selecionados`;
+
+                    tempoElement = (
+                      <div
+                        className="escalonamento-item-time"
+                        style={{
+                          padding: '3px 8px',
+                          backgroundColor: isExcedido ? '#fef2f2' : '#f0f9ff',
+                          border: `1px solid ${isExcedido ? '#ef4444' : '#0ea5e9'}`,
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          color: isExcedido ? '#991b1b' : '#0c4a6e',
+                          fontWeight: '600',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          whiteSpace: 'nowrap',
+                          cursor: 'help',
+                          marginLeft: 'auto',
+                          marginRight: isAPartirDeEnabled ? '8px' : '0'
+                        }}
+                        title={`${isExcedido ? "Tempo excedido" : "Tempo disponível"} para ${c.nome} ${dias}`}
+                      >
+                        <i className="fas fa-clock" style={{ fontSize: '10px' }}></i>
+                        <span>{isExcedido ? `-${formatarTempoEstimado(Math.abs(tempoDisponivel), false)}` : formatarTempoEstimado(tempoDisponivel, false)}</span>
+                      </div>
+                    );
+                  }
+                }
+
+                return (
                   <div key={`vigencia-${c.id}`} className="escalonamento-item">
                     <div className="escalonamento-item-info">
                       <Avatar
@@ -393,92 +316,114 @@ const ResponsavelCard = ({
                       />
                       <span className="escalonamento-item-name">{c.nome}</span>
                     </div>
-                    <div className="escalonamento-item-date">
-                      <input
-                        type="date"
-                        value={vigenciaDatas[c.id] || ''}
-                        onChange={(e) => onVigenciaChange && onVigenciaChange(c.id, e.target.value)}
-                        className="escalonamento-date-input"
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
 
-        <div className="responsavel-card-search">
-          <div className="responsavel-card-search-wrapper">
-            <i className="fas fa-search" style={{ color: '#9ca3af', fontSize: '14px' }}></i>
-            <input
-              ref={searchInputRef}
-              type="text"
-              className="responsavel-card-search-input"
-              placeholder="Buscar colaborador..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  setIsOpen(false);
-                  setSearchQuery('');
-                }
-              }}
-              autoComplete="off"
-            />
-          </div>
+                    {tempoElement}
+
+                    {isAPartirDeEnabled && (
+                      <div className="escalonamento-item-date">
+                        <input
+                          type="date"
+                          value={vigenciaDatas[c.id] || ''}
+                          onChange={(e) => onVigenciaChange && onVigenciaChange(c.id, e.target.value)}
+                          className="escalonamento-date-input"
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
+      )}
 
-        {filteredOptions.length > 0 ? (
-          filteredOptions.map((option) => {
-            const val = normalizeValue(option.value);
-            const isSelected = isMulti
-              ? selectedValues.map(normalizeValue).includes(val)
-              : normalizeValue(value) === val;
-
-            const colaboradorOption = colaboradores.find(c =>
-              normalizeValue(c.id) === val
-            );
-
-            return (
-              <div
-                key={val}
-                className={`responsavel-card-option ${isSelected ? 'selected' : ''}`}
-                onClick={() => handleSelect(option.value)}
-              >
-                {colaboradorOption ? (
-                  <Avatar
-                    avatarId={colaboradorOption.foto_perfil || null}
-                    nomeUsuario={colaboradorOption.nome}
-                    size="small"
-                    className="responsavel-card-option-avatar"
-                  />
-                ) : (
-                  <div className="responsavel-card-option-avatar">
-                    <i className="fas fa-user"></i>
-                  </div>
-                )}
-                <span className="responsavel-card-option-label">{option.label}</span>
-                {isSelected && isMulti && (
-                  <i className="fas fa-check" style={{ marginLeft: 'auto', fontSize: '12px', color: '#0e3b6f' }}></i>
-                )}
-              </div>
-            );
-          })
-        ) : (
-          <div className="responsavel-card-option no-results">
-            Nenhum colaborador encontrado
-          </div>
-        )}
+      <div className="responsavel-card-search">
+        <div className="responsavel-card-search-wrapper">
+          <i className="fas fa-search" style={{ color: '#9ca3af', fontSize: '14px' }}></i>
+          <input
+            ref={searchInputRef}
+            type="text"
+            className="responsavel-card-search-input"
+            placeholder="Buscar colaborador..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setIsOpen(false);
+                setSearchQuery('');
+              }
+            }}
+            autoComplete="off"
+          />
+        </div>
       </div>
+
+      {filteredOptions.length > 0 ? (
+        filteredOptions.map((option) => {
+          const val = normalizeValue(option.value);
+          const isSelected = isMulti
+            ? selectedValues.map(normalizeValue).includes(val)
+            : normalizeValue(value) === val;
+
+          const colaboradorOption = colaboradores.find(c =>
+            normalizeValue(c.id) === val
+          );
+
+          return (
+            <div
+              key={val}
+              className={`responsavel-card-option ${isSelected ? 'selected' : ''}`}
+              onClick={() => handleSelect(option.value)}
+            >
+              {colaboradorOption ? (
+                <Avatar
+                  avatarId={colaboradorOption.foto_perfil || null}
+                  nomeUsuario={colaboradorOption.nome}
+                  size="small"
+                  className="responsavel-card-option-avatar"
+                />
+              ) : (
+                <div className="responsavel-card-option-avatar">
+                  <i className="fas fa-user"></i>
+                </div>
+              )}
+              <span className="responsavel-card-option-label">{option.label}</span>
+              {isSelected && isMulti && (
+                <i className="fas fa-check" style={{ marginLeft: 'auto', fontSize: '12px', color: '#0e3b6f' }}></i>
+              )}
+            </div>
+          );
+        })
+      ) : (
+        <div className="responsavel-card-option no-results">
+          Nenhum colaborador encontrado
+        </div>
+      )}
     </div>
-  ) : null;
+  );
 
   return (
     <>
       {cardElement}
-      {isOpen && createPortal(dropdownElement, document.body)}
+      {isOpen && !disabled && createPortal(
+        <div
+          ref={dropdownRef}
+          className="responsavel-card-dropdown"
+          style={{
+            position: 'absolute',
+            top: dropdownPos.top,
+            left: dropdownPos.left,
+            width: dropdownPos.width,
+            zIndex: 10000000
+          }}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          {dropdownElement}
+        </div>,
+        document.body
+      )}
     </>
   );
 };

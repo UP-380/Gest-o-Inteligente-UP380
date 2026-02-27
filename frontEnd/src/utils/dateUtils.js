@@ -62,7 +62,7 @@ const calcularPascoa = (year) => {
  * @param {number} year - Ano
  * @returns {Array<Date>} Array de datas de feriados
  */
-const obterFeriadosBrasileiros = (year) => {
+export const obterFeriadosBrasileiros = (year) => {
   const feriados = [];
 
   // Feriados fixos
@@ -79,10 +79,14 @@ const obterFeriadosBrasileiros = (year) => {
   // Feriados móveis baseados na Páscoa
   const pascoa = calcularPascoa(year);
 
-  // Carnaval (48 dias antes da Páscoa)
-  const carnaval = new Date(pascoa);
-  carnaval.setDate(pascoa.getDate() - 48);
-  feriados.push(carnaval);
+  // Carnaval (48 e 47 dias antes da Páscoa) - Segunda e Terça-feira
+  const carnavalSegunda = new Date(pascoa);
+  carnavalSegunda.setDate(pascoa.getDate() - 48);
+  feriados.push(carnavalSegunda);
+
+  const carnavalTerca = new Date(pascoa);
+  carnavalTerca.setDate(pascoa.getDate() - 47);
+  feriados.push(carnavalTerca);
 
   // Sexta-feira Santa (2 dias antes da Páscoa)
   const sextaFeiraSanta = new Date(pascoa);
@@ -282,9 +286,9 @@ export const obterDatasValidasNoPeriodo = (dataInicio, dataFim, incluirFinaisSem
         incluirDia = false;
       }
 
-      // Se a data está em datasIndividuais, excluir (foi desselecionada)
+      // Se a data está em datasIndividuais, incluir (foi selecionada manualmente)
       if (datasIndividuaisSet.has(dataStr)) {
-        incluirDia = false;
+        incluirDia = true;
       }
 
       if (incluirDia) {
@@ -294,6 +298,13 @@ export const obterDatasValidasNoPeriodo = (dataInicio, dataFim, incluirFinaisSem
       // Avançar para o próximo dia
       dataAtual.setDate(dataAtual.getDate() + 1);
     }
+
+    // Adicionar quaisquer datas individuais que possam estar fora do range
+    datasIndividuaisSet.forEach(dataStr => {
+      // Verificar se a data é válida e não foi filtrada por ser feriado/fds se essas opções estiverem off
+      // Mas geralmente se o usuário clicou nela, ele quer incluí-la como exceção positiva
+      datasValidas.add(dataStr);
+    });
 
     return datasValidas;
   } catch (error) {
@@ -307,54 +318,8 @@ export const calcularDiasComOpcoesEDatasIndividuais = (dataInicio, dataFim, incl
   if (!dataInicio || !dataFim) return 0;
 
   try {
-    const inicio = new Date(dataInicio);
-    const fim = new Date(dataFim);
-
-    // Normalizar para início do dia
-    inicio.setHours(0, 0, 0, 0);
-    fim.setHours(0, 0, 0, 0);
-
-    if (inicio > fim) return 0;
-
-    // Criar Set de datas individuais para busca rápida
-    const datasIndividuaisSet = new Set(datasIndividuais || []);
-
-    let dias = 0;
-    const dataAtual = new Date(inicio);
-
-    // Iterar por cada dia no período
-    while (dataAtual <= fim) {
-      const dataStr = formatDateForInput(dataAtual);
-      const isWeekend = isFinalDeSemana(dataAtual);
-      const isHoliday = isFeriado(dataAtual);
-
-      // Se deve incluir o dia
-      let incluirDia = true;
-
-      // Se não deve incluir finais de semana e é final de semana, não incluir
-      if (!incluirFinaisSemana && isWeekend) {
-        incluirDia = false;
-      }
-
-      // Se não deve incluir feriados e é feriado, não incluir
-      if (!incluirFeriados && isHoliday) {
-        incluirDia = false;
-      }
-
-      // Se a data está em datasIndividuais, excluir do cálculo (foi desselecionada)
-      if (datasIndividuaisSet.has(dataStr)) {
-        incluirDia = false;
-      }
-
-      if (incluirDia) {
-        dias++;
-      }
-
-      // Avançar para o próximo dia
-      dataAtual.setDate(dataAtual.getDate() + 1);
-    }
-
-    return dias;
+    const datasValidas = obterDatasValidasNoPeriodo(dataInicio, dataFim, incluirFinaisSemana, incluirFeriados, datasIndividuais);
+    return datasValidas.size;
   } catch (error) {
     console.error('Erro ao calcular dias com opções e datas individuais:', error);
     return 0;

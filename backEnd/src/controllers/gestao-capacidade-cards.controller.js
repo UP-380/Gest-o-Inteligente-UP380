@@ -575,11 +575,11 @@ async function getContagensDetalhesResponsavel(supabaseClient, opts) {
       .lte('data_inicio', `${dataFimStr}T23:59:59.999`)
       .gte('data_fim', `${dataInicioStr}T00:00:00`);
     if (filtrosAdicionais.produto_id?.length) {
-      const ids = filtrosAdicionais.produto_id.map(id => parseInt(id, 10)).filter(n => !isNaN(n));
+      const ids = filtrosAdicionais.produto_id.map(id => String(id).trim()).filter(Boolean);
       if (ids.length) q = q.in('produto_id', ids);
     }
     if (filtrosAdicionais.tarefa_id?.length) {
-      const ids = filtrosAdicionais.tarefa_id.map(id => parseInt(id, 10)).filter(n => !isNaN(n));
+      const ids = filtrosAdicionais.tarefa_id.map(id => String(id).trim()).filter(Boolean);
       if (ids.length) q = q.in('tarefa_id', ids);
     }
     return q;
@@ -638,8 +638,8 @@ async function getDetalhesEstimadoTipoTarefa(supabaseClient, opts) {
       .gte('data_fim', `${dataInicioStr}T00:00:00`)
       .order('data_inicio', { ascending: false });
     if (filtrosAdicionais?.cliente_id?.length) q = q.not('cliente_id', 'is', null);
-    if (filtrosAdicionais?.produto_id?.length) q = q.in('produto_id', filtrosAdicionais.produto_id.map(id => parseInt(id, 10)).filter(n => !isNaN(n)));
-    if (filtrosAdicionais?.tarefa_id?.length) q = q.in('tarefa_id', filtrosAdicionais.tarefa_id.map(id => parseInt(id, 10)).filter(n => !isNaN(n)));
+    if (filtrosAdicionais?.produto_id?.length) q = q.in('produto_id', filtrosAdicionais.produto_id.map(id => String(id).trim()));
+    if (filtrosAdicionais?.tarefa_id?.length) q = q.in('tarefa_id', filtrosAdicionais.tarefa_id.map(id => String(id).trim()));
     return q;
   };
 
@@ -711,11 +711,11 @@ async function getDetalhesEstimadoResponsavel(supabaseClient, opts) {
       .gte('data_fim', `${dataInicioStr}T00:00:00`)
       .order('data_inicio', { ascending: false });
     if (filtrosAdicionais.produto_id?.length) {
-      const ids = filtrosAdicionais.produto_id.map(id => parseInt(id, 10)).filter(n => !isNaN(n));
+      const ids = filtrosAdicionais.produto_id.map(id => String(id).trim()).filter(Boolean);
       if (ids.length) q = q.in('produto_id', ids);
     }
     if (filtrosAdicionais.tarefa_id?.length) {
-      const ids = filtrosAdicionais.tarefa_id.map(id => parseInt(id, 10)).filter(n => !isNaN(n));
+      const ids = filtrosAdicionais.tarefa_id.map(id => String(id).trim()).filter(Boolean);
       if (ids.length) q = q.in('tarefa_id', ids);
     }
     return q;
@@ -792,8 +792,8 @@ async function getDetalhesEstimadoCliente(supabaseClient, opts) {
       .not('cliente_id', 'is', null)
       .lte('data_inicio', `${dataFimStr}T23:59:59.999`)
       .gte('data_fim', `${dataInicioStr}T00:00:00`);
-    if (filtrosAdicionais?.produto_id?.length) q = q.in('produto_id', filtrosAdicionais.produto_id.map(id => parseInt(id, 10)).filter(n => !isNaN(n)));
-    if (filtrosAdicionais?.tarefa_id?.length) q = q.in('tarefa_id', filtrosAdicionais.tarefa_id.map(id => parseInt(id, 10)).filter(n => !isNaN(n)));
+    if (filtrosAdicionais?.produto_id?.length) q = q.in('produto_id', filtrosAdicionais.produto_id.map(id => String(id).trim()));
+    if (filtrosAdicionais?.tarefa_id?.length) q = q.in('tarefa_id', filtrosAdicionais.tarefa_id.map(id => String(id).trim()));
     return q.order('data_inicio', { ascending: false });
   };
 
@@ -878,7 +878,7 @@ async function getDetalhesEstimadoProduto(supabaseClient, opts) {
       .lte('data_inicio', `${dataFimStr}T23:59:59.999`)
       .gte('data_fim', `${dataInicioStr}T00:00:00`);
     if (filtrosAdicionais?.cliente_id?.length) q = q.not('cliente_id', 'is', null);
-    if (filtrosAdicionais?.tarefa_id?.length) q = q.in('tarefa_id', filtrosAdicionais.tarefa_id.map(id => parseInt(id, 10)).filter(n => !isNaN(n)));
+    if (filtrosAdicionais?.tarefa_id?.length) q = q.in('tarefa_id', filtrosAdicionais.tarefa_id.map(id => String(id).trim()));
     return q.order('data_inicio', { ascending: false });
   };
 
@@ -951,7 +951,7 @@ async function getDetalhesEstimadoTarefa(supabaseClient, opts) {
       .lte('data_inicio', `${dataFimStr}T23:59:59.999`)
       .gte('data_fim', `${dataInicioStr}T00:00:00`);
     if (filtrosAdicionais?.cliente_id?.length) q = q.not('cliente_id', 'is', null);
-    if (filtrosAdicionais?.produto_id?.length) q = q.in('produto_id', filtrosAdicionais.produto_id.map(id => parseInt(id, 10)).filter(n => !isNaN(n)));
+    if (filtrosAdicionais?.produto_id?.length) q = q.in('produto_id', filtrosAdicionais.produto_id.map(id => String(id).trim()));
     return q.order('data_inicio', { ascending: false });
   };
 
@@ -1050,8 +1050,8 @@ async function cardsResponsavel(req, res) {
         p_considerar_finais_semana: considerarFinaisSemana,
         p_responsavel_ids: responsavelIdsStr,
         p_cliente_ids: filtrosAdicionais.cliente_id?.length ? filtrosAdicionais.cliente_id : null,
-        p_produto_ids: filtrosAdicionais.produto_id?.length ? filtrosAdicionais.produto_id.map(id => parseInt(id, 10)).filter(n => !isNaN(n)) : null,
-        p_tarefa_ids: filtrosAdicionais.tarefa_id?.length ? filtrosAdicionais.tarefa_id.map(id => parseInt(id, 10)).filter(n => !isNaN(n)) : null,
+        p_produto_ids: filtrosAdicionais.produto_id?.length ? filtrosAdicionais.produto_id.map(id => String(id).trim()) : null,
+        p_tarefa_ids: filtrosAdicionais.tarefa_id?.length ? filtrosAdicionais.tarefa_id.map(id => String(id).trim()) : null,
         p_agrupar_por: 'responsavel'
       }),
       Promise.resolve(realizadoResult),
@@ -1061,8 +1061,8 @@ async function cardsResponsavel(req, res) {
         dataFimStr: dataFim,
         usuarioParaMembro
       }),
-      vigenciaService.buscarHorasContratadasLote(ids.map(id => parseInt(id, 10)).filter(n => !isNaN(n)), dataFim),
-      vigenciaService.buscarCustoMaisRecenteLote(ids.map(id => parseInt(id, 10)).filter(n => !isNaN(n)), dataFim)
+      vigenciaService.buscarHorasContratadasLote(ids.map(id => String(id).trim()), dataFim),
+      vigenciaService.buscarCustoMaisRecenteLote(ids.map(id => String(id).trim()), dataFim)
     ];
 
     if (incluirDetalhes) {
@@ -1304,8 +1304,8 @@ async function cardsResponsavel(req, res) {
       }
 
       data[idStr] = {
-        id: m.id,
-        nome: m.nome || `Responsável #${m.id}`,
+        id: idStr,
+        nome: m.nome || `Responsável #${idStr}`,
         foto_perfil: null,
         foto_perfil_path: null,
         tipo_contrato: tipoContrato,
@@ -1353,8 +1353,8 @@ async function cardsCliente(req, res) {
       p_considerar_finais_semana: considerarFinaisSemana,
       p_cliente_ids: ids,
       p_responsavel_ids: null,
-      p_produto_ids: filtrosAdicionais.produto_id?.length ? filtrosAdicionais.produto_id.map(id => parseInt(id, 10)).filter(n => !isNaN(n)) : null,
-      p_tarefa_ids: filtrosAdicionais.tarefa_id?.length ? filtrosAdicionais.tarefa_id.map(id => parseInt(id, 10)).filter(n => !isNaN(n)) : null,
+      p_produto_ids: filtrosAdicionais.produto_id?.length ? filtrosAdicionais.produto_id.map(id => String(id).trim()) : null,
+      p_tarefa_ids: filtrosAdicionais.tarefa_id?.length ? filtrosAdicionais.tarefa_id.map(id => String(id).trim()) : null,
       p_agrupar_por: 'cliente'
     });
 
@@ -1548,7 +1548,7 @@ async function cardsCliente(req, res) {
       }
 
       data[idStr] = {
-        id: cliente.id,
+        id: String(cliente.id),
         nome: cliente.nome,
         total_estimado_ms: totalEstimado,
         total_realizado_ms: totalRealizado,
@@ -1577,8 +1577,8 @@ async function cardsProduto(req, res) {
     if (!params) return;
 
     const { ids, dataInicio, dataFim, considerarFinaisSemana, considerarFeriados, filtrosAdicionais, incluirDetalhes } = params;
-    const idsNum = ids.map(id => parseInt(id, 10)).filter(n => !isNaN(n));
-    if (idsNum.length === 0) return res.json({ success: true, data: {} });
+    const normalizedIds = ids.map(id => String(id).trim()).filter(Boolean);
+    if (normalizedIds.length === 0) return res.json({ success: true, data: {} });
 
     const { data: rpcRows, error: rpcError } = await supabase.rpc('get_tempo_estimado_total_agregado', {
       p_data_inicio: dataInicio,
@@ -1586,8 +1586,8 @@ async function cardsProduto(req, res) {
       p_considerar_finais_semana: considerarFinaisSemana,
       p_cliente_ids: filtrosAdicionais.cliente_id?.length ? filtrosAdicionais.cliente_id : null,
       p_responsavel_ids: null,
-      p_produto_ids: idsNum,
-      p_tarefa_ids: filtrosAdicionais.tarefa_id?.length ? filtrosAdicionais.tarefa_id.map(id => parseInt(id, 10)).filter(n => !isNaN(n)) : null,
+      p_produto_ids: normalizedIds,
+      p_tarefa_ids: filtrosAdicionais.tarefa_id?.length ? filtrosAdicionais.tarefa_id.map(id => String(id).trim()) : null,
       p_agrupar_por: 'produto'
     });
 
@@ -1615,7 +1615,7 @@ async function cardsProduto(req, res) {
         .select('tempo_realizado, data_inicio, data_fim, cliente_id, produto_id, tarefa_id, usuario_id')
         .or(orConditions)
         .not('tempo_realizado', 'is', null)
-        .in('produto_id', idsNum);
+        .in('produto_id', normalizedIds);
       if (filtrosAdicionais.cliente_id?.length) q = q.not('cliente_id', 'is', null);
       if (filtrosAdicionais.tarefa_id?.length) q = q.in('tarefa_id', filtrosAdicionais.tarefa_id);
       return q;
@@ -1670,7 +1670,7 @@ async function cardsProduto(req, res) {
       if (msCliente > 0) breakdown.clientes[`${idStr}_sem_cliente`] = msCliente;
     });
 
-    const { data: produtosList } = await supabase.from('cp_produto').select('id, nome').in('id', idsNum);
+    const { data: produtosList } = await supabase.from('cp_produto').select('id, nome').in('id', normalizedIds);
     const produtoPorId = {};
     (produtosList || []).forEach(p => { produtoPorId[String(p.id)] = p; });
 
@@ -1692,7 +1692,11 @@ async function cardsProduto(req, res) {
       const responsavelIds = new Set();
       Object.keys(breakdown.tarefas).forEach(k => tarefaIds.add(k.split('_').slice(1).join('_')));
       Object.keys(breakdown.clientes).forEach(k => clienteIds.add(k.split('_').slice(1).join('_')));
-      Object.keys(breakdown.responsaveis).forEach(k => responsavelIds.add(usuarioParaMembro[k.split('_').slice(1).join('_')]));
+      Object.keys(breakdown.responsaveis).forEach(k => {
+        const uid = k.split('_').slice(1).join('_');
+        const mid = usuarioParaMembro[uid];
+        if (mid) responsavelIds.add(mid);
+      });
 
       const [tarefasNomes, clientesNomes, membrosNomes] = await Promise.all([
         tarefaIds.size ? supabase.from('cp_tarefa').select('id, nome').in('id', [...tarefaIds]) : { data: [] },
@@ -1706,9 +1710,9 @@ async function cardsProduto(req, res) {
     }
 
     const data = {};
-    for (const pid of idsNum) {
+    for (const pid of normalizedIds) {
       const idStr = String(pid);
-      const produto = produtoPorId[idStr] || { id: pid, nome: `Produto #${pid}` };
+      const produto = produtoPorId[idStr] || { id: idStr, nome: `Produto #${idStr}` };
       let detalhesTarefas = [];
       let detalhesClientes = [];
       let detalhesResponsaveis = [];
@@ -1794,7 +1798,7 @@ async function cardsProduto(req, res) {
       }
 
       data[idStr] = {
-        id: produto.id,
+        id: idStr,
         nome: produto.nome,
         total_estimado_ms: estimadoPorProduto[idStr] || 0,
         total_realizado_ms: realizadoPorProduto[idStr] || 0,
@@ -1823,8 +1827,8 @@ async function cardsTarefa(req, res) {
     if (!params) return;
 
     const { ids, dataInicio, dataFim, considerarFinaisSemana, considerarFeriados, filtrosAdicionais, incluirDetalhes } = params;
-    const idsNum = ids.map(id => parseInt(id, 10)).filter(n => !isNaN(n));
-    if (idsNum.length === 0) return res.json({ success: true, data: {} });
+    const normalizedIds = ids.map(id => String(id).trim()).filter(Boolean);
+    if (normalizedIds.length === 0) return res.json({ success: true, data: {} });
 
     const { data: rpcRows, error: rpcError } = await supabase.rpc('get_tempo_estimado_total_agregado', {
       p_data_inicio: dataInicio,
@@ -1832,8 +1836,8 @@ async function cardsTarefa(req, res) {
       p_considerar_finais_semana: considerarFinaisSemana,
       p_cliente_ids: filtrosAdicionais.cliente_id?.length ? filtrosAdicionais.cliente_id : null,
       p_responsavel_ids: null,
-      p_produto_ids: filtrosAdicionais.produto_id?.length ? filtrosAdicionais.produto_id.map(id => parseInt(id, 10)).filter(n => !isNaN(n)) : null,
-      p_tarefa_ids: idsNum,
+      p_produto_ids: filtrosAdicionais.produto_id?.length ? filtrosAdicionais.produto_id.map(id => String(id).trim()) : null,
+      p_tarefa_ids: normalizedIds,
       p_agrupar_por: 'tarefa'
     });
 
@@ -1861,7 +1865,7 @@ async function cardsTarefa(req, res) {
         .select('tempo_realizado, data_inicio, data_fim, cliente_id, produto_id, tarefa_id, usuario_id')
         .or(orConditions)
         .not('tempo_realizado', 'is', null)
-        .in('tarefa_id', idsNum);
+        .in('tarefa_id', normalizedIds);
       if (filtrosAdicionais.cliente_id?.length) q = q.not('cliente_id', 'is', null);
       if (filtrosAdicionais.produto_id?.length) q = q.in('produto_id', filtrosAdicionais.produto_id);
       return q;
@@ -1909,7 +1913,7 @@ async function cardsTarefa(req, res) {
       if (msCliente > 0) breakdown.clientes[`${idStr}_sem_cliente`] = msCliente;
     });
 
-    const { data: tarefasList } = await supabase.from('cp_tarefa').select('id, nome').in('id', idsNum);
+    const { data: tarefasList } = await supabase.from('cp_tarefa').select('id, nome').in('id', normalizedIds);
     const tarefaPorId = {};
     (tarefasList || []).forEach(t => { tarefaPorId[String(t.id)] = t; });
 
@@ -1931,7 +1935,11 @@ async function cardsTarefa(req, res) {
       const responsavelIds = new Set();
       Object.keys(breakdown.produtos).forEach(k => produtoIds.add(k.split('_').slice(1).join('_')));
       Object.keys(breakdown.clientes).forEach(k => clienteIds.add(k.split('_').slice(1).join('_')));
-      Object.keys(breakdown.responsaveis).forEach(k => responsavelIds.add(usuarioParaMembro[k.split('_').slice(1).join('_')]));
+      Object.keys(breakdown.responsaveis).forEach(k => {
+        const uid = k.split('_').slice(1).join('_');
+        const mid = usuarioParaMembro[uid];
+        if (mid) responsavelIds.add(mid);
+      });
 
       const [produtosNomes, clientesNomes, membrosNomes] = await Promise.all([
         produtoIds.size ? supabase.from('cp_produto').select('id, nome').in('id', [...produtoIds]) : { data: [] },
@@ -1945,9 +1953,9 @@ async function cardsTarefa(req, res) {
     }
 
     const data = {};
-    for (const tid of idsNum) {
+    for (const tid of normalizedIds) {
       const idStr = String(tid);
-      const tarefa = tarefaPorId[idStr] || { id: tid, nome: `Tarefa #${tid}` };
+      const tarefa = tarefaPorId[idStr] || { id: idStr, nome: `Tarefa #${idStr}` };
       let detalhesProdutos = [];
       let detalhesClientes = [];
       let detalhesResponsaveis = [];
@@ -2032,7 +2040,7 @@ async function cardsTarefa(req, res) {
       }
 
       data[idStr] = {
-        id: tarefa.id,
+        id: idStr,
         nome: tarefa.nome,
         total_estimado_ms: estimadoPorTarefa[idStr] || 0,
         total_realizado_ms: realizadoPorTarefa[idStr] || 0,
@@ -2298,7 +2306,7 @@ async function detalhesCliente(req, res) {
     const params = validateDetalhesBody(req, res);
     if (!params) return;
     const { id, dataInicio, dataFim, considerarFinaisSemana, considerarFeriados, filtrosAdicionais, tipoDetalhe } = params;
-    
+
     console.log(`🔍 [DETALHES-CLIENTE] Buscando detalhes para cliente ${id}, tipo: ${tipoDetalhe}`);
 
     const { data: cliente, error: errCliente } = await supabase
@@ -2329,7 +2337,7 @@ async function detalhesCliente(req, res) {
       filtrosAdicionais,
       withBreakdown: true
     });
-    
+
     if (!realizadoResult) {
       realizadoResult = { breakdown: { tarefas: {}, produtos: {}, responsaveis: {}, produtoTarefas: {} } };
     } else if (!realizadoResult.breakdown) {
@@ -2343,7 +2351,7 @@ async function detalhesCliente(req, res) {
     const tarefaIds = new Set();
     const produtoIdsSet = new Set();
     const responsavelIdsSet = new Set();
-    
+
     Object.keys(detalhesEstimado.tarefas || {}).forEach(k => {
       const parts = k.split('_');
       if (parts.length >= 2) tarefaIds.add(parts.slice(1).join('_'));
@@ -2356,7 +2364,7 @@ async function detalhesCliente(req, res) {
       const parts = k.split('_');
       if (parts.length >= 2) responsavelIdsSet.add(parts.slice(1).join('_'));
     });
-    
+
     // Também coletar do breakdown de realizado
     Object.keys(realizadoResult.breakdown.tarefas || {}).forEach(k => {
       const parts = k.split('_');
@@ -2380,7 +2388,7 @@ async function detalhesCliente(req, res) {
     const membroIdsSet = new Set();
     if (responsavelIdsSet.size) {
       // responsavelIdsSet contém responsavel_id (não usuario_id), então buscar diretamente
-      const { data: membros } = await supabase.from('membro').select('id, usuario_id').in('id', [...responsavelIdsSet].map(id => parseInt(id, 10)).filter(n => !isNaN(n)));
+      const { data: membros } = await supabase.from('membro').select('id, usuario_id').in('id', [...responsavelIdsSet].map(id => String(id).trim()).filter(Boolean));
       (membros || []).forEach(m => {
         membroIdsSet.add(m.id);
       });
@@ -2388,8 +2396,8 @@ async function detalhesCliente(req, res) {
 
     // Buscar nomes
     const [tarefasNomes, produtosNomes, membrosNomes] = await Promise.all([
-      tarefaIds.size ? supabase.from('cp_tarefa').select('id, nome').in('id', [...tarefaIds].map(id => parseInt(id, 10)).filter(n => !isNaN(n))) : { data: [] },
-      produtoIdsSet.size ? supabase.from('cp_produto').select('id, nome').in('id', [...produtoIdsSet].map(id => parseInt(id, 10)).filter(n => !isNaN(n))) : { data: [] },
+      tarefaIds.size ? supabase.from('cp_tarefa').select('id, nome').in('id', [...tarefaIds].map(id => String(id).trim()).filter(Boolean)) : { data: [] },
+      produtoIdsSet.size ? supabase.from('cp_produto').select('id, nome').in('id', [...produtoIdsSet].map(id => String(id).trim()).filter(Boolean)) : { data: [] },
       membroIdsSet.size ? supabase.from('membro').select('id, nome').in('id', [...membroIdsSet]) : { data: [] }
     ]);
 
@@ -2499,7 +2507,7 @@ async function detalhesCliente(req, res) {
       const parts = k.split('_');
       return parts.length >= 2 ? parts.slice(1).join('_') : null;
     }).filter(Boolean))];
-    
+
     const responsavelParaUsuario = {};
     const usuarioParaResponsavel = {};
     if (responsavelIdsEstimado.length > 0) {
@@ -2553,7 +2561,7 @@ async function detalhesCliente(req, res) {
     // Mapear tipoDetalhe para o array correto (cliente tem: tarefas, produtos, responsaveis)
     const tipoMap = { tarefas: detalhesTarefas, produtos: detalhesProdutos, responsaveis: detalhesResponsaveis };
     const data = tipoMap[tipoDetalhe] || [];
-    
+
     console.log(`✅ [DETALHES-CLIENTE] Retornando ${data.length} itens do tipo ${tipoDetalhe}`);
     return res.json({ success: true, data: normalizarDataDetalhes(data) });
   } catch (error) {
@@ -2602,7 +2610,7 @@ async function detalhesProduto(req, res) {
       filtrosAdicionais,
       withBreakdown: true
     });
-    
+
     if (!realizadoResult) {
       realizadoResult = { breakdown: { tarefas: {}, clientes: {}, responsaveis: {}, clienteTarefas: {} } };
     } else if (!realizadoResult.breakdown) {
@@ -2616,7 +2624,7 @@ async function detalhesProduto(req, res) {
     const tarefaIds = new Set();
     const clienteIds = new Set();
     const responsavelIdsSet = new Set();
-    
+
     Object.keys(detalhesEstimado.tarefas || {}).forEach(k => {
       const parts = k.split('_');
       if (parts.length >= 2) tarefaIds.add(parts.slice(1).join('_'));
@@ -2629,7 +2637,7 @@ async function detalhesProduto(req, res) {
       const parts = k.split('_');
       if (parts.length >= 2) responsavelIdsSet.add(parts.slice(1).join('_'));
     });
-    
+
     // Também coletar do breakdown de realizado
     Object.keys(realizadoResult.breakdown.tarefas || {}).forEach(k => {
       const parts = k.split('_');
@@ -2657,7 +2665,7 @@ async function detalhesProduto(req, res) {
       const parts = k.split('_');
       return parts.length >= 2 ? parts.slice(1).join('_') : null;
     }).filter(Boolean))];
-    
+
     const responsavelParaUsuario = {};
     const usuarioParaResponsavel = {};
     if (responsavelIdsEstimado.length > 0) {
@@ -2675,7 +2683,7 @@ async function detalhesProduto(req, res) {
 
     // Buscar nomes
     const [tarefasNomes, clientesNomes, membrosNomes] = await Promise.all([
-      tarefaIds.size ? supabase.from('cp_tarefa').select('id, nome').in('id', [...tarefaIds].map(id => parseInt(id, 10)).filter(n => !isNaN(n))) : { data: [] },
+      tarefaIds.size ? supabase.from('cp_tarefa').select('id, nome').in('id', [...tarefaIds].map(id => String(id).trim()).filter(Boolean)) : { data: [] },
       clienteIds.size ? supabase.from('cp_cliente').select('id, nome').in('id', [...clienteIds]) : { data: [] },
       responsavelIdsEstimado.length > 0 || usuarioIdsRealizado.length > 0 ? supabase.from('membro').select('id, nome').in('id', [...responsavelIdsEstimado, ...Object.values(usuarioParaResponsavel)]) : { data: [] }
     ]);
@@ -2883,7 +2891,7 @@ async function detalhesTarefa(req, res) {
       filtrosAdicionais,
       withBreakdown: true
     });
-    
+
     if (!realizadoResult) {
       realizadoResult = { breakdown: { produtos: {}, clientes: {}, responsaveis: {}, clienteTarefas: {}, produtoClienteTarefas: {} } };
     } else if (!realizadoResult.breakdown) {
@@ -2900,7 +2908,7 @@ async function detalhesTarefa(req, res) {
     const produtoIds = new Set();
     const clienteIds = new Set();
     const responsavelIdsSet = new Set();
-    
+
     Object.keys(detalhesEstimado.produtos || {}).forEach(k => {
       const parts = k.split('_');
       if (parts.length >= 2) produtoIds.add(parts.slice(1).join('_'));
@@ -2913,7 +2921,7 @@ async function detalhesTarefa(req, res) {
       const parts = k.split('_');
       if (parts.length >= 2) responsavelIdsSet.add(parts.slice(1).join('_'));
     });
-    
+
     // Também coletar do breakdown de realizado
     Object.keys(realizadoResult.breakdown.produtos || {}).forEach(k => {
       const parts = k.split('_');
@@ -2937,7 +2945,7 @@ async function detalhesTarefa(req, res) {
       const parts = k.split('_');
       return parts.length >= 2 ? parts.slice(1).join('_') : null;
     }).filter(Boolean))];
-    
+
     const responsavelParaUsuario = {};
     const usuarioParaResponsavel = {};
     if (responsavelIdsEstimado.length > 0) {
@@ -2955,7 +2963,7 @@ async function detalhesTarefa(req, res) {
 
     // Buscar nomes
     const [produtosNomes, clientesNomes, membrosNomes] = await Promise.all([
-      produtoIds.size ? supabase.from('cp_produto').select('id, nome').in('id', [...produtoIds].map(id => parseInt(id, 10)).filter(n => !isNaN(n))) : { data: [] },
+      produtoIds.size ? supabase.from('cp_produto').select('id, nome').in('id', [...produtoIds].map(id => String(id).trim()).filter(Boolean)) : { data: [] },
       clienteIds.size ? supabase.from('cp_cliente').select('id, nome').in('id', [...clienteIds]) : { data: [] },
       responsavelIdsEstimado.length > 0 || usuarioIdsRealizado.length > 0 ? supabase.from('membro').select('id, nome').in('id', [...responsavelIdsEstimado, ...Object.values(usuarioParaResponsavel)]) : { data: [] }
     ]);
@@ -3155,7 +3163,7 @@ async function detalhesTipoTarefa(req, res) {
         .not('tarefa_id', 'is', null)
         .limit(500);
       if (regrasTipo && regrasTipo.length > 0) {
-        tarefaIds = [...new Set(regrasTipo.map(r => parseInt(r.tarefa_id, 10)).filter(n => !isNaN(n)))];
+        tarefaIds = [...new Set(regrasTipo.map(r => String(r.tarefa_id).trim()).filter(Boolean))];
       }
     }
     if (tarefaIds.length === 0) {
@@ -3260,7 +3268,7 @@ async function detalhesTipoTarefa(req, res) {
         if (p.length >= 2) produtoIds.add(p[1]);
       });
       Object.keys(realizadoPorProduto).forEach(pid => produtoIds.add(pid));
-      const { data: produtosNomes } = await supabase.from('cp_produto').select('id, nome').in('id', [...produtoIds].map(x => parseInt(x, 10)).filter(n => !isNaN(n)));
+      const { data: produtosNomes } = await supabase.from('cp_produto').select('id, nome').in('id', [...produtoIds].map(x => String(x).trim()).filter(Boolean));
       const nomeProduto = {};
       (produtosNomes || []).forEach(p => { nomeProduto[String(p.id)] = p.nome; });
       const detalhesProdutos = [];
@@ -3299,7 +3307,7 @@ async function detalhesTipoTarefa(req, res) {
         if (p.length >= 2) respIds.add(p[1]);
       });
       Object.keys(realizadoPorResponsavel).forEach(rid => respIds.add(rid));
-      const { data: membrosNomes } = await supabase.from('membro').select('id, nome').in('id', [...respIds].map(x => parseInt(x, 10)).filter(n => !isNaN(n)));
+      const { data: membrosNomes } = await supabase.from('membro').select('id, nome').in('id', [...respIds].map(x => String(x).trim()).filter(Boolean));
       const nomeMembro = {};
       (membrosNomes || []).forEach(m => { nomeMembro[String(m.id)] = m.nome; });
       const detalhesResponsaveis = [];
