@@ -26,4 +26,6 @@ export const comunicacaoAPI = {
     listarCategorias: () => api.get('/comunicacao/categorias'),
     listarTemplates: () => api.get('/comunicacao/templates'),
     confirmarEstimativaChamado: (id, data) => api.put(`/comunicacao/chamados/${id}/confirmar-estimativa`, data),
+    atualizarPrioridadeChamado: (id, prioridade) => api.put(`/comunicacao/chamados/${id}/prioridade`, { prioridade }),
+    assumirChamado: (id) => api.put(`/comunicacao/chamados/${id}/assumir`),
 };

@@ -1011,6 +1011,104 @@ async function confirmarEstimativaChamado(req, res) {
     }
 }
 
+/**
+ * Atualiza a prioridade de um chamado
+ */
+async function atualizarPrioridadeChamado(req, res) {
+    try {
+        const { id } = req.params;
+        const { prioridade } = req.body;
+        const usuario_id = req.session.usuario.id;
+
+        if (!prioridade) {
+            return sendValidationError(res, 'Prioridade é obrigatória.');
+        }
+
+        // Buscar chamado e metadata atual
+        const { data: chamado, error: errorBusca } = await supabase
+            .from('comunicacao_mensagens')
+            .select('metadata')
+            .eq('id', id)
+            .single();
+
+        if (errorBusca || !chamado) {
+            return sendNotFound(res, 'Chamado');
+        }
+
+        const existingMetadata = chamado.metadata || {};
+        const oldPrioridade = existingMetadata.prioridade || 'BAIXA';
+
+        // Se a prioridade não mudou, apenas retorna sucesso
+        if (oldPrioridade === prioridade) {
+            return sendSuccess(res, 200, null, 'Prioridade atualizada (sem alterações).');
+        }
+
+        const newMetadata = { ...existingMetadata, prioridade };
+
+        // Atualizar no banco
+        const { error } = await supabase
+            .from('comunicacao_mensagens')
+            .update({ metadata: newMetadata })
+            .eq('id', id);
+
+        if (error) throw error;
+
+
+        return sendSuccess(res, 200, null, 'Prioridade atualizada com sucesso.');
+    } catch (error) {
+        console.error('Erro ao atualizar prioridade:', error);
+        return sendError(res, 500, 'Erro ao atualizar prioridade.', error.message);
+    }
+}
+
+/**
+ * Assumir um chamado (designar responsável)
+ */
+async function assumirChamado(req, res) {
+    try {
+        const { id } = req.params;
+        const usuario_id = req.session.usuario.id;
+        // Tenta obter o nome do usuario na sessão (pode ser nome_usuario ou nome dependedo do login)
+        const nome_usuario = req.session.usuario.nome_usuario || req.session.usuario.nome || 'Usuário';
+
+        const { data: chamado, error: errorBusca } = await supabase
+            .from('comunicacao_mensagens')
+            .select('metadata')
+            .eq('id', id)
+            .single();
+
+        if (errorBusca || !chamado) return sendNotFound(res, 'Chamado');
+
+        const existingMetadata = chamado.metadata || {};
+        const newMetadata = {
+            ...existingMetadata,
+            responsavel: nome_usuario,
+            responsavel_id: usuario_id
+        };
+
+        const { error } = await supabase
+            .from('comunicacao_mensagens')
+            .update({ metadata: newMetadata })
+            .eq('id', id);
+
+        if (error) throw error;
+
+        // Opcional: Adicionar mensagem de sistema no chat para informar quem assumiu
+        await supabase.from('comunicacao_mensagens').insert({
+            tipo: 'CHAMADO',
+            mensagem_pai_id: id,
+            criador_id: usuario_id,
+            conteudo: `O chamado foi assumido por **${nome_usuario}**`,
+            metadata: { sistema: true, acao: 'CHAMADO_ASSUMIDO', responsavel: nome_usuario, responsavel_id: usuario_id }
+        });
+
+        return sendSuccess(res, 200, { responsavel: nome_usuario }, 'Chamado assumido com sucesso.');
+    } catch (error) {
+        console.error('Erro ao assumir chamado:', error);
+        return sendError(res, 500, 'Erro ao assumir chamado.', error.message);
+    }
+}
+
 module.exports = {
     enviarMensagem,
     listarMensagensChat,
@@ -1018,11 +1116,13 @@ module.exports = {
     listarComunicados,
     listarChamados,
     listarRespostasChamado,
+    atualizarPrioridadeChamado,
     atualizarStatusChamado,
     marcarMensagemLida,
     listarComunicadoDestaque,
     atualizarMensagem,
     listarCategorias,
     listarTemplates,
-    confirmarEstimativaChamado
+    confirmarEstimativaChamado,
+    assumirChamado
 };

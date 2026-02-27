@@ -580,6 +580,8 @@ router.get('/api/comunicacao/categorias', requireAuth, comunicacaoController.lis
 router.get('/api/comunicacao/templates', requireAuth, comunicacaoController.listarTemplates);
 router.put('/api/comunicacao/mensagem/:id', requireAuth, comunicacaoController.atualizarMensagem);
 router.put('/api/comunicacao/chamados/:id/confirmar-estimativa', requireAuth, comunicacaoController.confirmarEstimativaChamado);
+router.put('/api/comunicacao/chamados/:id/prioridade', requireAuth, comunicacaoController.atualizarPrioridadeChamado);
+router.put('/api/comunicacao/chamados/:id/assumir', requireAuth, comunicacaoController.assumirChamado);
 
 // Rotas de Upload
 router.post('/api/upload/chamado',

@@ -4,6 +4,7 @@ import { usuariosAPI, authAPI, departamentosAPI } from '../../services/api';
 import { hasPermissionSync } from '../../utils/permissions';
 import Avatar from '../user/Avatar';
 import ConfirmModal from '../common/ConfirmModal';
+import ButtonPrimary from '../common/ButtonPrimary';
 import './CommunicationDrawer.css';
 
 // ==============================================================================
@@ -821,6 +822,42 @@ const CommunicationDrawer = ({ user }) => {
         }
     };
 
+    const handleAssumirChamado = async () => {
+        if (!selectedChamado) return;
+
+        try {
+            const response = await comunicacaoAPI.assumirChamado(selectedChamado.id);
+            if (response.success) {
+                const responsavel = response.data?.responsavel;
+
+                setSelectedChamado(prev => ({
+                    ...prev,
+                    metadata: { ...(prev.metadata || {}), responsavel, responsavel_id: user?.id }
+                }));
+
+                setChamados(prev => prev.map(c => {
+                    if (String(c.id) === String(selectedChamado.id)) {
+                        return {
+                            ...c,
+                            metadata: { ...(c.metadata || {}), responsavel, responsavel_id: user?.id }
+                        };
+                    }
+                    return c;
+                }));
+
+                const resMsg = await comunicacaoAPI.listarRespostasChamado(selectedChamado.id);
+                if (resMsg.success) {
+                    setChamadoMessages(resMsg.data);
+                }
+            } else {
+                alert(response.error || response.message || 'Erro ao assumir chamado.');
+            }
+        } catch (error) {
+            console.error('Erro ao assumir chamado:', error);
+            alert('Erro de conexão ao assumir chamado.');
+        }
+    };
+
     // Upload Handler
     const handleUploadFile = async (e) => {
         const file = e.target.files[0];
@@ -1201,21 +1238,28 @@ const CommunicationDrawer = ({ user }) => {
                                                 cham.status_chamado === 'CANCELADO' ? 'CANCELADO' :
                                                     cham.status_chamado}
                             </div>
+                            <i className="fas fa-flag"
+                                title={`Prioridade: ${cham.metadata?.prioridade || 'BAIXA'}`}
+                                style={{
+                                    position: 'absolute',
+                                    top: '16px',
+                                    right: '16px',
+                                    fontSize: '1rem',
+                                    color: cham.metadata?.prioridade === 'URGENTE' ? '#ef4444' :
+                                        cham.metadata?.prioridade === 'ALTA' ? '#f97316' :
+                                            cham.metadata?.prioridade === 'NORMAL' ? '#22c55e' : '#3b82f6'
+                                }}></i>
                             <h4 className="comm-card-title">{cham.titulo}</h4>
                             <p className="comm-card-content">{getPreviewText(cham.conteudo)}</p>
                             <div className="comm-card-footer">
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                    <span>Data da solicitação: <strong>{cham.created_at ? formatDate(cham.created_at) : (cham.data_criacao ? formatDate(cham.data_criacao) : 'Data não disponível')}</strong></span>
                                     <span>Aberto por: <strong>{cham.criador?.nome_usuario || 'Usuário'}</strong></span>
-                                    <span>Respondido por: <strong>{cham.respondido_por || 'Não respondido'}</strong></span>
+                                    <span>Responsável: <strong>{cham.metadata?.responsavel || cham.respondido_por || 'Não assumido'}</strong></span>
                                     <span className="chamado-preview-dept">
                                         <i className="fas fa-building"></i>
                                         Departamento: <strong>{cham.categoria?.departamento?.nome || departamentos.find(d => String(d.id) === String(cham.metadata?.departamento_id))?.nome || 'Não especificado'}</strong>
                                     </span>
-                                    {cham.metadata?.responsavel && (
-                                        <span>Responsável: <strong>{cham.metadata.responsavel}</strong></span>
-                                    )}
-                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
                                         <span style={{
                                             fontSize: '0.7rem',
                                             padding: '1px 6px',
@@ -1255,15 +1299,29 @@ const CommunicationDrawer = ({ user }) => {
                         <i className="fas fa-arrow-left"></i>
                     </button>
                     <div className="chat-detail-info">
-                        <span className="chat-target-name">{selectedChamado.titulo}</span>
                         <div className="chat-detail-sub">
-                            <span className={`comm-drawer-sla-badge ${selectedChamado.prazo_confirmado ? (new Date(selectedChamado.prazo_confirmado) < new Date() ? 'overdue' : 'on-time') : ''}`}
-                                style={!selectedChamado.prazo_confirmado ? { backgroundColor: '#f1f5f9', color: '#64748b' } : {}}>
-                                <i className="far fa-clock"></i> Data estimada: {selectedChamado.prazo_confirmado ? formatDate(selectedChamado.prazo_confirmado) : 'não confirmado'}
-                            </span>
                             <span className="chat-detail-created">Aberto em {formatDate(selectedChamado.created_at)}</span>
                         </div>
+                        <span className="chat-target-name" style={{ display: 'block', marginTop: '4px' }}>{selectedChamado.titulo}</span>
                     </div>
+
+                    {isSupport && (
+                        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+                            <ButtonPrimary
+                                style={{
+                                    padding: '8px 16px',
+                                    fontSize: '12px',
+                                    backgroundColor: selectedChamado.metadata?.responsavel_id === user?.id ? '#15803d' : undefined,
+                                }}
+                                onClick={handleAssumirChamado}
+                                disabled={selectedChamado.metadata?.responsavel_id === user?.id}
+                                title={selectedChamado.metadata?.responsavel_id === user?.id ? 'Você já assumiu este chamado' : 'Assumir chamado'}
+                                icon={selectedChamado.metadata?.responsavel_id === user?.id ? "fas fa-check-circle" : "fas fa-hand-paper"}
+                            >
+                                {selectedChamado.metadata?.responsavel_id === user?.id ? 'Assumido' : 'Assumir chamado'}
+                            </ButtonPrimary>
+                        </div>
+                    )}
                 </div>
 
                 {selectedChamado.prazo_desejado && (
@@ -1283,9 +1341,9 @@ const CommunicationDrawer = ({ user }) => {
                     <div style={{ padding: '12px 15px', backgroundColor: '#f0f9ff', borderBottom: '1px solid #bae6fd' }}>
                         <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#0369a1', marginBottom: '8px' }}>CONFIRMAR ESTIMATIVA</div>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                            <button
-                                className="comm-btn-save"
-                                style={{ flex: 1, padding: '6px', fontSize: '11px' }}
+                            <ButtonPrimary
+                                style={{ flex: 1, padding: '8px', fontSize: '11px', justifyContent: 'center' }}
+                                icon="fas fa-check-double"
                                 onClick={() => {
                                     if (!selectedChamado.prazo_desejado) {
                                         alert('O usuário não definiu um prazo desejado. Por favor, proponha uma data.');
@@ -1304,19 +1362,19 @@ const CommunicationDrawer = ({ user }) => {
                                 }}
                             >
                                 Aceitar Prazo Desejado
-                            </button>
+                            </ButtonPrimary>
                             <div style={{ flex: 1 }}>
                                 <input
                                     type="date"
                                     className="comm-drawer-form-input"
-                                    style={{ padding: '5px', fontSize: '11px', height: '28px' }}
+                                    style={{ padding: '5px', fontSize: '11px', height: '32px' }}
                                     id="new-prazo-confirmado"
                                     min={new Date().toISOString().split('T')[0]}
                                 />
                             </div>
-                            <button
-                                className="comm-btn-save"
-                                style={{ padding: '6px 12px', fontSize: '11px', backgroundColor: '#0ea5e9' }}
+                            <ButtonPrimary
+                                style={{ padding: '8px 12px', fontSize: '11px' }}
+                                icon="fas fa-calendar-plus"
                                 onClick={() => {
                                     const val = document.getElementById('new-prazo-confirmado').value;
                                     if (!val) return alert('Selecione uma data.');
@@ -1331,14 +1389,14 @@ const CommunicationDrawer = ({ user }) => {
                                     }
                                 }}
                             >
-                                <i className="fas fa-check"></i> Propor Outro
-                            </button>
+                                Propor Outro
+                            </ButtonPrimary>
                         </div>
                     </div>
                 )}
 
                 {!isUnrelated && (
-                    <div className="comm-drawer-status-selector">
+                    <div className="comm-drawer-status-selector" style={{ borderBottom: '1px solid #f1f5f9' }}>
                         <span className="label">Status:</span>
                         {(isSupport
                             ? ['ABERTO', 'EM_ANALISE', 'RESPONDIDO', 'ENCERRADO', 'CANCELADO']
@@ -1353,7 +1411,7 @@ const CommunicationDrawer = ({ user }) => {
                                     onClick={() => handleChangeChamadoStatus(status)}
                                     disabled={isDisabledForOwner}
                                     className={`comm-drawer-status-btn ${(selectedChamado.status_chamado === status || (status === 'ENCERRADO' && selectedChamado.status_chamado === 'CONCLUIDO')) ? 'active' : ''}`}
-                                    title={isDisabledForOwner ? "Você já finalizou este chamado e não pode mais alterar o status" : ""}
+                                    title={isDisabledForOwner ? "O chamado está finalizado. Caso a equipe de suporte mude o status, você voltará a interagir." : ""}
                                 >
                                     {status === 'RESPONDIDO' ? 'EM PROCESSO' :
                                         status === 'EM_ANALISE' ? 'EM ANÁLISE' :
@@ -1362,6 +1420,54 @@ const CommunicationDrawer = ({ user }) => {
                                 </button>
                             );
                         })}
+                        {isSupport && (
+                            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span className="label" style={{ marginRight: 0 }}>Prioridade:</span>
+                                <select
+                                    className="comm-custom-select"
+                                    style={{ width: 'auto' }}
+                                    value={selectedChamado.metadata?.prioridade || 'BAIXA'}
+                                    onChange={(e) => {
+                                        const novaPrioridade = e.target.value;
+                                        const oldPrioridade = selectedChamado.metadata?.prioridade || 'BAIXA';
+
+                                        // Optimistic Update
+                                        setSelectedChamado(prev => ({
+                                            ...prev,
+                                            metadata: { ...(prev.metadata || {}), prioridade: novaPrioridade }
+                                        }));
+
+                                        comunicacaoAPI.atualizarPrioridadeChamado(selectedChamado.id, novaPrioridade)
+                                            .then(res => {
+                                                if (res.success) {
+                                                    // Atualiza chat para refletir a mensagem de sistema
+                                                    comunicacaoAPI.listarRespostasChamado(selectedChamado.id)
+                                                        .then(r => r.success && setChamadoMessages(r.data));
+                                                } else {
+                                                    // Revert on failure
+                                                    setSelectedChamado(prev => ({
+                                                        ...prev,
+                                                        metadata: { ...(prev.metadata || {}), prioridade: oldPrioridade }
+                                                    }));
+                                                    alert('Erro ao atualizar prioridade.');
+                                                }
+                                            })
+                                            .catch(() => {
+                                                setSelectedChamado(prev => ({
+                                                    ...prev,
+                                                    metadata: { ...(prev.metadata || {}), prioridade: oldPrioridade }
+                                                }));
+                                                alert('Erro de conexão ao atualizar prioridade.');
+                                            });
+                                    }}
+                                >
+                                    <option value="BAIXA">🔵 Baixa</option>
+                                    <option value="NORMAL">🟢 Normal</option>
+                                    <option value="ALTA">🟠 Alta</option>
+                                    <option value="URGENTE">🔴 Urgente</option>
+                                </select>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -1474,7 +1580,7 @@ const CommunicationDrawer = ({ user }) => {
                                     <span>Respostas Rápidas</span>
                                 </div>
                                 <select
-                                    className="comm-templates-select"
+                                    className="comm-custom-select"
                                     value=""
                                     onChange={(e) => {
                                         const val = e.target.value;
