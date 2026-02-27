@@ -2469,14 +2469,22 @@ const AtribuicaoCliente = () => {
             estimativas: estimativas,
             responsaveis: responsaveisIds.map(rId => ({ responsavel_id: rId })),
             incluir_finais_semana: periodo.incluir_finais_semana,
-            incluir_feriados: periodo.incluir_feriados
+            incluir_feriados: periodo.incluir_feriados,
+            data_fim: periodo.fim, // Enviar o fim específico desta tarefa para o backend
+            datas_individuais: periodo.datas_individuais
           });
         });
       });
 
+      // Se estiver no modo "Preencher vários", o dataFimGeral deve vir do período global se definido
+      let dataFimFinal = dataFim;
+      if (modoPeriodoParaMuitos && periodoGlobal.fim) {
+        dataFimFinal = periodoGlobal.fim;
+      }
+
       const payload = {
         cliente_id: clienteSelecionado,
-        data_fim_geral: dataFim || '2050-12-31',
+        data_fim_geral: dataFimFinal || '2050-12-31',
         configuracoes: configuracoesParaSalvar
       };
 
@@ -2706,7 +2714,17 @@ const AtribuicaoCliente = () => {
                               source={periodoGlobal.source}
                               onSourceChange={(src) => setPeriodoGlobal(prev => ({ ...prev, source: src }))}
                               recorrenciaConfig={periodoGlobal.recorrenciaConfig}
-                              onRecorrenciaConfigChange={(cfg) => setPeriodoGlobal(prev => ({ ...prev, recorrenciaConfig: cfg }))}
+                              onRecorrenciaConfigChange={(cfg) => {
+                                setPeriodoGlobal(prev => {
+                                  const updates = { recorrenciaConfig: cfg };
+                                  if (cfg?.termina === 'em_data') {
+                                    updates.fim = cfg.terminaData || null;
+                                  } else if (cfg?.termina === 'nunca') {
+                                    updates.fim = null;
+                                  }
+                                  return { ...prev, ...updates };
+                                });
+                              }}
                               showRecurrence={true}
                             />
                           </div>
@@ -2745,43 +2763,18 @@ const AtribuicaoCliente = () => {
                           </div>
                           <div style={{ minWidth: '140px', width: '140px', position: 'relative', display: 'flex', flexDirection: 'column', zIndex: showTempoConfigGlobal ? 9999 : 10 }} className="tempo-global-wrapper">
                             <div style={{ width: '100%' }}>
-                              <button
-                                type="button"
-                                className="btn-configurar-tempo"
-                                onClick={() => setShowTempoConfigGlobal(!showTempoConfigGlobal)}
+                              <TempoConfigCard
+                                label={Object.keys(tempoConfigGlobal).length > 0 ? 'Tempo Configurado' : 'Configurar Tempo'}
+                                initialConfig={tempoConfigGlobal}
+                                onSave={handleTempoConfigGlobalChange}
+                                dataInicioPadrao={periodoGlobal.inicio}
+                                dataFimPadrao={periodoGlobal.fim}
                                 disabled={loading || submitting || !clienteSelecionado || produtosSelecionados.length === 0 || !podePreencherTempo()}
-                                style={{
-                                  width: '100%',
-                                  height: '40px',
-                                  padding: '0 12px',
-                                  backgroundColor: '#fff',
-                                  border: '1px solid #cbd5e1',
-                                  borderRadius: '6px',
-                                  fontSize: '13px',
-                                  color: '#475569',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  gap: '8px',
-                                  cursor: (loading || submitting || !clienteSelecionado || produtosSelecionados.length === 0 || !podePreencherTempo()) ? 'not-allowed' : 'pointer',
-                                  transition: 'all 0.2s'
-                                }}
-                              >
-                                <i className="fas fa-cog"></i>
-                                {Object.keys(tempoConfigGlobal).length > 0 ? 'Tempo Configurado' : 'Configurar Tempo'}
-                              </button>
-
-                              {showTempoConfigGlobal && (
-                                <TempoConfigCard
-                                  responsaveis={responsaveisGlobais}
-                                  colaboradores={colaboradores}
-                                  initialConfig={tempoConfigGlobal}
-                                  onSave={handleTempoConfigGlobalChange}
-                                  onClose={() => setShowTempoConfigGlobal(false)}
-                                  dataInicioPadrao={periodoGlobal.inicio}
-                                />
-                              )}
+                                className="tempo-global-btn-container"
+                                onOpenChange={(isOpen) => setShowTempoConfigGlobal(isOpen)}
+                              />
                             </div>
+
                             {!podePreencherTempo() && podePreencherResponsavel() && (
                               <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000 }}>
                                 Preencha o responsável primeiro

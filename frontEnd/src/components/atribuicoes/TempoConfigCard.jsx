@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import './TempoConfigCard.css';
 
 const parseMinutesToHHMM = (totalMinutes) => {
@@ -10,40 +11,110 @@ const parseMinutesToHHMM = (totalMinutes) => {
 const TempoConfigCard = ({
     initialConfig = {},
     onSave,
-    onClose,
     dataInicioPadrao = null,
-    responsavelId = null
+    dataFimPadrao = null,
+    responsavelId = null,
+    disabled = false,
+    label = 'Tempo',
+    className = '',
+    onOpenChange = null
 }) => {
-    const cardRef = useRef(null);
+    const [isOpen, setIsOpen] = useState(false);
+    const [dropdownPos, setDropdownPos] = useState({ top: -9999, left: -9999, width: 320 });
     const [positionUp, setPositionUp] = useState(false);
 
-    useEffect(() => {
-        if (cardRef.current && cardRef.current.parentElement) {
-            const parentRect = cardRef.current.parentElement.getBoundingClientRect();
-            const vh = window.innerHeight;
-            const spaceBelow = vh - parentRect.bottom;
-            const spaceAbove = parentRect.top;
+    const triggerRef = useRef(null);
+    const dropdownRef = useRef(null);
+    const containerRef = useRef(null);
 
-            // Se o espaço abaixo for insuficiente para o card (max 450px, mas 400px é um bom limiar)
-            // e houver mais espaço acima, abrimos para cima
-            if (spaceBelow < 400 && spaceAbove > spaceBelow) {
-                setPositionUp(true);
+    // Garantimos que o estado é uma lista genérica de segmentos de tempo atrelados à Tarefa.
+    const [segments, setSegments] = useState([]);
+
+    // Sincronizar segmentos quando abrir ou initialConfig mudar
+    useEffect(() => {
+        if (isOpen) {
+            const allKeys = Object.keys(initialConfig);
+            if (allKeys.length > 0 && Array.isArray(initialConfig[allKeys[0]]) && initialConfig[allKeys[0]].length > 0) {
+                setSegments([...initialConfig[allKeys[0]]]);
+            } else {
+                setSegments([
+                    { tempo_minutos: 0, data_inicio: dataInicioPadrao || new Date().toISOString().split('T')[0] }
+                ]);
             }
         }
-    }, []);
-    // Garantimos que o estado é uma lista genérica de segmentos de tempo atrelados à Tarefa.
-    // Ignoramos completamente os 'responsaveis' (a chave 'null' garante a compatibilidade com o formato esperado pelo payload do backend = estimativa estrutural/geral).
-    const [segments, setSegments] = useState(() => {
-        // Tenta achar qualquer segmento preexistente (seja em "null" ou que sobrou de um antigo ID de responsável)
-        const allKeys = Object.keys(initialConfig);
-        if (allKeys.length > 0 && Array.isArray(initialConfig[allKeys[0]]) && initialConfig[allKeys[0]].length > 0) {
-            return [...initialConfig[allKeys[0]]];
-        }
+    }, [isOpen, initialConfig, dataInicioPadrao]);
 
-        return [
-            { tempo_minutos: 0, data_inicio: dataInicioPadrao || new Date().toISOString().split('T')[0] }
-        ];
-    });
+    const calculatePosition = () => {
+        if (triggerRef.current) {
+            const rect = triggerRef.current.getBoundingClientRect();
+            const dropdownWidth = 320;
+            const dropdownHeight = 400; // Altura aproximada
+
+            let top = rect.bottom + window.scrollY + 6;
+            let left = rect.left + window.scrollX + (rect.width / 2) - (dropdownWidth / 2);
+
+            // Ajuste horizontal
+            if (left < 10) {
+                left = 10;
+            } else if (left + dropdownWidth > window.innerWidth - 10) {
+                left = window.innerWidth - dropdownWidth - 10;
+            }
+
+            // Ajuste vertical (Abrir para cima se não houver espaço abaixo)
+            const vh = window.innerHeight;
+            const spaceBelow = vh - rect.bottom;
+            const spaceAbove = rect.top;
+
+            if (spaceBelow < dropdownHeight && spaceAbove > spaceBelow) {
+                top = rect.top + window.scrollY - 10; // Posicionamento para subir
+                setPositionUp(true);
+            } else {
+                setPositionUp(false);
+            }
+
+            setDropdownPos({ top, left, width: dropdownWidth });
+        }
+    };
+
+    useEffect(() => {
+        if (isOpen) {
+            calculatePosition();
+            window.addEventListener('scroll', calculatePosition, true);
+            window.addEventListener('resize', calculatePosition);
+        }
+        return () => {
+            window.removeEventListener('scroll', calculatePosition, true);
+            window.removeEventListener('resize', calculatePosition);
+        };
+    }, [isOpen]);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (containerRef.current && !containerRef.current.contains(event.target) &&
+                dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                handleClose();
+            }
+        };
+
+        if (isOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [isOpen]);
+
+    const handleToggle = (e) => {
+        if (disabled) return;
+        const next = !isOpen;
+        setIsOpen(next);
+        if (onOpenChange) onOpenChange(next);
+    };
+
+    const handleClose = () => {
+        setIsOpen(false);
+        if (onOpenChange) onOpenChange(false);
+    };
 
     const handleAddSegment = () => {
         setSegments(prev => [
@@ -85,35 +156,60 @@ const TempoConfigCard = ({
     };
 
     const handleSaveInternal = () => {
-        // Validar datas vazias
         if (segments.some(s => !s.data_inicio)) {
             alert('Preencha todas as datas de início.');
             return;
         }
 
-        // Validar datas duplicadas
         const dates = segments.map(s => s.data_inicio);
         if (new Set(dates).size !== dates.length) {
             alert('Você não pode ter datas de início duplicadas para a mesma tarefa.');
             return;
         }
 
-        // Retorna no formato estrutural {'null': [...]}; se houver um responsável único, também vincula a ele
         const payload = { 'null': segments };
         if (responsavelId != null && responsavelId !== '') {
             payload[String(responsavelId)] = segments;
         }
         onSave(payload);
+        handleClose();
     };
 
-    return (
-        <div ref={cardRef} className={`tempo-config-popover ${positionUp ? 'position-up' : ''}`}>
+    const triggerElement = (
+        <div className={`tempo-config-trigger-container ${className}`} ref={containerRef}>
+            <button
+                type="button"
+                ref={triggerRef}
+                className={`btn-configurar-tempo-generic ${isOpen ? 'active' : ''} ${disabled ? 'disabled' : ''}`}
+                onClick={handleToggle}
+                disabled={disabled}
+            >
+                <i className="fas fa-cog"></i>
+                <span>{label}</span>
+            </button>
+        </div>
+    );
+
+    const dropdownElement = (
+        <div
+            ref={dropdownRef}
+            className={`tempo-config-popover-portal ${positionUp ? 'position-up' : ''}`}
+            style={{
+                position: 'absolute',
+                top: dropdownPos.top,
+                left: dropdownPos.left,
+                width: dropdownPos.width,
+                zIndex: 2000000,
+                transform: positionUp ? 'translateY(-100%)' : 'none'
+            }}
+            onClick={(e) => e.stopPropagation()}
+        >
             <div className="tempo-config-header">
                 <h4><i className="fas fa-clock"></i> Configurar Estimativa</h4>
-                <button className="close-btn" onClick={onClose}>&times;</button>
+                <button className="close-btn" onClick={handleClose}>&times;</button>
             </div>
 
-            <div className="tempo-config-body">
+            <div className="tempo-config-body custom-scrollbar">
                 <div className="responsavel-tempo-group structural-config">
                     <div className="responsavel-name-row" style={{ backgroundColor: '#f1f5f9', color: '#334155' }}>
                         <i className="fas fa-layer-group"></i>
@@ -153,6 +249,8 @@ const TempoConfigCard = ({
                                             type="date"
                                             value={segment.data_inicio}
                                             onChange={(e) => handleChangeDate(index, e.target.value)}
+                                            min={dataInicioPadrao || ''}
+                                            max={dataFimPadrao || ''}
                                         />
                                     </div>
                                     {index > 0 && (
@@ -175,13 +273,21 @@ const TempoConfigCard = ({
             </div>
 
             <div className="tempo-config-footer">
-                <button className="btn-cancel" onClick={onClose}>Cancelar</button>
+                <button className="btn-cancel" onClick={handleClose}>Cancelar</button>
                 <button className="btn-save" onClick={handleSaveInternal}>
                     Confirmar Estimativa
                 </button>
             </div>
         </div>
     );
+
+    return (
+        <>
+            {triggerElement}
+            {isOpen && !disabled && createPortal(dropdownElement, document.body)}
+        </>
+    );
 };
 
 export default TempoConfigCard;
+
