@@ -97,8 +97,8 @@
 
 /* Garantir que o dropdown do período tenha espaço suficiente */
 .atribuicao-form-content .periodo-dropdown {
-  min-width: 340px !important;
-  max-width: 380px !important;
+  min-width: 500px !important;
+  max-width: 520px !important;
   z-index: 10000 !important;
   overflow: visible !important;
 }
@@ -128,7 +128,7 @@
     grid-template-columns: 1fr;
     gap: 14px;
   }
-  
+
   .atribuicao-form-section {
     padding: 16px;
   }
@@ -230,7 +230,7 @@
 }
 
 /* Espaçamento entre seções */
-.atribuicao-form-section + .atribuicao-form-section {
+.atribuicao-form-section+.atribuicao-form-section {
   margin-top: 20px;
 }
 
@@ -658,11 +658,11 @@
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
 }
 
-.atribuicao-form-content .toggle-input-minimal:checked + .toggle-slider-minimal {
+.atribuicao-form-content .toggle-input-minimal:checked+.toggle-slider-minimal {
   background: #0e3b6f !important;
 }
 
-.atribuicao-form-content .toggle-input-minimal:checked + .toggle-slider-minimal:before {
+.atribuicao-form-content .toggle-input-minimal:checked+.toggle-slider-minimal:before {
   transform: translateX(20px) !important;
 }
 
@@ -670,7 +670,7 @@
   opacity: 0.9 !important;
 }
 
-.atribuicao-form-content .toggle-input-minimal:disabled + .toggle-slider-minimal {
+.atribuicao-form-content .toggle-input-minimal:disabled+.toggle-slider-minimal {
   cursor: not-allowed !important;
   opacity: 0.6 !important;
 }
@@ -707,5 +707,3 @@
   min-height: 28px !important;
   font-weight: 500 !important;
 }
-
-

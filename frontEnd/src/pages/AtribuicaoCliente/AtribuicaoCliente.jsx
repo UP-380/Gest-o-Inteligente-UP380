@@ -9,6 +9,7 @@ import TempoEstimadoInput from '../../components/common/TempoEstimadoInput';
 import ToggleSwitch from '../../components/common/ToggleSwitch';
 import SelecaoTarefasPorProduto from '../../components/clients/SelecaoTarefasPorProduto';
 import ResponsavelCard from '../../components/atribuicoes/ResponsavelCard';
+import TempoConfigCard from '../../components/atribuicoes/TempoConfigCard';
 import { useToast } from '../../hooks/useToast';
 import { clientesAPI, colaboradoresAPI, cacheAPI } from '../../services/api';
 import { calcularDiasComOpcoesEDatasIndividuais, obterDatasValidasNoPeriodo, calcularDiasApenasComDatasIndividuais } from '../../utils/dateUtils';
@@ -174,14 +175,29 @@ const AtribuicaoCliente = () => {
     fim: null,
     datasIndividuais: [],
     habilitarFinaisSemana: false,
-    habilitarFeriados: false
+    habilitarFeriados: false,
+    source: null,
+    recorrenciaConfig: null
   });
+
+  // Estados para Escalonamento (A partir de)
+  const [escalonamentoGlobalAtivo, setEscalonamentoGlobalAtivo] = useState(false);
+  const [vigenciasGlobais, setVigenciasGlobais] = useState({}); // { [responsavelId]: dataInicio }
+  const [escalonamentoPorTarefaAtivo, setEscalonamentoPorTarefaAtivo] = useState({}); // { [key]: boolean }
+  const [vigenciasPorTarefa, setVigenciasPorTarefa] = useState({}); // { [key]: { [responsavelId]: dataInicio } }
+
+  // Estados para Escalonamento de Tempo (Configuração de Tempo)
+  const [tempoConfigGlobal, setTempoConfigGlobal] = useState({}); // { [respId]: [{ tempo_minutos, data_inicio }] }
+  const [showTempoConfigGlobal, setShowTempoConfigGlobal] = useState(false);
+  const [tempoConfigPorTarefa, setTempoConfigPorTarefa] = useState({}); // { [key]: { [respId]: [{ tempo_minutos, data_inicio }] } }
+  const [showTempoConfigTarefa, setShowTempoConfigTarefa] = useState({}); // { [key]: boolean }
 
   // Valores aplicados pela última vez (para comparar e desabilitar botão após aplicar)
   const [valoresAplicados, setValoresAplicados] = useState({
-    periodo: { inicio: null, fim: null, datasIndividuais: [], habilitarFinaisSemana: false, habilitarFeriados: false },
+    periodo: { inicio: null, fim: null, datasIndividuais: [], habilitarFinaisSemana: false, habilitarFeriados: false, recorrenciaConfig: null },
     responsaveis: [],
-    tempo: 0
+    tempo: 0,
+    tempoConfig: {}
   });
 
   // Estados para tempo disponível
@@ -254,16 +270,52 @@ const AtribuicaoCliente = () => {
     return (temPeriodoCompleto || temDatasIndividuais) && Array.isArray(responsaveisGlobais) && responsaveisGlobais.length > 0;
   };
 
-  // Função para obter responsáveis de uma tarefa
-  const getResponsavelTarefa = (produtoId, tarefaId) => {
+  // Função para obter o período consolidado de uma tarefa (com fallback global)
+  const getPeriodoTarefa = useCallback((produtoId, tarefaId) => {
+    const key = getPeriodoKey(produtoId, tarefaId);
+    const per = periodosPorTarefa[key];
+
+    if (per) {
+      return {
+        inicio: per.inicio || periodoGlobal.inicio,
+        fim: per.fim || periodoGlobal.fim,
+        habilitarFinaisSemana: per.habilitarFinaisSemana !== undefined ? per.habilitarFinaisSemana : !!periodoGlobal.habilitarFinaisSemana,
+        habilitarFeriados: per.habilitarFeriados !== undefined ? per.habilitarFeriados : !!periodoGlobal.habilitarFeriados,
+        datasIndividuais: Array.isArray(per.datasIndividuais) ? per.datasIndividuais : (Array.isArray(periodoGlobal.datasIndividuais) ? periodoGlobal.datasIndividuais : []),
+        recorrenciaConfig: per.recorrenciaConfig || periodoGlobal.recorrenciaConfig || null,
+        source: per.source || periodoGlobal.source || 'global'
+      };
+    }
+
+    return {
+      inicio: periodoGlobal.inicio,
+      fim: periodoGlobal.fim,
+      habilitarFinaisSemana: !!periodoGlobal.habilitarFinaisSemana,
+      habilitarFeriados: !!periodoGlobal.habilitarFeriados,
+      datasIndividuais: Array.isArray(periodoGlobal.datasIndividuais) ? periodoGlobal.datasIndividuais : [],
+      recorrenciaConfig: periodoGlobal.recorrenciaConfig || null,
+      source: periodoGlobal.source || 'global'
+    };
+  }, [periodosPorTarefa, periodoGlobal]);
+
+  // Função auxiliar para buscar responsáveis de uma tarefa (com fallback global)
+  // Centraliza a lógica para ser usada na validação, checagem de duplicados e salvamento
+  const getResponsavelTarefa = useCallback((produtoId, tarefaId) => {
     const key = getResponsavelKey(produtoId, tarefaId);
     const responsaveisIds = responsaveisPorTarefa[key];
-    // Retornar array vazio se não existir
-    if (!responsaveisIds || !Array.isArray(responsaveisIds)) {
-      return [];
+
+    // Se houver responsáveis específicos para esta tarefa, retornar eles
+    if (responsaveisIds && Array.isArray(responsaveisIds) && responsaveisIds.length > 0) {
+      return responsaveisIds.map(id => String(id).trim());
     }
-    return responsaveisIds.map(id => String(id).trim());
-  };
+
+    // Se não houver específicos, usar os globais como fallback
+    if (Array.isArray(responsaveisGlobais) && responsaveisGlobais.length > 0) {
+      return responsaveisGlobais.map(id => String(id).trim());
+    }
+
+    return [];
+  }, [responsaveisPorTarefa, responsaveisGlobais]);
 
   // Função para atualizar responsável de uma tarefa
   const handleResponsavelTarefaChange = (produtoId, tarefaId, responsaveisIds) => {
@@ -282,6 +334,111 @@ const AtribuicaoCliente = () => {
         return novo;
       }
     });
+
+    // Se remover ou ficar com menos de 2, desativar escalonamento
+    if (novosResponsaveis.length < 2) {
+      setEscalonamentoPorTarefaAtivo(prev => {
+        const novo = { ...prev };
+        delete novo[key];
+        return novo;
+      });
+      setVigenciasPorTarefa(prev => {
+        const novo = { ...prev };
+        delete novo[key];
+        return novo;
+      });
+    }
+
+    // Sincronizar Configuração de Tempo (remover segmentos de quem não é mais responsável)
+    setTempoConfigPorTarefa(prev => {
+      const configTarefa = prev[key];
+      if (!configTarefa) return prev;
+
+      if (novosResponsaveis.length === 0) {
+        const novo = { ...prev };
+        delete novo[key];
+        return novo;
+      }
+
+      // Manter apenas as chaves (os IDs dos responsáveis) que ainda estão na lista
+      const novaConfig = {};
+      let mudou = false;
+      novosResponsaveis.forEach(id => {
+        if (configTarefa[id]) {
+          novaConfig[id] = configTarefa[id];
+        }
+      });
+
+      if (Object.keys(novaConfig).length !== Object.keys(configTarefa).length) {
+        return { ...prev, [key]: novaConfig };
+      }
+      return prev;
+    });
+  };
+
+  // Funções para Escalonamento
+  const handleVigenciaGlobalChange = (responsavelId, data) => {
+    setVigenciasGlobais(prev => ({ ...prev, [responsavelId]: data }));
+  };
+
+  const handleVigenciaTarefaChange = (produtoId, tarefaId, responsavelId, data) => {
+    const key = getResponsavelKey(produtoId, tarefaId);
+    setVigenciasPorTarefa(prev => {
+      const current = prev[key] || {};
+      return { ...prev, [key]: { ...current, [responsavelId]: data } };
+    });
+  };
+
+  const handleTempoConfigGlobalChange = (config) => {
+    setTempoConfigGlobal(config);
+    setShowTempoConfigGlobal(false);
+
+    // Calcular um "tempo global médio" ou do primeiro para manter compatibilidade com o input antigo
+    // se o usuário quiser ver algo no card. Mas o prompt diz para substituir o input por um botão.
+  };
+
+  const handleTempoConfigTarefaChange = (produtoId, tarefaId, config) => {
+    const key = getResponsavelKey(produtoId, tarefaId);
+    setTempoConfigPorTarefa(prev => ({ ...prev, [key]: config }));
+    setShowTempoConfigTarefa(prev => ({ ...prev, [key]: false }));
+  };
+
+  const handleToggleEscalonamentoGlobal = (enabled) => {
+    setEscalonamentoGlobalAtivo(enabled);
+    if (enabled && Object.keys(vigenciasGlobais).length === 0) {
+      // Pré-preencher com a data de início global se disponível
+      const dataPadrao = periodoGlobal.inicio || new Date().toISOString().split('T')[0];
+      const novasVigencias = {};
+      responsaveisGlobais.forEach(id => {
+        novasVigencias[id] = dataPadrao;
+      });
+      setVigenciasGlobais(novasVigencias);
+    }
+  };
+
+  const handleToggleEscalonamentoTarefa = (produtoId, tarefaId, enabled) => {
+    const key = getResponsavelKey(produtoId, tarefaId);
+    setEscalonamentoPorTarefaAtivo(prev => ({ ...prev, [key]: enabled }));
+
+    if (enabled) {
+      const keyPeriodo = getPeriodoKey(produtoId, tarefaId);
+      const periodo = periodosPorTarefa[keyPeriodo];
+      const dataPadrao = periodo?.inicio || periodoGlobal.inicio || new Date().toISOString().split('T')[0];
+
+      setVigenciasPorTarefa(prev => {
+        const current = prev[key] || {};
+        const responsaveis = responsaveisPorTarefa[key] || [];
+        const novasVigencias = { ...current };
+
+        responsaveis.forEach(id => {
+          if (!novasVigencias[id]) {
+            novasVigencias[id] = dataPadrao;
+          }
+        });
+
+        return { ...prev, [key]: novasVigencias };
+      });
+    }
   };
 
   const handlePeriodoTarefaChange = (produtoId, tarefaId, updates) => {
@@ -312,6 +469,10 @@ const AtribuicaoCliente = () => {
     setResponsaveisGlobais([]);
     setTempoGlobal(0);
     setTempoGlobalParaAplicar(0);
+    setEscalonamentoGlobalAtivo(false);
+    setVigenciasGlobais({});
+    setTempoConfigGlobal({});
+    setShowTempoConfigGlobal(false);
     showToast('info', 'Campos globais limpos');
   };
 
@@ -329,8 +490,8 @@ const AtribuicaoCliente = () => {
     let responsavelAplicado = false;
     let tempoAplicado = false;
 
-    // Aplicar período global se preenchido (período completo OU datas individuais)
-    if (temPeriodoCompleto || temDatasIndividuais) {
+    // Aplicar período global se preenchido (período completo OU datas individuais OU recorrência)
+    if (temPeriodoCompleto || temDatasIndividuais || periodoGlobal.recorrenciaConfig) {
       setPeriodosPorTarefa(prev => {
         const next = { ...prev };
         let changed = false;
@@ -346,7 +507,8 @@ const AtribuicaoCliente = () => {
               datasIndividuais: [...globalDatas],
               habilitarFinaisSemana: !!periodoGlobal.habilitarFinaisSemana,
               habilitarFeriados: !!periodoGlobal.habilitarFeriados,
-              source: 'global'
+              recorrenciaConfig: periodoGlobal.recorrenciaConfig ? { ...periodoGlobal.recorrenciaConfig } : null,
+              source: periodoGlobal.source || 'global'
             };
             changed = true;
           });
@@ -401,6 +563,49 @@ const AtribuicaoCliente = () => {
       });
     }
 
+    // Aplicar Escalonamento global se ativo
+    if (escalonamentoGlobalAtivo) {
+      setEscalonamentoPorTarefaAtivo(prev => {
+        const next = { ...prev };
+        Object.entries(tarefasSelecionadasPorProduto).forEach(([produtoId, tarefasDoProduto]) => {
+          Object.entries(tarefasDoProduto || {}).forEach(([tarefaId, dadosTarefa]) => {
+            if (dadosTarefa?.selecionada !== true) return;
+            const key = getResponsavelKey(produtoId, tarefaId);
+            next[key] = true;
+          });
+        });
+        return next;
+      });
+
+      setVigenciasPorTarefa(prev => {
+        const next = { ...prev };
+        Object.entries(tarefasSelecionadasPorProduto).forEach(([produtoId, tarefasDoProduto]) => {
+          Object.entries(tarefasDoProduto || {}).forEach(([tarefaId, dadosTarefa]) => {
+            if (dadosTarefa?.selecionada !== true) return;
+            const key = getResponsavelKey(produtoId, tarefaId);
+            next[key] = { ...vigenciasGlobais };
+          });
+        });
+        return next;
+      });
+    }
+
+    // Aplicar Escalonamento de Tempo global se configurado
+    if (Object.keys(tempoConfigGlobal).length > 0) {
+      setTempoConfigPorTarefa(prev => {
+        const next = { ...prev };
+        Object.entries(tarefasSelecionadasPorProduto).forEach(([produtoId, tarefasDoProduto]) => {
+          Object.entries(tarefasDoProduto || {}).forEach(([tarefaId, dadosTarefa]) => {
+            if (dadosTarefa?.selecionada !== true) return;
+            const key = getResponsavelKey(produtoId, tarefaId);
+            next[key] = { ...tempoConfigGlobal };
+          });
+        });
+        return next;
+      });
+      tempoAplicado = true;
+    }
+
     // Feedback ao usuário
     const itensAplicados = [];
     if (periodoAplicado) {
@@ -427,10 +632,12 @@ const AtribuicaoCliente = () => {
           fim: periodoGlobal.fim,
           datasIndividuais: Array.isArray(periodoGlobal.datasIndividuais) ? [...periodoGlobal.datasIndividuais] : [],
           habilitarFinaisSemana: !!periodoGlobal.habilitarFinaisSemana,
-          habilitarFeriados: !!periodoGlobal.habilitarFeriados
+          habilitarFeriados: !!periodoGlobal.habilitarFeriados,
+          recorrenciaConfig: periodoGlobal.recorrenciaConfig ? { ...periodoGlobal.recorrenciaConfig } : null
         },
         responsaveis: Array.isArray(responsaveisGlobais) ? [...responsaveisGlobais] : [],
-        tempo: tempoGlobal !== undefined && tempoGlobal !== null ? tempoGlobal : null
+        tempo: tempoGlobal,
+        tempoConfig: { ...tempoConfigGlobal }
       });
     } else {
       showToast('warning', 'Preencha pelo menos o período, responsáveis ou tempo');
@@ -647,32 +854,56 @@ const AtribuicaoCliente = () => {
             setPeriodoGlobal(prev => ({
               ...prev,
               inicio: dataInicioGeral,
-              fim: dataFimGeral,
+              fim: datasIndividuaisGerais.length > 0 ? null : dataFimGeral, // Se tem dias individuais, não define fim para entrar no modo individual
               datasIndividuais: datasIndividuaisGerais,
               habilitarFinaisSemana: primeiroRegistro.incluir_finais_semana,
-              habilitarFeriados: primeiroRegistro.incluir_feriados
+              habilitarFeriados: primeiroRegistro.incluir_feriados,
+              source: datasIndividuaisGerais.length > 0 ? 'manual' : prev.source
             }));
           }
           if (typeof setDataInicio === 'function') setDataInicio(dataInicioGeral);
-          if (typeof setDataFim === 'function') setDataFim(dataFimGeral);
+          if (typeof setDataFim === 'function') setDataFim(datasIndividuaisGerais.length > 0 ? null : dataFimGeral);
 
-          // Carregar tempos e responsáveis por tarefa (Agrupando dados primeiro)
-          const dadosPorTarefa = {}; // key -> { tempo, responsaveis: Set, datas: Set }
+          // Carregar tempos, responsáveis e configurações de tempo por tarefa
+          const dadosPorTarefa = {}; // key -> { tempo, responsaveis: Set, datas: Set, segments: { [respId]: [] } }
+          const tempoConfigPorTarefaCarregado = {};
 
           registros.forEach(reg => {
             const produtoId = String(reg.produto_id);
             const tarefaId = String(reg.tarefa_id);
             const key = `${produtoId}_${tarefaId}`;
+            const respId = reg.responsavel_id ? String(reg.responsavel_id).trim() : 'sem-responsavel';
+            const dataStr = reg.data ? reg.data.split('T')[0] : '';
+            const tempoMinutos = reg.tempo_minutos || Math.round((reg.tempo_estimado_dia || 0) / 60000);
 
             if (!dadosPorTarefa[key]) {
               dadosPorTarefa[key] = {
                 tempo: reg.tempo_estimado_dia,
                 responsaveis: new Set(),
-                datas: new Set()
+                datas: new Set(),
+                segments: {}
               };
             }
-            if (reg.responsavel_id) dadosPorTarefa[key].responsaveis.add(String(reg.responsavel_id).trim());
-            if (reg.data) dadosPorTarefa[key].datas.add(reg.data.split('T')[0]);
+
+            if (reg.responsavel_id) dadosPorTarefa[key].responsaveis.add(respId);
+            if (dataStr) {
+              dadosPorTarefa[key].datas.add(dataStr);
+
+              // Rastrear mudanças de tempo para Escalonamento de Tempo
+              if (!dadosPorTarefa[key].segments[respId]) {
+                dadosPorTarefa[key].segments[respId] = [];
+              }
+
+              const currentSegments = dadosPorTarefa[key].segments[respId];
+              const lastSegment = currentSegments[currentSegments.length - 1];
+
+              if (!lastSegment || lastSegment.tempo_minutos !== tempoMinutos) {
+                currentSegments.push({
+                  tempo_minutos: tempoMinutos,
+                  data_inicio: dataStr
+                });
+              }
+            }
           });
 
           const temposPorTarefa = {};
@@ -688,6 +919,12 @@ const AtribuicaoCliente = () => {
               responsaveisPorTarefaCarregado[key] = Array.from(dados.responsaveis);
             }
 
+            // Converter segmentos para o formato final se houver mais de um ou tempo diferente do padrão
+            const hasMultipleSegments = Object.values(dados.segments).some(s => s.length > 1);
+            if (hasMultipleSegments) {
+              tempoConfigPorTarefaCarregado[key] = dados.segments;
+            }
+
             const datasTarefa = [...dados.datas].sort();
             if (datasTarefa.length > 0) {
               const inicio = datasTarefa[0];
@@ -700,7 +937,7 @@ const AtribuicaoCliente = () => {
 
               periodosPorTarefaCarregado[key] = {
                 inicio,
-                fim,
+                fim: individuais.length > 0 ? null : fim, // Prevenção similar por tarefa
                 habilitarFinaisSemana: primeiroRegistro.incluir_finais_semana,
                 habilitarFeriados: primeiroRegistro.incluir_feriados,
                 datasIndividuais: individuais
@@ -711,6 +948,7 @@ const AtribuicaoCliente = () => {
           setTempoEstimadoDia(temposPorTarefa);
           setResponsaveisPorTarefa(responsaveisPorTarefaCarregado);
           setPeriodosPorTarefa(periodosPorTarefaCarregado);
+          setTempoConfigPorTarefa(tempoConfigPorTarefaCarregado);
 
           // Buscar horas contratadas para todos os responsáveis únicos
           const responsaveisUnicos = [...new Set(Object.values(responsaveisPorTarefaCarregado).flat())];
@@ -818,8 +1056,7 @@ const AtribuicaoCliente = () => {
           const responsaveisIds = getResponsavelTarefa(produtoId, tarefaId);
           if (!Array.isArray(responsaveisIds) || responsaveisIds.length === 0) continue;
 
-          const periodoKey = getPeriodoKey(produtoId, tarefaId);
-          const periodo = periodosPorTarefa[periodoKey];
+          const periodo = getPeriodoTarefa(produtoId, tarefaId);
           if (!periodo) continue;
 
           const temPeriodoCompleto = periodo.inicio && periodo.fim;
@@ -978,7 +1215,7 @@ const AtribuicaoCliente = () => {
   // Considera TODAS as tarefas que já têm período, responsável e tempo definidos
   // Funciona tanto no modo "Preencher vários" quanto sem ele
   // excluirTarefa: { produtoId, tarefaId } - opcional, tarefa a ser excluída do cálculo
-  const calcularTempoJaAtribuido = useCallback((responsavelId, periodo, tempoEstimadoDiaObj, tarefasSelecionadasObj, responsaveisPorTarefaObj, periodosPorTarefaObj, responsaveisGlobaisRef, periodoGlobalRef, excluirTarefa = null) => {
+  const calcularTempoJaAtribuido = useCallback((responsavelId, periodo, tempoEstimadoDiaObj, tarefasSelecionadasObj, responsaveisPorTarefaObj, periodosPorTarefaObj, responsaveisGlobaisRef, periodoGlobalRef, excluirTarefa = null, modoGlobal = false) => {
     if (!responsavelId || !periodo) {
       return 0;
     }
@@ -1076,9 +1313,16 @@ const AtribuicaoCliente = () => {
         return; // Esta é a tarefa que estamos calculando, não contar
       }
 
-      // Verificar se a tarefa tem o mesmo responsável (agora pode ser um array)
+      // Verificar se o responsavelId atual está na lista de responsáveis da tarefa
       const keyResponsavel = getResponsavelKey(produtoId, tarefaId);
-      const responsaveisTarefa = responsaveisPorTarefaObj[keyResponsavel] || responsaveisGlobaisRef || [];
+      let responsaveisTarefa = responsaveisPorTarefaObj[keyResponsavel];
+
+      // Fallback para globais se necessário
+      if ((!responsaveisTarefa || responsaveisTarefa.length === 0) && modoGlobal) {
+        responsaveisTarefa = responsaveisGlobaisRef;
+      }
+
+      if (!responsaveisTarefa) responsaveisTarefa = [];
 
       // Verificar se o responsavelId atual está na lista de responsáveis da tarefa
       const isResponsavelPelaTarefa = Array.isArray(responsaveisTarefa)
@@ -1241,13 +1485,13 @@ const AtribuicaoCliente = () => {
     });
 
     return tempoTotal;
-  }, []);
+  }, [getResponsavelKey, getPeriodoKey]);
 
   // Função para calcular tempo disponível global
   // Funciona tanto no modo "Preencher vários" quanto sem ele
   // Considera todas as tarefas que já têm período, responsável e tempo definidos
   // excluirTarefa: { produtoId, tarefaId } - opcional, tarefa a ser excluída do cálculo
-  const calcularTempoDisponivelGlobal = useCallback((responsavelId, periodo, horasContratadasObj, tempoEstimadoDiaObj, tarefasSelecionadasObj, excluirTarefa = null) => {
+  const calcularTempoDisponivelGlobal = useCallback((responsavelId, periodo, horasContratadasObj, tempoEstimadoDiaObj, tarefasSelecionadasObj, excluirTarefa = null, modoPeriodoParaMuitos = false) => {
     if (!responsavelId || !periodo) {
       return 0;
     }
@@ -1318,12 +1562,13 @@ const AtribuicaoCliente = () => {
       responsavelId,
       periodo,
       tempoEstimadoDiaObj,
-      tarefasSelecionadasObj,
+      tarefasSelecionadasPorProduto,
       responsaveisPorTarefa,
       periodosPorTarefa,
       responsaveisGlobais,
       periodoGlobal,
-      excluirTarefa // Excluir a tarefa especificada se fornecida
+      excluirTarefa,
+      modoPeriodoParaMuitos
     );
 
     // Calcular tempo disponível restante:
@@ -1341,25 +1586,29 @@ const AtribuicaoCliente = () => {
       const responsaveisComPeriodos = new Map();
 
       // Adicionar responsáveis das tarefas individuais
-      Object.entries(responsaveisPorTarefa).forEach(([key, responsavelId]) => {
-        if (!responsavelId) return;
+      Object.entries(responsaveisPorTarefa).forEach(([key, responsaveisIds]) => {
+        if (!responsaveisIds || !Array.isArray(responsaveisIds)) return;
+
         const [produtoId, tarefaId] = key.split('_');
         const periodoKey = `${produtoId}_${tarefaId}`;
         const periodo = periodosPorTarefa[periodoKey];
+
         if (periodo) {
           const temPeriodoCompleto = periodo.inicio && periodo.fim;
           const temDatasIndividuais = Array.isArray(periodo.datasIndividuais) && periodo.datasIndividuais.length > 0;
 
           // Aceitar se tiver período completo ou apenas datas individuais
           if (temPeriodoCompleto || temDatasIndividuais) {
-            const responsavelIdStr = String(responsavelId);
-            if (!responsaveisComPeriodos.has(responsavelIdStr)) {
-              responsaveisComPeriodos.set(responsavelIdStr, {
-                responsavelId: responsavelIdStr,
-                periodos: []
-              });
-            }
-            responsaveisComPeriodos.get(responsavelIdStr).periodos.push(periodo);
+            responsaveisIds.forEach(id => {
+              const responsavelIdStr = String(id).trim();
+              if (!responsaveisComPeriodos.has(responsavelIdStr)) {
+                responsaveisComPeriodos.set(responsavelIdStr, {
+                  responsavelId: responsavelIdStr,
+                  periodos: []
+                });
+              }
+              responsaveisComPeriodos.get(responsavelIdStr).periodos.push(periodo);
+            });
           }
         }
       });
@@ -1372,7 +1621,7 @@ const AtribuicaoCliente = () => {
         // Aceitar se tiver período completo ou apenas das individuais
         if (temPeriodoCompleto || temDatasIndividuais) {
           responsaveisGlobais.forEach(respId => {
-            const responsavelIdStr = String(respId);
+            const responsavelIdStr = String(respId).trim();
             if (!responsaveisComPeriodos.has(responsavelIdStr)) {
               responsaveisComPeriodos.set(responsavelIdStr, {
                 responsavelId: responsavelIdStr,
@@ -1437,25 +1686,91 @@ const AtribuicaoCliente = () => {
   // Como cada tarefa pode ter um responsável diferente, a validação deveria ser feita por responsável
   // Isso pode ser implementado no futuro se necessário
 
-  // Carregar produtos vinculados ao cliente selecionado (usando tabela de vinculados)
-  useEffect(() => {
-    // Se estiver editando, NÃO carregar dados automaticamente aqui
-    // O loadDadosEdicao já cuidará disso
-    if (editingAgrupamento) {
+
+  const loadTarefasPorClienteEProdutos = useCallback(async (clienteId, produtoIds, shouldSelectAll = true) => {
+    if (!clienteId || !produtoIds || produtoIds.length === 0) {
+      setTarefas([]);
       return;
     }
 
-    if (clienteSelecionado) {
-      loadProdutosPorCliente(clienteSelecionado);
-    } else {
-      setProdutos([]);
-      setProdutosSelecionados([]);
-      setTarefas([]);
-      setTarefasSelecionadas([]);
-    }
-  }, [clienteSelecionado, editingAgrupamento]);
+    setLoading(true);
+    try {
+      const produtoIdsNum = produtoIds.map(id => parseInt(id, 10)).filter(id => !isNaN(id) && id > 0);
+      if (produtoIdsNum.length === 0) {
+        setTarefas([]);
+        setLoading(false);
+        return;
+      }
 
-  const loadProdutosPorCliente = async (clienteId) => {
+      const response = await fetch(`${API_BASE_URL}/tarefas-por-cliente-produtos?clienteId=${clienteId}&produtoIds=${produtoIdsNum.join(',')}`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          const todasTarefas = [];
+          const tarefasIds = new Set();
+
+          result.data.forEach(item => {
+            (item.tarefas || []).forEach(tarefa => {
+              if (!tarefasIds.has(tarefa.id)) {
+                tarefasIds.add(tarefa.id);
+                todasTarefas.push(tarefa);
+              }
+            });
+          });
+
+          setTarefas(todasTarefas);
+          // Selecionar apenas tarefas que estão vinculadas ao cliente (estaVinculadaAoCliente === true)
+          // ou que têm subtarefas vinculadas ao cliente
+          const tarefasVinculadas = [];
+          result.data.forEach(item => {
+            (item.tarefas || []).forEach(tarefa => {
+              const estaVinculadaAoCliente = tarefa.estaVinculadaAoCliente === true;
+              const subtarefasVinculadas = tarefa.subtarefasVinculadasCliente || [];
+              const temSubtarefasVinculadas = subtarefasVinculadas.length > 0;
+
+              // Selecionar tarefa se está vinculada ao cliente OU tem subtarefas vinculadas
+              if (estaVinculadaAoCliente || temSubtarefasVinculadas) {
+                if (!tarefasVinculadas.includes(String(tarefa.id))) {
+                  tarefasVinculadas.push(String(tarefa.id));
+                }
+              }
+            });
+          });
+
+          if (shouldSelectAll) {
+            setTarefasSelecionadas(tarefasVinculadas);
+          }
+
+          if (!editingAgrupamento) {
+            setTempoEstimadoDia(prev => {
+              const novosTempos = { ...prev };
+              tarefasVinculadas.forEach(tarefaId => {
+                if (!novosTempos[tarefaId] || novosTempos[tarefaId] <= 0) {
+                  novosTempos[tarefaId] = 0;
+                }
+              });
+              return novosTempos;
+            });
+          }
+        } else {
+          setTarefas([]);
+        }
+      } else {
+        setTarefas([]);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar tarefas vinculadas:', error);
+      setTarefas([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [editingAgrupamento]);
+
+  const loadProdutosPorCliente = useCallback(async (clienteId) => {
     console.log('🔄 [AtribuicaoCliente] Carregando produtos vinculados ao cliente:', clienteId);
     setLoading(true);
     try {
@@ -1538,7 +1853,93 @@ const AtribuicaoCliente = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [loadTarefasPorClienteEProdutos, showToast]);
+
+  const loadConfiguracaoExistente = useCallback(async (clienteId) => {
+    if (!clienteId) return;
+    try {
+      console.log('🔄 [CONFIG] Carregando estimativas existentes para o cliente:', clienteId);
+      const response = await fetch(`${API_BASE_URL}/tempo-estimado?cliente_id=${clienteId}`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (!response.ok) return;
+
+      const result = await response.json();
+      if (!result.success || !result.data || result.data.length === 0) return;
+
+      const regras = result.data;
+
+      // Reconstruir estado a partir das regras do banco
+      const tSelPorProd = {};
+      const respPorTarefa = {};
+      const tConfPorTarefa = {};
+      const perPorTarefa = {};
+
+      regras.forEach(reg => {
+        const pId = String(reg.produto_id).trim();
+        const tId = String(reg.tarefa_id).trim();
+        const key = `${pId}_${tId}`;
+
+        // Seleção
+        if (!tSelPorProd[pId]) tSelPorProd[pId] = {};
+        tSelPorProd[pId][tId] = { selecionada: true };
+
+        // Responsáveis
+        if (reg.responsavel_id) {
+          if (!respPorTarefa[key]) respPorTarefa[key] = [];
+          const rIdStr = String(reg.responsavel_id);
+          if (!respPorTarefa[key].includes(rIdStr)) {
+            respPorTarefa[key].push(rIdStr);
+          }
+        }
+
+        // Configuração de Tempo (Escalonamento)
+        const rIdKey = reg.responsavel_id ? String(reg.responsavel_id) : 'null';
+        if (!tConfPorTarefa[key]) tConfPorTarefa[key] = {};
+        if (!tConfPorTarefa[key][rIdKey]) tConfPorTarefa[key][rIdKey] = [];
+        tConfPorTarefa[key][rIdKey].push({
+          tempo_minutos: reg.tempo_minutos,
+          data_inicio: reg.data_inicio
+        });
+
+        // Período
+        if (!perPorTarefa[key]) {
+          perPorTarefa[key] = {
+            inicio: reg.data_inicio,
+            fim: reg.data_fim,
+            incluir_finais_semana: reg.incluir_finais_semana,
+            incluir_feriados: reg.incluir_feriados,
+            datasIndividuais: [],
+            source: 'existente'
+          };
+        } else {
+          if (reg.data_inicio < perPorTarefa[key].inicio) perPorTarefa[key].inicio = reg.data_inicio;
+          if (reg.data_fim > perPorTarefa[key].fim) perPorTarefa[key].fim = reg.data_fim;
+        }
+      });
+
+      // Reconstruir formato para initialTarefas (array por produto) - Necessário para SelecaoTarefasPorProduto saber o que marcar
+      const initialTasks = {};
+      regras.forEach(reg => {
+        const pId = String(reg.produto_id).trim();
+        if (!initialTasks[pId]) initialTasks[pId] = [];
+        if (!initialTasks[pId].find(t => String(t.id) === String(reg.tarefa_id))) {
+          initialTasks[pId].push({ id: reg.tarefa_id });
+        }
+      });
+      setInitialTarefas(initialTasks);
+
+      setTarefasSelecionadasPorProduto(tSelPorProd);
+      setResponsaveisPorTarefa(respPorTarefa);
+      setTempoConfigPorTarefa(tConfPorTarefa);
+      setPeriodosPorTarefa(perPorTarefa);
+
+    } catch (error) {
+      console.error('❌ Erro ao carregar configuração existente:', error);
+    }
+  }, []);
 
   // Quando tarefas são selecionadas via SelecaoTarefasPorProduto, atualizar lista de tarefas selecionadas
   useEffect(() => {
@@ -1562,91 +1963,31 @@ const AtribuicaoCliente = () => {
     });
   }, [tarefasSelecionadasPorProduto]);
 
-  // Removido: useEffect que limpava tempos baseado apenas em tarefasSelecionadas
-  // Agora o tempo é gerenciado por produto x tarefa, então não precisamos limpar dessa forma
-
-  const loadTarefasPorClienteEProdutos = async (clienteId, produtoIds, shouldSelectAll = true) => {
-    if (!clienteId || !produtoIds || produtoIds.length === 0) {
-      setTarefas([]);
+  // Carregar produtos vinculados ao cliente selecionado (usando tabela de vinculados)
+  useEffect(() => {
+    // Se estiver editando, NÃO carregar dados automaticamente aqui
+    // O loadDadosEdicao já cuidará disso
+    if (editingAgrupamento) {
       return;
     }
 
-    setLoading(true);
-    try {
-      const produtoIdsNum = produtoIds.map(id => parseInt(id, 10)).filter(id => !isNaN(id) && id > 0);
-      if (produtoIdsNum.length === 0) {
-        setTarefas([]);
-        setLoading(false);
-        return;
-      }
+    if (clienteSelecionado) {
+      // Limpar estados antes de carregar novo cliente para evitar mistura
+      setInitialTarefas(null);
+      setTarefasSelecionadasPorProduto({});
+      setResponsaveisPorTarefa({});
+      setTempoConfigPorTarefa({});
+      setPeriodosPorTarefa({});
 
-      const response = await fetch(`${API_BASE_URL}/tarefas-por-cliente-produtos?clienteId=${clienteId}&produtoIds=${produtoIdsNum.join(',')}`, {
-        credentials: 'include',
-        headers: { 'Accept': 'application/json' }
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success && result.data) {
-          const todasTarefas = [];
-          const tarefasIds = new Set();
-
-          result.data.forEach(item => {
-            (item.tarefas || []).forEach(tarefa => {
-              if (!tarefasIds.has(tarefa.id)) {
-                tarefasIds.add(tarefa.id);
-                todasTarefas.push(tarefa);
-              }
-            });
-          });
-
-          setTarefas(todasTarefas);
-          // Selecionar apenas tarefas que estão vinculadas ao cliente (estaVinculadaAoCliente === true)
-          // ou que têm subtarefas vinculadas ao cliente
-          const tarefasVinculadas = [];
-          result.data.forEach(item => {
-            (item.tarefas || []).forEach(tarefa => {
-              const estaVinculadaAoCliente = tarefa.estaVinculadaAoCliente === true;
-              const subtarefasVinculadas = tarefa.subtarefasVinculadasCliente || [];
-              const temSubtarefasVinculadas = subtarefasVinculadas.length > 0;
-
-              // Selecionar tarefa se está vinculada ao cliente OU tem subtarefas vinculadas
-              if (estaVinculadaAoCliente || temSubtarefasVinculadas) {
-                if (!tarefasVinculadas.includes(String(tarefa.id))) {
-                  tarefasVinculadas.push(String(tarefa.id));
-                }
-              }
-            });
-          });
-
-          if (shouldSelectAll) {
-            setTarefasSelecionadas(tarefasVinculadas);
-          }
-
-          if (!editingAgrupamento) {
-            setTempoEstimadoDia(prev => {
-              const novosTempos = { ...prev };
-              tarefasVinculadas.forEach(tarefaId => {
-                if (!novosTempos[tarefaId] || novosTempos[tarefaId] <= 0) {
-                  novosTempos[tarefaId] = 0;
-                }
-              });
-              return novosTempos;
-            });
-          }
-        } else {
-          setTarefas([]);
-        }
-      } else {
-        setTarefas([]);
-      }
-    } catch (error) {
-      console.error('Erro ao buscar tarefas vinculadas:', error);
+      loadProdutosPorCliente(clienteSelecionado);
+      loadConfiguracaoExistente(clienteSelecionado);
+    } else {
+      setProdutos([]);
+      setProdutosSelecionados([]);
       setTarefas([]);
-    } finally {
-      setLoading(false);
+      setTarefasSelecionadas([]);
     }
-  };
+  }, [clienteSelecionado, editingAgrupamento, loadProdutosPorCliente, loadConfiguracaoExistente]);
 
   const handleClienteChange = (e) => {
     const novoClienteId = e.target.value;
@@ -1900,6 +2241,7 @@ const AtribuicaoCliente = () => {
     const temValoresPreenchidos =
       (periodoGlobal.inicio && periodoGlobal.fim) ||
       temDatasIndividuais ||
+      periodoGlobal.recorrenciaConfig ||
       (Array.isArray(responsaveisGlobais) && responsaveisGlobais.length > 0) ||
       (tempoGlobal !== undefined && tempoGlobal !== null);
 
@@ -1914,6 +2256,7 @@ const AtribuicaoCliente = () => {
     const temValoresAplicados =
       (valoresAplicados.periodo.inicio && valoresAplicados.periodo.fim) ||
       temDatasIndividuaisAplicadas ||
+      valoresAplicados.periodo.recorrenciaConfig ||
       (Array.isArray(valoresAplicados.responsaveis) && valoresAplicados.responsaveis.length > 0) ||
       (valoresAplicados.tempo !== undefined && valoresAplicados.tempo !== null);
 
@@ -1928,14 +2271,16 @@ const AtribuicaoCliente = () => {
       fim: periodoGlobal.fim,
       datasIndividuais: Array.isArray(periodoGlobal.datasIndividuais) ? periodoGlobal.datasIndividuais.sort().join(',') : '',
       habilitarFinaisSemana: !!periodoGlobal.habilitarFinaisSemana,
-      habilitarFeriados: !!periodoGlobal.habilitarFeriados
+      habilitarFeriados: !!periodoGlobal.habilitarFeriados,
+      recorrenciaConfig: JSON.stringify(periodoGlobal.recorrenciaConfig)
     };
     const periodoAplicado = {
       inicio: valoresAplicados.periodo.inicio,
       fim: valoresAplicados.periodo.fim,
       datasIndividuais: Array.isArray(valoresAplicados.periodo.datasIndividuais) ? valoresAplicados.periodo.datasIndividuais.sort().join(',') : '',
       habilitarFinaisSemana: !!valoresAplicados.periodo.habilitarFinaisSemana,
-      habilitarFeriados: !!valoresAplicados.periodo.habilitarFeriados
+      habilitarFeriados: !!valoresAplicados.periodo.habilitarFeriados,
+      recorrenciaConfig: JSON.stringify(valoresAplicados.periodo.recorrenciaConfig)
     };
 
     const periodoMudou =
@@ -1943,7 +2288,8 @@ const AtribuicaoCliente = () => {
       periodoAtual.fim !== periodoAplicado.fim ||
       periodoAtual.datasIndividuais !== periodoAplicado.datasIndividuais ||
       periodoAtual.habilitarFinaisSemana !== periodoAplicado.habilitarFinaisSemana ||
-      periodoAtual.habilitarFeriados !== periodoAplicado.habilitarFeriados;
+      periodoAtual.habilitarFeriados !== periodoAplicado.habilitarFeriados ||
+      periodoAtual.recorrenciaConfig !== periodoAplicado.recorrenciaConfig;
 
     // Verificar responsáveis
     const responsaveisAtuais = Array.isArray(responsaveisGlobais) ? responsaveisGlobais.map(id => String(id).trim()).sort().join(',') : '';
@@ -2024,380 +2370,141 @@ const AtribuicaoCliente = () => {
     const tarefasSemTempo = [];
     const tarefasSemResponsavel = [];
     Object.entries(tarefasSelecionadasPorProduto).forEach(([produtoId, tarefasDoProduto]) => {
+      const pId = String(produtoId).trim();
       Object.entries(tarefasDoProduto).forEach(([tarefaId, dadosTarefa]) => {
         if (dadosTarefa.selecionada === true) {
+          const tId = String(tarefaId).trim();
+          const key = getResponsavelKey(pId, tId);
+          const hasTempoConfig = tempoConfigPorTarefa[key] && Object.keys(tempoConfigPorTarefa[key]).length > 0;
+
           // Verificar tempo
-          if (modoSelecionarVarios && tarefasSelecionadasParaTempo.has(tarefaId)) {
-            if (!tempoGlobalParaAplicar || tempoGlobalParaAplicar <= 0) {
-              tarefasSemTempo.push({ produtoId, tarefaId });
+          if (modoSelecionarVarios && tarefasSelecionadasParaTempo.has(tId)) {
+            const hasGlobalConfig = tempoConfigGlobal && Object.keys(tempoConfigGlobal).length > 0;
+            if ((!tempoGlobalParaAplicar || tempoGlobalParaAplicar <= 0) && !hasGlobalConfig) {
+              tarefasSemTempo.push({ produtoId: pId, tarefaId: tId });
             }
           } else {
-            const tempo = getTempoEstimado(produtoId, tarefaId);
-            if (!tempo || tempo <= 0) {
-              tarefasSemTempo.push({ produtoId, tarefaId });
+            const tempo = getTempoEstimado(pId, tId);
+            if ((!tempo || tempo <= 0) && !hasTempoConfig) {
+              tarefasSemTempo.push({ produtoId: pId, tarefaId: tId });
             }
           }
           // Verificar responsável
-          const responsavelId = getResponsavelTarefa(produtoId, tarefaId);
-          if (!responsavelId) {
-            tarefasSemResponsavel.push({ produtoId, tarefaId });
+          const responsaveisTarefa = getResponsavelTarefa(pId, tId);
+          if (!responsaveisTarefa || responsaveisTarefa.length === 0) {
+            tarefasSemResponsavel.push({ produtoId: pId, tarefaId: tId });
           }
         }
       });
     });
 
-    if (tarefasSemTempo.length > 0) {
-      if (modoSelecionarVarios && tarefasSelecionadasParaTempo.size > 0 && (!tempoGlobalParaAplicar || tempoGlobalParaAplicar <= 0)) {
-        showToast('warning', 'Informe o tempo estimado no campo "Selecionar vários" para aplicar às tarefas selecionadas.');
-      } else {
-        showToast('warning', `Informe o tempo estimado para todas as tarefas. ${tarefasSemTempo.length} tarefa(s) sem tempo definido.`);
-      }
-      return;
-    }
-
+    // Validar se há tarefas sem responsável ou sem tempo
     if (tarefasSemResponsavel.length > 0) {
-      showToast('warning', `Selecione um responsável para todas as tarefas. ${tarefasSemResponsavel.length} tarefa(s) sem responsável definido.`);
+      const tarefaExemplo = tarefas.find(t => String(t.id) === String(tarefasSemResponsavel[0].tarefaId));
+      const nomeTarefa = tarefaExemplo ? tarefaExemplo.nome : `ID ${tarefasSemResponsavel[0].tarefaId}`;
+      showToast('error', `A tarefa "${nomeTarefa}" (e outras ${tarefasSemResponsavel.length - 1}) está sem responsável definido. Por favor, atribua um responsável ou utilize a opção "Aplicar" global.`);
       return;
     }
 
-    if (erroDuplicata) {
-      console.warn('Aviso de duplicata:', erroDuplicata);
+    if (tarefasSemTempo.length > 0) {
+      const tarefaExemplo = tarefas.find(t => String(t.id) === String(tarefasSemTempo[0].tarefaId));
+      const nomeTarefa = tarefaExemplo ? tarefaExemplo.nome : `ID ${tarefasSemTempo[0].tarefaId}`;
+      showToast('error', `A tarefa "${nomeTarefa}" (e outras ${tarefasSemTempo.length - 1}) está sem tempo estimado definido.`);
+      return;
     }
 
-    if (horasContratadasDia && tarefasSelecionadasPorProduto && Object.keys(tarefasSelecionadasPorProduto).length > 0) {
-      let totalTempoMs = 0;
-      Object.entries(tarefasSelecionadasPorProduto).forEach(([produtoId, tarefasDoProduto]) => {
-        Object.entries(tarefasDoProduto).forEach(([tarefaId, dadosTarefa]) => {
-          if (dadosTarefa.selecionada === true) {
-            let tempo = getTempoEstimado(produtoId, tarefaId);
-            if (modoSelecionarVarios && tarefasSelecionadasParaTempo.has(tarefaId) && tempoGlobalParaAplicar > 0) {
-              tempo = tempoGlobalParaAplicar;
-            }
-            totalTempoMs += tempo;
-          }
-        });
-      });
-      const totalHorasPorDia = totalTempoMs / (1000 * 60 * 60);
-
-      if (totalHorasPorDia > horasContratadasDia) {
-        console.warn('Tempo estimado ultrapassa horas contratadas');
-      }
-    }
-
-    setSubmitting(true);
     try {
-      // Construir array de tarefas com tempo, mas agrupadas por produto
-      // Usar tarefasSelecionadasPorProduto para garantir que só enviamos tarefas selecionadas para cada produto específico
-      const tarefasComTempo = [];
+      setSubmitting(true);
 
-      // Iterar sobre cada produto e suas tarefas selecionadas
-      Object.entries(tarefasSelecionadasPorProduto).forEach(([produtoId, tarefasDoProduto]) => {
-        // Verificar se o produto está na lista de produtos selecionados
-        const produtoIdStr = String(produtoId).trim();
-        if (!produtosSelecionados.includes(produtoIdStr)) {
-          return; // Pular produtos não selecionados
-        }
-
-        // Para cada tarefa selecionada neste produto
-        Object.entries(tarefasDoProduto).forEach(([tarefaId, dadosTarefa]) => {
-          if (dadosTarefa.selecionada === true) {
-            let tempo = getTempoEstimado(produtoIdStr, tarefaId);
-
-            if (modoSelecionarVarios && tarefasSelecionadasParaTempo.has(tarefaId) && tempoGlobalParaAplicar > 0) {
-              tempo = tempoGlobalParaAplicar;
-            }
-
-            const tempoInt = Math.round(Number(tempo));
-
-            // Adicionar tarefa com informação do produto
-            tarefasComTempo.push({
-              tarefa_id: String(tarefaId).trim(),
-              tempo_estimado_dia: tempoInt,
-              produto_id: produtoIdStr // Incluir produto_id para identificar a qual produto esta tarefa pertence
-            });
-          }
-        });
-      });
-
-      // Agrupar tarefas por produto para enviar ao backend
-      // O backend precisa receber: produto_ids e tarefas (mas as tarefas devem ser filtradas por produto)
-      // Vamos enviar um formato que permita ao backend criar apenas as combinações corretas
-      const produtosComTarefas = {};
-
-      produtosSelecionados.forEach(produtoId => {
-        const produtoIdStr = String(produtoId).trim();
-        const tarefasDoProduto = tarefasSelecionadasPorProduto[parseInt(produtoIdStr, 10)] || {};
-
-        const tarefasParaEsteProduto = [];
-        Object.entries(tarefasDoProduto).forEach(([tarefaId, dadosTarefa]) => {
-          if (dadosTarefa.selecionada === true) {
-            let tempo = getTempoEstimado(produtoIdStr, tarefaId);
-
-            if (modoSelecionarVarios && tarefasSelecionadasParaTempo.has(tarefaId) && tempoGlobalParaAplicar > 0) {
-              tempo = tempoGlobalParaAplicar;
-            }
-
-            const tempoInt = Math.round(Number(tempo));
-
-            // Obter responsável da tarefa
-            const responsavelId = getResponsavelTarefa(produtoIdStr, tarefaId);
-
-            tarefasParaEsteProduto.push({
-              tarefa_id: String(tarefaId).trim(),
-              tempo_estimado_dia: tempoInt,
-              responsavel_id: responsavelId ? String(responsavelId).trim() : null
-            });
-          }
-        });
-
-        if (tarefasParaEsteProduto.length > 0) {
-          produtosComTarefas[produtoIdStr] = tarefasParaEsteProduto;
-        }
-      });
-
-      // Agrupamento por período (por tarefa) ou período global
-      // Helper para gerar datas entre início e fim
-      const gerarDatasIntervalo = (inicioStr, fimStr) => {
-        const datas = [];
-        if (!inicioStr || !fimStr) return datas;
-        // Usar T12:00:00 para evitar problemas de timezone
-        const dataAtual = new Date(inicioStr + 'T12:00:00');
-        const dataFim = new Date(fimStr + 'T12:00:00');
-        const MAX_DAYS = 3660;
-        let count = 0;
-        while (dataAtual <= dataFim && count < MAX_DAYS) {
-          const ano = dataAtual.getFullYear();
-          const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
-          const dia = String(dataAtual.getDate()).padStart(2, '0');
-          datas.push(`${ano}-${mes}-${dia}`);
-          dataAtual.setDate(dataAtual.getDate() + 1);
-          count++;
-        }
-        return datas;
-      };
-
-      const obterPeriodoPara = (produtoId, tarefaId) => {
-        const key = getPeriodoKey(produtoId, tarefaId);
-        const p = periodosPorTarefa[key];
-
-        if (p) {
-          const temPeriodoCompleto = p.inicio && p.fim;
-          const temDatasIndividuais = Array.isArray(p.datasIndividuais) && p.datasIndividuais.length > 0;
-
-          if (temPeriodoCompleto || temDatasIndividuais) {
-
-            // CORREÇÃO: Se tem período completo E datas individuais (exceções marcadas com Ctrl),
-            // calular a lista exata de datas válidas (Range - Exceções) e enviar apenas essa lista.
-            if (temPeriodoCompleto && temDatasIndividuais) {
-              const todasDatas = gerarDatasIntervalo(p.inicio, p.fim);
-              const datasValidas = todasDatas.filter(d => !p.datasIndividuais.includes(d));
-
-              if (datasValidas.length > 0) {
-                return {
-                  inicio: null,
-                  fim: null,
-                  incluir_finais_semana: !!p.habilitarFinaisSemana,
-                  incluir_feriados: !!p.habilitarFeriados,
-                  datas_individuais: datasValidas
-                };
-              }
-            }
-
-            let inicio = p.inicio;
-            let fim = p.fim;
-
-            // Se há apenas datas individuais, usar min/max das datas para inicio e fim
-            if (!temPeriodoCompleto && temDatasIndividuais) {
-              const datasOrdenadas = [...p.datasIndividuais].sort();
-              inicio = datasOrdenadas[0];
-              fim = datasOrdenadas[datasOrdenadas.length - 1];
-            }
-
-            return {
-              inicio,
-              fim,
-              incluir_finais_semana: !!p.habilitarFinaisSemana,
-              incluir_feriados: !!p.habilitarFeriados,
-              datas_individuais: Array.isArray(p.datasIndividuais) ? p.datasIndividuais : []
-            };
-          }
-        }
-
-        // Fallback para período global da tela
-        // Tenta usar datas individuais globais se disponíveis
-        const temPeriodoGlobal = dataInicio && dataFim;
-        const temDatasIndividuaisGlobal = Array.isArray(periodoGlobal.datasIndividuais) && periodoGlobal.datasIndividuais.length > 0;
-
-        if (temPeriodoGlobal && temDatasIndividuaisGlobal) {
-          const todasDatas = gerarDatasIntervalo(dataInicio, dataFim);
-          const datasValidas = todasDatas.filter(d => !periodoGlobal.datasIndividuais.includes(d));
-          if (datasValidas.length > 0) {
-            return {
-              inicio: null,
-              fim: null,
-              incluir_finais_semana: !!habilitarFinaisSemana,
-              incluir_feriados: !!habilitarFeriados,
-              datas_individuais: datasValidas
-            };
-          }
-        }
-
+      const obterPeriodoPara = (pId, tId) => {
+        const per = getPeriodoTarefa(pId, tId);
         return {
-          inicio: dataInicio,
-          fim: dataFim,
-          incluir_finais_semana: !!habilitarFinaisSemana,
-          incluir_feriados: !!habilitarFeriados,
-          datas_individuais: Array.isArray(periodoGlobal.datasIndividuais) ? periodoGlobal.datasIndividuais : []
+          ...per,
+          incluir_finais_semana: per.habilitarFinaisSemana,
+          incluir_feriados: per.habilitarFeriados,
+          datas_individuais: per.datasIndividuais
         };
       };
 
-      const stringifyPeriodo = (per) => {
-        const di = (per.datas_individuais || []).slice().sort().join(',');
-        return `${per.inicio}|${per.fim}|${per.incluir_finais_semana ? 1 : 0}|${per.incluir_feriados ? 1 : 0}|${di}`;
-      };
+      // Montar payload consolidado por tarefa
+      const configuracoesParaSalvar = [];
 
-      // Agrupar por período E responsável (tarefas com responsáveis diferentes ou períodos diferentes vão em grupos separados)
-      const gruposPorPeriodoEResponsavel = {}; // keyPeriodo_Responsavel -> { periodo, responsavel_id, produtos_com_tarefas }
-      produtosSelecionados.forEach(produtoId => {
-        const produtoIdStr = String(produtoId).trim();
-        const tarefasDoProduto = tarefasSelecionadasPorProduto[parseInt(produtoIdStr, 10)] || {};
-        Object.entries(tarefasDoProduto).forEach(([tarefaId, dadosTarefa]) => {
-          if (dadosTarefa.selecionada === true) {
-            let tempo = getTempoEstimado(produtoIdStr, tarefaId);
-            if (modoSelecionarVarios && tarefasSelecionadasParaTempo.has(tarefaId) && tempoGlobalParaAplicar > 0) {
-              tempo = tempoGlobalParaAplicar;
-            }
-            const tempoInt = Math.round(Number(tempo));
-            const periodo = obterPeriodoPara(produtoIdStr, tarefaId);
-            const responsaveisIds = getResponsavelTarefa(produtoIdStr, tarefaId);
-            const keyPeriodo = stringifyPeriodo(periodo);
+      Object.entries(tarefasSelecionadasPorProduto).forEach(([pId, tarefasDoProduto]) => {
+        Object.entries(tarefasDoProduto).forEach(([tId, dadosTarefa]) => {
+          if (!dadosTarefa.selecionada) return;
 
-            // Se tem múltiplos responsáveis, criar registros para cada um
-            responsaveisIds.forEach(responsavelId => {
-              const keyGrupo = `${keyPeriodo}_${responsavelId || 'sem-responsavel'}`;
+          const pIdStr = String(pId).trim();
+          const tIdStr = String(tId).trim();
+          const key = `${pIdStr}_${tIdStr}`;
+          const periodo = obterPeriodoPara(pIdStr, tIdStr);
 
-              if (!gruposPorPeriodoEResponsavel[keyGrupo]) {
-                gruposPorPeriodoEResponsavel[keyGrupo] = {
-                  periodo,
-                  responsavel_id: responsavelId ? String(responsavelId).trim() : null,
-                  produtos_com_tarefas: {}
-                };
-              }
-              if (!gruposPorPeriodoEResponsavel[keyGrupo].produtos_com_tarefas[produtoIdStr]) {
-                gruposPorPeriodoEResponsavel[keyGrupo].produtos_com_tarefas[produtoIdStr] = [];
-              }
-              gruposPorPeriodoEResponsavel[keyGrupo].produtos_com_tarefas[produtoIdStr].push({
-                tarefa_id: String(tarefaId).trim(),
-                tempo_estimado_dia: tempoInt,
-                responsavel_id: responsavelId ? String(responsavelId).trim() : null
-              });
-            });
+          let responsaveisIds = getResponsavelTarefa(pIdStr, tIdStr);
+          if (responsaveisIds.length === 0 && Array.isArray(responsaveisGlobais) && responsaveisGlobais.length > 0) {
+            responsaveisIds = [...responsaveisGlobais];
           }
+          const configTempo = tempoConfigPorTarefa[key] || tempoConfigGlobal || {};
+
+          // Se não houver config avançada de tempo, usar o tempo padrão
+          let estimativas = [];
+
+          // Tentar pegar estimativas de tempo (independentemente de responsável)
+          if (configTempo['null'] && configTempo['null'].length > 0) {
+            estimativas = configTempo['null'];
+          } else if (responsaveisIds.length > 0) {
+            estimativas = configTempo[responsaveisIds[0]] || [];
+          }
+
+          if (estimativas.length === 0) {
+            let tempoPadrao = getTempoEstimado(pIdStr, tIdStr);
+            if (modoSelecionarVarios && tarefasSelecionadasParaTempo.has(tIdStr) && tempoGlobalParaAplicar > 0) {
+              tempoPadrao = tempoGlobalParaAplicar;
+            }
+            const min = Math.round(Number(tempoPadrao) / 60000);
+            estimativas = [{ tempo_minutos: min, data_inicio: periodo.inicio || new Date().toISOString().split('T')[0] }];
+          }
+
+          configuracoesParaSalvar.push({
+            produto_id: pIdStr,
+            tarefa_id: tIdStr,
+            estimativas: estimativas,
+            responsaveis: responsaveisIds.map(rId => ({ responsavel_id: rId })),
+            incluir_finais_semana: periodo.incluir_finais_semana,
+            incluir_feriados: periodo.incluir_feriados
+          });
         });
       });
 
-      const grupos = Object.values(gruposPorPeriodoEResponsavel);
+      const payload = {
+        cliente_id: clienteSelecionado,
+        data_fim_geral: dataFim || '2050-12-31',
+        configuracoes: configuracoesParaSalvar
+      };
 
-      console.log('💾 [ATRIBUICAO] Total de grupos de período e responsável:', grupos.length);
+      console.log('💾 [ATRIBUICAO] Salvando configuração consolidada:', JSON.stringify(payload, null, 2));
 
-      const urlBase = editingAgrupamento
-        ? `${API_BASE_URL}/tempo-estimado/agrupador/${editingAgrupamento.agrupador_id}`
-        : `${API_BASE_URL}/tempo-estimado`;
-      const method = editingAgrupamento ? 'PUT' : 'POST';
+      const response = await fetch(`${API_BASE_URL}/tempo-estimado/salvar-configuracao-cliente`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
 
-      let totalLinhas = 0;
-
-      if (editingAgrupamento) {
-        // MODO EDIÇÃO (PUT): Enviar todos os grupos em uma única requisição para atualização atômica
-        // Isso evita que chamadas sequenciais apaguem dados uns dos outros no backend
-        const gruposPayload = grupos.map(grupo => ({
-          produtos_com_tarefas: grupo.produtos_com_tarefas,
-          data_inicio: grupo.periodo.inicio,
-          data_fim: grupo.periodo.fim,
-          responsavel_id: grupo.responsavel_id, // Responsável padrão do grupo
-          incluir_finais_semana: grupo.periodo.incluir_finais_semana,
-          incluir_feriados: grupo.periodo.incluir_feriados,
-          datas_individuais: grupo.periodo.datas_individuais
-        }));
-
-        const payload = {
-          cliente_id: clienteSelecionado,
-          grupos: gruposPayload
-        };
-
-        console.log('💾 [ATRIBUICAO] Salvando atualização em lote (PUT):', JSON.stringify(payload, null, 2));
-
-        const response = await fetch(urlBase, {
-          method: 'PUT', // Já definido, mas reforçando
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(payload),
-        });
-
-        if (response.status === 401) {
-          window.location.href = '/login';
-          return;
-        }
-
-        const result = await response.json();
-
-        if (!response.ok || !result.success) {
-          const errorMsg = result.error || result.details || result.hint || result.message || `Erro HTTP ${response.status}`;
-          showToast('error', errorMsg);
-          return;
-        }
-
-        totalLinhas = result.count || 0;
-
-      } else {
-        // MODO CRIAÇÃO (POST): Manter comportamento de criar múltiplos agrupamentos se houver múltiplos grupos
-        // (Ou futuramente migrar para POST em lote se desejado criar um único agrupador)
-        for (const grupo of grupos) {
-          const responsavelComum = grupo.responsavel_id;
-
-          const payload = {
-            cliente_id: clienteSelecionado,
-            produtos_com_tarefas: grupo.produtos_com_tarefas,
-            data_inicio: grupo.periodo.inicio,
-            data_fim: grupo.periodo.fim,
-            responsavel_id: responsavelComum,
-            incluir_finais_semana: grupo.periodo.incluir_finais_semana,
-            incluir_feriados: grupo.periodo.incluir_feriados,
-            datas_individuais: grupo.periodo.datas_individuais
-          };
-
-          console.log('💾 [ATRIBUICAO] Salvando novo grupo (POST):', JSON.stringify(payload, null, 2));
-
-          const response = await fetch(urlBase, {
-            method: 'POST', // method variable handled logic, but hardcoding here since we split branches
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            credentials: 'include',
-            body: JSON.stringify(payload),
-          });
-
-          if (response.status === 401) {
-            window.location.href = '/login';
-            return;
-          }
-
-          const result = await response.json();
-
-          if (!response.ok || !result.success) {
-            const errorMsg = result.error || result.details || result.hint || result.message || `Erro HTTP ${response.status}`;
-            showToast('error', errorMsg);
-            return;
-          }
-          totalLinhas += (result.count || result.data?.length || 0);
-        }
+      if (response.status === 401) {
+        window.location.href = '/login';
+        return;
       }
 
-      showToast('success', `Atribuição salva com sucesso! ${totalLinhas} dia(s) atribuídos/atualizados em ${grupos.length} grupo(s) de período.`);
-      navigate(editingAgrupamento ? '/gestao-capacidade/historico' : '/gestao-capacidade');
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || result.details || 'Erro ao salvar configuração');
+      }
+
+      showToast('success', 'Configuração estrutural de estimativas salva com sucesso!');
+      navigate('/gestao-capacidade');
     } catch (error) {
-      console.error('Erro ao salvar atribuição:', error);
-      showToast('error', error.message || 'Erro ao salvar atribuição. Verifique sua conexão e tente novamente.');
+      console.error('❌ Erro ao salvar configuração:', error);
+      showToast('error', error.message || 'Erro ao salvar. Verifique o console para detalhes.');
     } finally {
       setSubmitting(false);
     }
@@ -2596,6 +2703,11 @@ const AtribuicaoCliente = () => {
                               datasIndividuais={periodoGlobal.datasIndividuais || []}
                               onDatasIndividuaisChange={(arr) => setPeriodoGlobal(prev => ({ ...prev, datasIndividuais: Array.isArray(arr) ? arr : [] }))}
                               disabled={loading || submitting || !clienteSelecionado || produtosSelecionados.length === 0}
+                              source={periodoGlobal.source}
+                              onSourceChange={(src) => setPeriodoGlobal(prev => ({ ...prev, source: src }))}
+                              recorrenciaConfig={periodoGlobal.recorrenciaConfig}
+                              onRecorrenciaConfigChange={(cfg) => setPeriodoGlobal(prev => ({ ...prev, recorrenciaConfig: cfg }))}
+                              showRecurrence={true}
                             />
                           </div>
                           <div style={{ minWidth: '182px', position: 'relative', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '8px' }} className="responsavel-card-global-wrapper">
@@ -2611,6 +2723,17 @@ const AtribuicaoCliente = () => {
                                   label: c.cpf ? `${c.nome} (${c.cpf})` : c.nome
                                 }))}
                                 colaboradores={colaboradores}
+                                showAPartirDe={true}
+                                isAPartirDeEnabled={escalonamentoGlobalAtivo}
+                                onAPartirDeToggle={handleToggleEscalonamentoGlobal}
+                                vigenciaDatas={vigenciasGlobais}
+                                onVigenciaChange={handleVigenciaGlobalChange}
+                                periodo={periodoGlobal}
+                                horasContratadasPorResponsavel={horasContratadasPorResponsavel}
+                                tempoEstimadoDia={tempoEstimadoDia}
+                                tarefasSelecionadasPorProduto={tarefasSelecionadasPorProduto}
+                                calcularTempoDisponivel={calcularTempoDisponivelGlobal}
+                                formatarTempoEstimado={formatarTempoEstimado}
                               />
                             </div>
                             {!podePreencherResponsavel() && (
@@ -2618,44 +2741,46 @@ const AtribuicaoCliente = () => {
                                 Preencha o período ou selecione dias específicos primeiro
                               </div>
                             )}
-                            {podePreencherResponsavel() && Array.isArray(responsaveisGlobais) && responsaveisGlobais.length > 0 && tempoDisponivelGlobal !== undefined && tempoDisponivelGlobal !== null && (
-                              (() => {
-                                const isExcedido = tempoDisponivelGlobal < 0;
-                                return (
-                                  <div
-                                    style={{
-                                      padding: '6px 12px',
-                                      backgroundColor: isExcedido ? '#fef2f2' : '#f0f9ff',
-                                      border: `1px solid ${isExcedido ? '#ef4444' : '#0ea5e9'}`,
-                                      borderRadius: '6px',
-                                      fontSize: '12px',
-                                      color: isExcedido ? '#991b1b' : '#0c4a6e',
-                                      fontWeight: '500',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: '6px',
-                                      boxSizing: 'border-box',
-                                      cursor: 'help',
-                                      flexShrink: 0,
-                                      whiteSpace: 'nowrap'
-                                    }}
-                                    title={isExcedido ? "Tempo excedido" : "Disponível"}
-                                  >
-                                    <i className="fas fa-clock" style={{ fontSize: '11px', flexShrink: 0 }}></i>
-                                    <span>{isExcedido ? `-${formatarTempoEstimado(Math.abs(tempoDisponivelGlobal), false)}` : formatarTempoEstimado(tempoDisponivelGlobal, false)}</span>
-                                  </div>
-                                );
-                              })()
-                            )}
+
                           </div>
-                          <div style={{ minWidth: '140px', width: '140px', position: 'relative', display: 'flex', flexDirection: 'column' }} className="tempo-global-wrapper">
+                          <div style={{ minWidth: '140px', width: '140px', position: 'relative', display: 'flex', flexDirection: 'column', zIndex: showTempoConfigGlobal ? 9999 : 10 }} className="tempo-global-wrapper">
                             <div style={{ width: '100%' }}>
-                              <TempoEstimadoInput
-                                value={tempoGlobal}
-                                onChange={(tempoEmMs) => setTempoGlobal(tempoEmMs || 0)}
+                              <button
+                                type="button"
+                                className="btn-configurar-tempo"
+                                onClick={() => setShowTempoConfigGlobal(!showTempoConfigGlobal)}
                                 disabled={loading || submitting || !clienteSelecionado || produtosSelecionados.length === 0 || !podePreencherTempo()}
-                                placeholder="0h 0min"
-                              />
+                                style={{
+                                  width: '100%',
+                                  height: '40px',
+                                  padding: '0 12px',
+                                  backgroundColor: '#fff',
+                                  border: '1px solid #cbd5e1',
+                                  borderRadius: '6px',
+                                  fontSize: '13px',
+                                  color: '#475569',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '8px',
+                                  cursor: (loading || submitting || !clienteSelecionado || produtosSelecionados.length === 0 || !podePreencherTempo()) ? 'not-allowed' : 'pointer',
+                                  transition: 'all 0.2s'
+                                }}
+                              >
+                                <i className="fas fa-cog"></i>
+                                {Object.keys(tempoConfigGlobal).length > 0 ? 'Tempo Configurado' : 'Configurar Tempo'}
+                              </button>
+
+                              {showTempoConfigGlobal && (
+                                <TempoConfigCard
+                                  responsaveis={responsaveisGlobais}
+                                  colaboradores={colaboradores}
+                                  initialConfig={tempoConfigGlobal}
+                                  onSave={handleTempoConfigGlobalChange}
+                                  onClose={() => setShowTempoConfigGlobal(false)}
+                                  dataInicioPadrao={periodoGlobal.inicio}
+                                />
+                              )}
                             </div>
                             {!podePreencherTempo() && podePreencherResponsavel() && (
                               <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000 }}>
@@ -2770,13 +2895,23 @@ const AtribuicaoCliente = () => {
                           initialTarefas={initialTarefas} // Passar tarefas iniciais
                           // Período por tarefa e modo em lote
                           periodosPorTarefa={periodosPorTarefa}
-                          onPeriodoChange={(produtoId, tarefaId, updates) => handlePeriodoTarefaChange(produtoId, tarefaId, { ...updates, source: 'manual' })}
+                          onPeriodoChange={(produtoId, tarefaId, updates) => handlePeriodoTarefaChange(produtoId, tarefaId, updates)}
                           modoPeriodoParaMuitos={modoPeriodoParaMuitos}
                           filterPeriodoUiVariant="atribuicao-mini"
                           // Responsáveis por tarefa
                           responsaveisPorTarefa={responsaveisPorTarefa}
                           onResponsavelChange={handleResponsavelTarefaChange}
                           colaboradores={colaboradores}
+                          // Escalonamento por tarefa
+                          escalonamentoPorTarefaAtivo={escalonamentoPorTarefaAtivo}
+                          onToggleEscalonamento={handleToggleEscalonamentoTarefa}
+                          vigenciasPorTarefa={vigenciasPorTarefa}
+                          onVigenciaChange={handleVigenciaTarefaChange}
+                          periodoGlobalProp={periodoGlobal}
+                          responsaveisGlobaisProp={responsaveisGlobais}
+                          // Escalonamento de Tempo por tarefa
+                          tempoConfigPorTarefa={tempoConfigPorTarefa}
+                          onTempoConfigChange={handleTempoConfigTarefaChange}
                           // Ordem de preenchimento e tempo disponível
                           ordemPreenchimento={{
                             podePreencherResponsavel: (produtoId, tarefaId) => {
@@ -2789,10 +2924,8 @@ const AtribuicaoCliente = () => {
                             },
                             podePreencherTempo: (produtoId, tarefaId) => {
                               const keyPeriodo = getPeriodoKey(produtoId, tarefaId);
-                              const keyResponsavel = getResponsavelKey(produtoId, tarefaId);
                               const periodo = periodosPorTarefa[keyPeriodo];
-                              const responsavel = responsaveisPorTarefa[keyResponsavel];
-                              if (!periodo || !responsavel) return false;
+                              if (!periodo) return false;
                               const temPeriodoCompleto = periodo.inicio && periodo.fim;
                               const temDatasIndividuais = Array.isArray(periodo.datasIndividuais) && periodo.datasIndividuais.length > 0;
                               return !!(temPeriodoCompleto || temDatasIndividuais);
@@ -3083,40 +3216,23 @@ const AtribuicaoCliente = () => {
                   className="btn-primary"
                   onClick={handleSave}
                   disabled={loading || submitting || !clienteSelecionado || produtosSelecionados.length === 0 || tarefasSelecionadas.length === 0 || verificandoDuplicata || (() => {
-                    // Verificar se há tarefas sem tempo, sem responsável ou sem período considerando produto x tarefa
+                    // Validação simplificada: Apenas tarefas com tempo são obrigatórias
                     if (!tarefasSelecionadasPorProduto || Object.keys(tarefasSelecionadasPorProduto).length === 0) {
                       return true;
                     }
                     for (const [produtoId, tarefasDoProduto] of Object.entries(tarefasSelecionadasPorProduto)) {
-                      const produtoIdNormalizado = String(produtoId).trim();
+                      const pId = String(produtoId).trim();
                       for (const [tarefaId, dadosTarefa] of Object.entries(tarefasDoProduto)) {
                         if (dadosTarefa.selecionada === true) {
-                          const tarefaIdNormalizado = String(tarefaId).trim();
-                          // Verificar tempo
-                          if (modoSelecionarVarios && tarefasSelecionadasParaTempo.has(tarefaIdNormalizado)) {
-                            if (!tempoGlobalParaAplicar || tempoGlobalParaAplicar <= 0) {
-                              return true;
-                            }
-                          } else {
-                            const tempo = getTempoEstimado(produtoIdNormalizado, tarefaIdNormalizado);
-                            if (!tempo || tempo <= 0) {
-                              return true;
-                            }
-                          }
-                          // Verificar responsável
-                          const responsavelId = getResponsavelTarefa(produtoIdNormalizado, tarefaIdNormalizado);
-                          if (!responsavelId) {
-                            return true;
-                          }
-                          // Verificar período (período completo OU apenas datas individuais)
-                          const periodoKey = getPeriodoKey(produtoIdNormalizado, tarefaIdNormalizado);
-                          const periodo = periodosPorTarefa[periodoKey];
-                          if (!periodo) {
-                            return true;
-                          }
-                          const temPeriodoCompleto = periodo.inicio && periodo.fim;
-                          const temDatasIndividuais = Array.isArray(periodo.datasIndividuais) && periodo.datasIndividuais.length > 0;
-                          if (!temPeriodoCompleto && !temDatasIndividuais) {
+                          const tId = String(tarefaId).trim();
+                          const key = `${pId}_${tId}`;
+
+                          // Verificar se tem pelo menos um tempo (direto ou config)
+                          const tempo = getTempoEstimado(pId, tId);
+                          const config = tempoConfigPorTarefa[key];
+                          const hasConfig = config && (Object.keys(config).length > 0);
+
+                          if ((!tempo || tempo <= 0) && !hasConfig) {
                             return true;
                           }
                         }

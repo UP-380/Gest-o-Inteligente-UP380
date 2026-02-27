@@ -174,6 +174,11 @@ const HierarchyNode = memo(function HierarchyNode({
                         <div className="tree-node-info">
                             <i className={`${icone} tree-node-icon`}></i>
                             <span className="tree-node-name">{nome}</span>
+                            {nodeId === 'sem-responsavel' && (
+                                <span className="tree-node-badge-alert" style={{ marginLeft: '8px', fontSize: '10px', background: '#fee2e2', color: '#b91c1c', padding: '2px 6px', borderRadius: '4px', fontWeight: '500' }}>
+                                    ESTIMATIVA GERAL
+                                </span>
+                            )}
                         </div>
 
                         <div className="tree-node-actions">
@@ -386,7 +391,12 @@ const HierarchyNode = memo(function HierarchyNode({
                     <div className="tempo-disponivel-card-nome-wrapper sem-avatar">
                         <i className={icone} style={{ marginRight: '8px', opacity: 0.7, fontSize: '14px' }}></i>
                         <span className="tempo-disponivel-card-nome">{nome}</span>
-                        {depth === 0 && (
+                        {nodeId === 'sem-responsavel' && (
+                            <span className="painel-usuario-estimado-pill" style={{ marginLeft: '8px', fontSize: '11px', background: '#fee2e2', color: '#b91c1c' }}>
+                                Sem Responsável
+                            </span>
+                        )}
+                        {depth === 0 && nodeId !== 'sem-responsavel' && (
                             <span className="painel-usuario-estimado-pill" style={{ marginLeft: '8px', fontSize: '11px' }}>
                                 {labelNivel}
                             </span>

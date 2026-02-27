@@ -64,7 +64,8 @@ export async function activeSessionsHandler(c: Context) {
 
         const estimadoMap = new Map();
         estimadosData?.forEach(e => {
-            const compositeKey = `${e.tarefa_id}_${e.responsavel_id}`; // tarefa_id_responsavel_id
+            const rIdKey = e.responsavel_id ? String(e.responsavel_id) : 'null';
+            const compositeKey = `${e.tarefa_id}_${rIdKey}`; // tarefa_id_responsavel_id
             estimadoMap.set(compositeKey, { tempo: e.tempo_estimado_dia, data_inicio: e.data_inicio });
         });
 
@@ -117,8 +118,21 @@ export async function activeSessionsHandler(c: Context) {
             const dataInicioMs = new Date(r.data_inicio!).getTime();
 
             // Tenta encontrar tempo_estimado_dia (regra baseada na tarefa e responsavel logado)
-            const compositeKey = r.tarefa_id && membro?.id ? `${r.tarefa_id}_${membro.id}` : null;
-            const estimadoData = compositeKey ? estimadoMap.get(compositeKey) : null;
+            const taskKey = r.tarefa_id ? String(r.tarefa_id) : null;
+            const respKey = membro?.id ? String(membro.id) : null;
+
+            let estimadoData = null;
+            if (taskKey) {
+                // 1. Tentar específico para o membro
+                if (respKey) {
+                    estimadoData = estimadoMap.get(`${taskKey}_${respKey}`);
+                }
+                // 2. Se não encontrou, tentar estrutural (null/geral)
+                if (!estimadoData) {
+                    estimadoData = estimadoMap.get(`${taskKey}_null`);
+                }
+            }
+
             const tempoEstimadoFormatado = estimadoData?.tempo ? formatarTempoHMS(tempoEstimadoDiaParaMs(estimadoData.tempo)) : null;
             const dataEstimadaFormatada = estimadoData?.data_inicio ? formatarDataISOBr(estimadoData.data_inicio) : null;
 

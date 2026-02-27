@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import CustomSelect from '../vinculacoes/CustomSelect';
 import ResponsavelCard from '../atribuicoes/ResponsavelCard';
+import TempoConfigCard from '../atribuicoes/TempoConfigCard';
 import TempoEstimadoInput from '../common/TempoEstimadoInput';
 import FilterPeriodo from '../filters/FilterPeriodo';
 import './SelecaoTarefasPorProduto.css';
@@ -46,13 +47,24 @@ const SelecaoTarefasPorProduto = ({
   calcularTempoDisponivel = null, // função para calcular tempo disponível
   formatarTempoEstimado = null, // função para formatar tempo
   tarefasSelecionadasPorProduto = null, // objeto com todas as tarefas selecionadas para cálculo de tempo disponível
-  initialTarefas = null // Nova prop: tarefas iniciais para carregar (evita fetch automático)
+  initialTarefas = null, // Nova prop: tarefas iniciais para carregar (evita fetch automático)
+  // Novos props para Escalonamento
+  escalonamentoPorTarefaAtivo = {},
+  onToggleEscalonamento = null,
+  vigenciasPorTarefa = {},
+  onVigenciaChange = null,
+  // Novos props para Escalonamento de Tempo
+  tempoConfigPorTarefa = {},
+  onTempoConfigChange = null,
+  periodoGlobalProp = null,
+  responsaveisGlobaisProp = []
 }) => {
   const [tarefasPorProduto, setTarefasPorProduto] = useState({}); // { produtoId: [{ id, nome, selecionada }] }
   const tarefasPorProdutoRef = useRef({}); // Referência para acessar o estado atualizado
   const [loading, setLoading] = useState(false);
   const [expandedProdutos, setExpandedProdutos] = useState({});
   const [mostrarAdicionarTarefa, setMostrarAdicionarTarefa] = useState({}); // { produtoId: boolean }
+  const [showTempoConfigTarefa, setShowTempoConfigTarefa] = useState({}); // { [key]: boolean }
   const [tarefasDisponiveis, setTarefasDisponiveis] = useState([]); // Todas as tarefas disponíveis
   const [tarefasComTipos, setTarefasComTipos] = useState([]); // Tarefas agrupadas por tipo para o CustomSelect
   const [tiposTarefa, setTiposTarefa] = useState([]); // Tipos de tarefa
@@ -61,11 +73,41 @@ const SelecaoTarefasPorProduto = ({
   const [carregandoSubtarefas, setCarregandoSubtarefas] = useState({}); // { tarefaId: boolean } - estado de carregamento de subtarefas
   const [tarefasExpandidas, setTarefasExpandidas] = useState({}); // { tarefaId: boolean } - quais tarefas estão expandidas para mostrar subtarefas
   const [tarefaSelecionadaParaAdicionar, setTarefaSelecionadaParaAdicionar] = useState({}); // { produtoId: string } - Valor do CustomSelect para adicionar tarefa por produto
-  // Função auxiliar para buscar responsáveis de uma tarefa
+  const [activeDropdown, setActiveDropdown] = useState(null); // Guarda qual dropdown está aberto para zIndex
+
+  // Função auxiliar para buscar responsáveis de uma tarefa (com fallback global)
   const getResponsavelTarefa = (pId, tId) => {
     const key = `${String(pId).trim()}_${String(tId).trim()}`;
     const resps = responsaveisPorTarefa[key];
-    return Array.isArray(resps) ? resps : [];
+
+    // Se tiver resposta específica, usar ela
+    if (resps && Array.isArray(resps) && resps.length > 0) {
+      return resps;
+    }
+
+    // Caso contrário, se o modo global estiver ativo, mostrar os globais como sugestão/fallback visual
+    if (modoPeriodoParaMuitos && Array.isArray(responsaveisGlobaisProp) && responsaveisGlobaisProp.length > 0) {
+      return responsaveisGlobaisProp;
+    }
+
+    return [];
+  };
+
+  // Função auxiliar para buscar o período de uma tarefa (com fallback global)
+  const getPeriodoTarefaInterno = (pId, tId) => {
+    const key = `${String(pId).trim()}_${String(tId).trim()}`;
+    const per = periodosPorTarefa[key];
+
+    if (per) {
+      return per;
+    }
+
+    // Se o modo global estiver ativo, usar o que foi passado como prop (se houver algum campo preenchido)
+    if (modoPeriodoParaMuitos && periodoGlobalProp) {
+      return periodoGlobalProp;
+    }
+
+    return null;
   };
 
   // Normalizar horas contratadas por dia para evitar renderizar objeto no JSX
@@ -1011,7 +1053,7 @@ const SelecaoTarefasPorProduto = ({
 
                       {/* Tarefas Normais */}
                       {tarefasNormais.map(tarefa => (
-                        <div key={tarefa.id} style={{ marginBottom: '8px' }}>
+                        <div key={tarefa.id} style={{ marginBottom: '8px', position: 'relative', zIndex: (showTempoConfigTarefa[`${produtoIdNum}_${tarefa.id}`] || activeDropdown === `${produtoIdNum}_${tarefa.id}`) ? 9999 : 'auto' }}>
                           <div
                             className="selected-item-tag"
                             style={{
@@ -1087,9 +1129,29 @@ const SelecaoTarefasPorProduto = ({
                                   fontWeight: '500',
                                   overflow: 'hidden',
                                   textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap'
+                                  whiteSpace: 'nowrap',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px'
                                 }}>
                                   {tarefa.nome}
+                                  {periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.source === 'recorrencia' && (
+                                    <span style={{
+                                      color: '#2563eb',
+                                      backgroundColor: '#eff6ff',
+                                      padding: '2px 6px',
+                                      borderRadius: '4px',
+                                      fontSize: '10px',
+                                      fontWeight: 600,
+                                      marginLeft: '6px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      border: '1px solid #dbeafe'
+                                    }} title="Tarefa Recorrente">
+                                      🔁 Recorrente
+                                    </span>
+                                  )}
                                 </div>
                                 {tarefa.tipoTarefa && (
                                   <div style={{
@@ -1105,7 +1167,7 @@ const SelecaoTarefasPorProduto = ({
                                 )}
                               </div>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
                               {/* Mini período por tarefa - mostrar apenas na versão de atribuição */}
                               {tarefa.selecionada && onPeriodoChange && (
                                 <div
@@ -1113,20 +1175,19 @@ const SelecaoTarefasPorProduto = ({
                                     display: 'flex',
                                     flexDirection: 'column',
                                     alignItems: 'flex-start',
-                                    gap: '4px',
-                                    marginRight: '8px',
                                     pointerEvents: 'auto',
-                                    minWidth: '260px',
-                                    flexShrink: 0
+                                    flexShrink: 0,
+                                    position: 'relative',
+                                    zIndex: activeDropdown === `${produtoIdNum}_${tarefa.id}` ? 9999 : 10
                                   }}
-                                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                                  onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                                  onMouseUp={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                                  onClick={(e) => { e.stopPropagation(); }}
+                                  onMouseDown={(e) => { e.stopPropagation(); }}
+                                  onMouseUp={(e) => { e.stopPropagation(); }}
                                 >
                                   <div style={{ width: '100%' }}>
                                     <FilterPeriodo
-                                      dataInicio={(periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.inicio) || null}
-                                      dataFim={(periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.fim) || null}
+                                      dataInicio={getPeriodoTarefaInterno(produtoIdNum, tarefa.id)?.inicio || null}
+                                      dataFim={getPeriodoTarefaInterno(produtoIdNum, tarefa.id)?.fim || null}
                                       onInicioChange={(e) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { inicio: e.target.value || null })}
                                       onFimChange={(e) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { fim: e.target.value || null })}
                                       size="small"
@@ -1135,8 +1196,14 @@ const SelecaoTarefasPorProduto = ({
                                       onWeekendToggleChange={(v) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { habilitarFinaisSemana: !!v })}
                                       showHolidayToggle={true}
                                       onHolidayToggleChange={(v) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { habilitarFeriados: !!v })}
-                                      datasIndividuais={periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.datasIndividuais || []}
+                                      datasIndividuais={getPeriodoTarefaInterno(produtoIdNum, tarefa.id)?.datasIndividuais || []}
                                       onDatasIndividuaisChange={(arr) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { datasIndividuais: Array.isArray(arr) ? arr : [] })}
+                                      source={getPeriodoTarefaInterno(produtoIdNum, tarefa.id)?.source}
+                                      onSourceChange={(src) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { source: src })}
+                                      recorrenciaConfig={getPeriodoTarefaInterno(produtoIdNum, tarefa.id)?.recorrenciaConfig}
+                                      onRecorrenciaConfigChange={(cfg) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { recorrenciaConfig: cfg })}
+                                      showRecurrence={true}
+                                      onOpenChange={(isOpen) => setActiveDropdown(prev => isOpen ? `${produtoIdNum}_${tarefa.id}` : (prev === `${produtoIdNum}_${tarefa.id}` ? null : prev))}
                                     />
                                   </div>
                                 </div>
@@ -1148,8 +1215,6 @@ const SelecaoTarefasPorProduto = ({
                                     display: 'flex',
                                     flexDirection: 'row',
                                     alignItems: 'center',
-                                    gap: '6px',
-                                    marginRight: '8px',
                                     pointerEvents: 'auto',
                                     position: 'relative',
                                     zIndex: 10,
@@ -1158,7 +1223,7 @@ const SelecaoTarefasPorProduto = ({
                                   onClick={(e) => e.stopPropagation()}
                                   onMouseDown={(e) => e.stopPropagation()}
                                 >
-                                  <div style={{ width: '117px', minWidth: '117px', maxWidth: '117px', flexShrink: 0 }}>
+                                  <div style={{ width: '130px', minWidth: '130px', maxWidth: '130px', flexShrink: 0 }}>
                                     <ResponsavelCard
                                       isMulti={true}
                                       selectedValues={getResponsavelTarefa(produtoIdNum, tarefa.id)}
@@ -1175,6 +1240,20 @@ const SelecaoTarefasPorProduto = ({
                                       placeholder="Selecione responsáveis"
                                       disabled={disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id))}
                                       colaboradores={colaboradores}
+                                      showAPartirDe={true}
+                                      isAPartirDeEnabled={escalonamentoPorTarefaAtivo[`${produtoIdNum}_${tarefa.id}`] || false}
+                                      onAPartirDeToggle={(enabled) => onToggleEscalonamento && onToggleEscalonamento(produtoIdNum, tarefa.id, enabled)}
+                                      vigenciaDatas={vigenciasPorTarefa[`${produtoIdNum}_${tarefa.id}`] || {}}
+                                      onVigenciaChange={(respId, data) => onVigenciaChange && onVigenciaChange(produtoIdNum, tarefa.id, respId, data)}
+                                      onOpenChange={(isOpen) => setActiveDropdown(prev => isOpen ? `${produtoIdNum}_${tarefa.id}` : (prev === `${produtoIdNum}_${tarefa.id}` ? null : prev))}
+                                      periodo={getPeriodoTarefaInterno(produtoIdNum, tarefa.id)}
+                                      horasContratadasPorResponsavel={horasContratadasPorResponsavel}
+                                      tempoEstimadoDia={tempoEstimadoDia}
+                                      tarefasSelecionadasPorProduto={tarefasSelecionadasPorProduto}
+                                      calcularTempoDisponivel={calcularTempoDisponivel}
+                                      formatarTempoEstimado={formatarTempoEstimado}
+                                      produtoId={produtoIdNum}
+                                      tarefaId={tarefa.id}
                                     />
                                   </div>
                                   {ordemPreenchimento && !ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && (
@@ -1182,57 +1261,6 @@ const SelecaoTarefasPorProduto = ({
                                       Preencha o período primeiro
                                     </div>
                                   )}
-                                  {ordemPreenchimento && ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && getResponsavelTarefa(produtoIdNum, tarefa.id).length > 0 && calcularTempoDisponivel && formatarTempoEstimado && (() => {
-                                    const periodo = periodosPorTarefa[`${produtoIdNum}_${tarefa.id}`] || null;
-                                    const responsaveisTarefa = getResponsavelTarefa(produtoIdNum, tarefa.id);
-                                    if (!periodo || responsaveisTarefa.length === 0) return null;
-                                    const responsavelId = responsaveisTarefa[0];
-                                    const temPeriodoCompleto = periodo.inicio && periodo.fim;
-                                    const temDatasIndividuais = Array.isArray(periodo.datasIndividuais) && periodo.datasIndividuais.length > 0;
-                                    if (!temPeriodoCompleto && !temDatasIndividuais) return null;
-
-                                    // Usar tarefasSelecionadasPorProduto se fornecido, senão construir objeto mínimo
-                                    const tarefasParaCalculo = tarefasSelecionadasPorProduto || { [produtoIdNum]: { [tarefa.id]: { selecionada: true } } };
-
-                                    // Sempre incluir a tarefa atual no cálculo para mostrar o tempo disponível
-                                    // após atribuir essa tarefa (se ela tiver tempo definido, será subtraída)
-                                    // Não excluir a tarefa atual - queremos mostrar o tempo disponível real
-                                    const tempoDisponivel = calcularTempoDisponivel(responsavelId, periodo, horasContratadasPorResponsavel, tempoEstimadoDia, tarefasParaCalculo, null);
-
-                                    // Exibir sempre: positivo (azul), zero (azul com "0"), negativo (vermelho com "-")
-                                    if (tempoDisponivel !== undefined && tempoDisponivel !== null) {
-                                      const isExcedido = tempoDisponivel < 0;
-                                      const isZero = tempoDisponivel === 0;
-
-                                      return (
-                                        <div
-                                          style={{
-                                            padding: '4px 8px',
-                                            backgroundColor: isExcedido ? '#fef2f2' : '#f0f9ff',
-                                            border: `1px solid ${isExcedido ? '#ef4444' : '#0ea5e9'}`,
-                                            borderRadius: '4px',
-                                            fontSize: '11px',
-                                            color: isExcedido ? '#991b1b' : '#0c4a6e',
-                                            fontWeight: '500',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '4px',
-                                            whiteSpace: 'nowrap',
-                                            boxSizing: 'border-box',
-                                            cursor: 'help',
-                                            position: 'relative'
-                                          }}
-                                          title={isExcedido ? "Tempo excedido" : "Disponível"}
-                                        >
-                                          <i className="fas fa-clock" style={{ fontSize: '10px', flexShrink: 0 }}></i>
-                                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                            {isExcedido ? `-${formatarTempoEstimado(Math.abs(tempoDisponivel), false)}` : formatarTempoEstimado(tempoDisponivel, false)}
-                                          </span>
-                                        </div>
-                                      );
-                                    }
-                                    return null;
-                                  })()}
                                 </div>
                               )}
                               {/* Campo de tempo estimado - mostrar apenas se showTempoEstimado=true e tarefa selecionada */}
@@ -1242,33 +1270,53 @@ const SelecaoTarefasPorProduto = ({
                                     display: 'flex',
                                     flexDirection: 'column',
                                     alignItems: 'flex-start',
-                                    gap: '4px',
-                                    marginRight: '8px',
                                     pointerEvents: 'auto',
                                     position: 'relative',
-                                    zIndex: 10,
-                                    minWidth: '140px'
+                                    zIndex: showTempoConfigTarefa[`${produtoIdNum}_${tarefa.id}`] ? 9999 : 10,
+                                    width: '100px',
+                                    flexShrink: 0
                                   }}
                                   onClick={(e) => e.stopPropagation()}
                                   onMouseDown={(e) => e.stopPropagation()}
                                 >
                                   <div style={{ width: '100%' }}>
-                                    <TempoEstimadoInput
-                                      value={tempoEstimadoDia[`${String(produtoIdNum).trim()}_${String(tarefa.id).trim()}`] || tempoEstimadoDia[String(tarefa.id).trim()] || 0}
-                                      onChange={(tempoEmMs) => {
-                                        if (onTempoChange) {
-                                          onTempoChange(produtoIdNum, tarefa.id, tempoEmMs);
-                                        }
+                                    <button
+                                      type="button"
+                                      className="btn-configurar-tempo-row"
+                                      onClick={() => {
+                                        const key = `${produtoIdNum}_${tarefa.id}`;
+                                        setShowTempoConfigTarefa(prev => ({ ...prev, [key]: !prev[key] }));
                                       }}
                                       disabled={disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id))}
-                                    />
+                                      style={{
+                                        cursor: (disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id))) ? 'not-allowed' : 'pointer'
+                                      }}
+                                    >
+                                      <i className="fas fa-cog"></i>
+                                      <span>{tempoConfigPorTarefa[`${produtoIdNum}_${tarefa.id}`] ? 'Configurado' : 'Tempo'}</span>
+                                    </button>
+
+                                    {showTempoConfigTarefa[`${produtoIdNum}_${tarefa.id}`] && (
+                                      <TempoConfigCard
+                                        initialConfig={tempoConfigPorTarefa[`${produtoIdNum}_${tarefa.id}`] || {}}
+                                        onSave={(config) => {
+                                          if (onTempoConfigChange) onTempoConfigChange(produtoIdNum, tarefa.id, config);
+                                          const key = `${produtoIdNum}_${tarefa.id}`;
+                                          setShowTempoConfigTarefa(prev => ({ ...prev, [key]: false }));
+                                        }}
+                                        onClose={() => {
+                                          const key = `${produtoIdNum}_${tarefa.id}`;
+                                          setShowTempoConfigTarefa(prev => ({ ...prev, [key]: false }));
+                                        }}
+                                        dataInicioPadrao={periodosPorTarefa[`${produtoIdNum}_${tarefa.id}`]?.inicio}
+                                        responsavelId={(() => {
+                                          const ids = getResponsavelTarefa(produtoIdNum, tarefa.id);
+                                          return ids.length === 1 ? ids[0] : null;
+                                        })()}
+                                      />
+                                    )}
                                   </div>
-                                  {ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id) && ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && (
-                                    <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000, whiteSpace: 'nowrap' }}>
-                                      Preencha o responsável primeiro
-                                    </div>
-                                  )}
-                                  {ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id) && !ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && (
+                                  {ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id) && (
                                     <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000, whiteSpace: 'nowrap' }}>
                                       Preencha o período primeiro
                                     </div>
@@ -1292,6 +1340,7 @@ const SelecaoTarefasPorProduto = ({
                               {showSubtarefas && (tarefa.subtarefas?.length > 0 || subtarefasPorTarefa[tarefa.id]?.length > 0) && (
                                 <button
                                   type="button"
+                                  className="btn-configurar-tempo-row"
                                   title="Ver subtarefas"
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -1304,42 +1353,14 @@ const SelecaoTarefasPorProduto = ({
                                       [tarefa.id]: !prev[tarefa.id]
                                     }));
                                   }}
-                                  style={{
-                                    padding: '6px 12px',
-                                    fontSize: '12px',
-                                    fontWeight: '500',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                    transition: '0.2s',
-                                    background: tarefa.selecionada ? 'rgba(255, 255, 255, 0.2)' : '#e2e8f0',
-                                    color: tarefa.selecionada ? 'white' : '#475569',
-                                    border: tarefa.selecionada ? '1px solid rgba(255, 255, 255, 0.3)' : '1px solid #cbd5e1',
-                                    borderRadius: '4px',
-                                    cursor: 'pointer',
-                                    flexShrink: 0
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    if (tarefa.selecionada) {
-                                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
-                                    } else {
-                                      e.currentTarget.style.background = '#cbd5e1';
-                                    }
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    if (tarefa.selecionada) {
-                                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
-                                    } else {
-                                      e.currentTarget.style.background = '#e2e8f0';
-                                    }
-                                  }}
+                                  style={{ width: 'auto', height: '26px' }}
                                 >
                                   {carregandoSubtarefas[tarefa.id] ? (
                                     <i className="fas fa-spinner fa-spin"></i>
                                   ) : (
                                     <>
                                       <i className="fas fa-list-ul"></i>
-                                      Subtarefas {subtarefasPorTarefa[tarefa.id]?.length || tarefa.subtarefas?.length || 0}
+                                      <span>Subtarefas {subtarefasPorTarefa[tarefa.id]?.length || tarefa.subtarefas?.length || 0}</span>
                                     </>
                                   )}
                                 </button>
@@ -1415,7 +1436,7 @@ const SelecaoTarefasPorProduto = ({
 
                       {/* Tarefas Exceção */}
                       {tarefasExcecao.map(tarefa => (
-                        <div key={tarefa.id} style={{ marginBottom: '8px' }}>
+                        <div key={tarefa.id} style={{ marginBottom: '8px', position: 'relative', zIndex: (showTempoConfigTarefa[`${produtoIdNum}_${tarefa.id}`] || activeDropdown === `${produtoIdNum}_${tarefa.id}`) ? 9999 : 'auto' }}>
                           <div
                             className="selected-item-tag tarefa-excecao"
                             style={{
@@ -1508,21 +1529,22 @@ const SelecaoTarefasPorProduto = ({
                                 )}
                               </div>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
                               {/* Mini período por tarefa (exceção) - mostrar apenas na versão de atribuição */}
                               {tarefa.selecionada && onPeriodoChange && (
                                 <div
                                   style={{
                                     display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '6px',
-                                    marginRight: '8px',
-                                    pointerEvents: 'auto'
+                                    flexDirection: 'column',
+                                    alignItems: 'flex-start',
+                                    pointerEvents: 'auto',
+                                    flexShrink: 0,
+                                    position: 'relative',
+                                    zIndex: activeDropdown === `${produtoIdNum}_${tarefa.id}` ? 9999 : 10
                                   }}
-                                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                                  onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                                  onMouseUp={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                                  onClick={(e) => { e.stopPropagation(); }}
+                                  onMouseDown={(e) => { e.stopPropagation(); }}
+                                  onMouseUp={(e) => { e.stopPropagation(); }}
                                 >
                                   <FilterPeriodo
                                     dataInicio={(periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.inicio) || null}
@@ -1537,6 +1559,8 @@ const SelecaoTarefasPorProduto = ({
                                     onHolidayToggleChange={(v) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { habilitarFeriados: !!v })}
                                     datasIndividuais={periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.datasIndividuais || []}
                                     onDatasIndividuaisChange={(arr) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { datasIndividuais: Array.isArray(arr) ? arr : [] })}
+                                    onOpenChange={(isOpen) => setActiveDropdown(prev => isOpen ? `${produtoIdNum}_${tarefa.id}` : (prev === `${produtoIdNum}_${tarefa.id}` ? null : prev))}
+                                    style={{ height: '26px' }}
                                   />
                                 </div>
                               )}
@@ -1547,8 +1571,6 @@ const SelecaoTarefasPorProduto = ({
                                     display: 'flex',
                                     flexDirection: 'row',
                                     alignItems: 'center',
-                                    gap: '6px',
-                                    marginRight: '8px',
                                     pointerEvents: 'auto',
                                     position: 'relative',
                                     zIndex: 10,
@@ -1557,7 +1579,7 @@ const SelecaoTarefasPorProduto = ({
                                   onClick={(e) => e.stopPropagation()}
                                   onMouseDown={(e) => e.stopPropagation()}
                                 >
-                                  <div style={{ width: '117px', minWidth: '117px', maxWidth: '117px', flexShrink: 0 }}>
+                                  <div style={{ width: '130px', minWidth: '130px', maxWidth: '130px', flexShrink: 0 }}>
                                     <ResponsavelCard
                                       isMulti={true}
                                       selectedValues={getResponsavelTarefa(produtoIdNum, tarefa.id)}
@@ -1574,6 +1596,16 @@ const SelecaoTarefasPorProduto = ({
                                       placeholder="Selecione responsáveis"
                                       disabled={disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id))}
                                       colaboradores={colaboradores}
+                                      onOpenChange={(isOpen) => setActiveDropdown(prev => isOpen ? `${produtoIdNum}_${tarefa.id}` : (prev === `${produtoIdNum}_${tarefa.id}` ? null : prev))}
+                                      periodo={periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`] || null}
+                                      horasContratadasPorResponsavel={horasContratadasPorResponsavel}
+                                      tempoEstimadoDia={tempoEstimadoDia}
+                                      tarefasSelecionadasPorProduto={tarefasSelecionadasPorProduto}
+                                      calcularTempoDisponivel={calcularTempoDisponivel}
+                                      formatarTempoEstimado={formatarTempoEstimado}
+                                      produtoId={produtoIdNum}
+                                      tarefaId={tarefa.id}
+                                      style={{ height: '26px' }}
                                     />
                                   </div>
                                   {ordemPreenchimento && !ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && (
@@ -1581,57 +1613,6 @@ const SelecaoTarefasPorProduto = ({
                                       Preencha o período primeiro
                                     </div>
                                   )}
-                                  {ordemPreenchimento && ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && getResponsavelTarefa(produtoIdNum, tarefa.id).length > 0 && calcularTempoDisponivel && formatarTempoEstimado && (() => {
-                                    const periodo = periodosPorTarefa[`${produtoIdNum}_${tarefa.id}`] || null;
-                                    const responsaveisTarefa = getResponsavelTarefa(produtoIdNum, tarefa.id);
-                                    if (!periodo || responsaveisTarefa.length === 0) return null;
-                                    const responsavelId = responsaveisTarefa[0];
-                                    const temPeriodoCompleto = periodo.inicio && periodo.fim;
-                                    const temDatasIndividuais = Array.isArray(periodo.datasIndividuais) && periodo.datasIndividuais.length > 0;
-                                    if (!temPeriodoCompleto && !temDatasIndividuais) return null;
-
-                                    // Usar tarefasSelecionadasPorProduto se fornecido, senão construir objeto mínimo
-                                    const tarefasParaCalculo = tarefasSelecionadasPorProduto || { [produtoIdNum]: { [tarefa.id]: { selecionada: true } } };
-
-                                    // Sempre incluir a tarefa atual no cálculo para mostrar o tempo disponível
-                                    // após atribuir essa tarefa (se ela tiver tempo definido, será subtraída)
-                                    // Não excluir a tarefa atual - queremos mostrar o tempo disponível real
-                                    const tempoDisponivel = calcularTempoDisponivel(responsavelId, periodo, horasContratadasPorResponsavel, tempoEstimadoDia, tarefasParaCalculo, null);
-
-                                    // Exibir sempre: positivo (azul), zero (azul com "0"), negativo (vermelho com "-")
-                                    if (tempoDisponivel !== undefined && tempoDisponivel !== null) {
-                                      const isExcedido = tempoDisponivel < 0;
-                                      const isZero = tempoDisponivel === 0;
-
-                                      return (
-                                        <div
-                                          style={{
-                                            padding: '4px 8px',
-                                            backgroundColor: isExcedido ? '#fef2f2' : '#f0f9ff',
-                                            border: `1px solid ${isExcedido ? '#ef4444' : '#0ea5e9'}`,
-                                            borderRadius: '4px',
-                                            fontSize: '11px',
-                                            color: isExcedido ? '#991b1b' : '#0c4a6e',
-                                            fontWeight: '500',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '4px',
-                                            whiteSpace: 'nowrap',
-                                            boxSizing: 'border-box',
-                                            cursor: 'help',
-                                            position: 'relative'
-                                          }}
-                                          title={isExcedido ? "Tempo excedido" : "Disponível"}
-                                        >
-                                          <i className="fas fa-clock" style={{ fontSize: '10px', flexShrink: 0 }}></i>
-                                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                            {isExcedido ? `-${formatarTempoEstimado(Math.abs(tempoDisponivel), false)}` : formatarTempoEstimado(tempoDisponivel, false)}
-                                          </span>
-                                        </div>
-                                      );
-                                    }
-                                    return null;
-                                  })()}
                                 </div>
                               )}
                               {/* Campo de tempo estimado - mostrar apenas se showTempoEstimado=true e tarefa selecionada */}
@@ -1639,26 +1620,60 @@ const SelecaoTarefasPorProduto = ({
                                 <div
                                   style={{
                                     display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '4px',
-                                    marginRight: '8px',
+                                    flexDirection: 'column',
+                                    alignItems: 'flex-start',
                                     pointerEvents: 'auto',
                                     position: 'relative',
-                                    zIndex: 10
+                                    zIndex: showTempoConfigTarefa[`${produtoIdNum}_${tarefa.id}`] ? 9999 : 10,
+                                    width: '100px',
+                                    flexShrink: 0
                                   }}
                                   onClick={(e) => e.stopPropagation()}
                                   onMouseDown={(e) => e.stopPropagation()}
                                 >
-                                  <TempoEstimadoInput
-                                    value={tempoEstimadoDia[`${String(produtoIdNum).trim()}_${String(tarefa.id).trim()}`] || tempoEstimadoDia[String(tarefa.id).trim()] || 0}
-                                    onChange={(tempoEmMs) => {
-                                      if (onTempoChange) {
-                                        onTempoChange(produtoIdNum, tarefa.id, tempoEmMs);
-                                      }
-                                    }}
-                                    disabled={disabledTempo}
-                                  />
+                                  <div style={{ width: '100%' }}>
+                                    <button
+                                      type="button"
+                                      className="btn-configurar-tempo-row"
+                                      onClick={() => {
+                                        const key = `${produtoIdNum}_${tarefa.id}`;
+                                        setShowTempoConfigTarefa(prev => ({ ...prev, [key]: !prev[key] }));
+                                      }}
+                                      disabled={disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id))}
+                                      style={{
+                                        cursor: (disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id))) ? 'not-allowed' : 'pointer',
+                                        height: '26px'
+                                      }}
+                                    >
+                                      <i className="fas fa-cog"></i>
+                                      <span>{tempoConfigPorTarefa[`${produtoIdNum}_${tarefa.id}`] ? 'Configurado' : 'Tempo'}</span>
+                                    </button>
+
+                                    {showTempoConfigTarefa[`${produtoIdNum}_${tarefa.id}`] && (
+                                      <TempoConfigCard
+                                        initialConfig={tempoConfigPorTarefa[`${produtoIdNum}_${tarefa.id}`] || {}}
+                                        onSave={(config) => {
+                                          if (onTempoConfigChange) onTempoConfigChange(produtoIdNum, tarefa.id, config);
+                                          const key = `${produtoIdNum}_${tarefa.id}`;
+                                          setShowTempoConfigTarefa(prev => ({ ...prev, [key]: false }));
+                                        }}
+                                        onClose={() => {
+                                          const key = `${produtoIdNum}_${tarefa.id}`;
+                                          setShowTempoConfigTarefa(prev => ({ ...prev, [key]: false }));
+                                        }}
+                                        dataInicioPadrao={periodosPorTarefa[`${produtoIdNum}_${tarefa.id}`]?.inicio}
+                                        responsavelId={(() => {
+                                          const ids = getResponsavelTarefa(produtoIdNum, tarefa.id);
+                                          return ids.length === 1 ? ids[0] : null;
+                                        })()}
+                                      />
+                                    )}
+                                  </div>
+                                  {ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id) && (
+                                    <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000, whiteSpace: 'nowrap' }}>
+                                      Preencha o período primeiro
+                                    </div>
+                                  )}
                                 </div>
                               )}
                               {tarefa.ehExcecao === true && (
@@ -1678,6 +1693,7 @@ const SelecaoTarefasPorProduto = ({
                               {showSubtarefas && (tarefa.subtarefas?.length > 0 || subtarefasPorTarefa[tarefa.id]?.length > 0) && (
                                 <button
                                   type="button"
+                                  className="btn-configurar-tempo-row"
                                   title="Ver subtarefas"
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -1690,42 +1706,14 @@ const SelecaoTarefasPorProduto = ({
                                       [tarefa.id]: !prev[tarefa.id]
                                     }));
                                   }}
-                                  style={{
-                                    padding: '6px 12px',
-                                    fontSize: '12px',
-                                    fontWeight: '500',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                    transition: '0.2s',
-                                    background: tarefa.selecionada ? 'rgba(255, 255, 255, 0.2)' : '#ffe4cc',
-                                    color: tarefa.selecionada ? 'white' : '#fd7e14',
-                                    border: tarefa.selecionada ? '1px solid rgba(255, 255, 255, 0.3)' : '1px solid #ffd8a8',
-                                    borderRadius: '4px',
-                                    cursor: 'pointer',
-                                    flexShrink: 0
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    if (tarefa.selecionada) {
-                                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
-                                    } else {
-                                      e.currentTarget.style.background = '#ffd8a8';
-                                    }
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    if (tarefa.selecionada) {
-                                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
-                                    } else {
-                                      e.currentTarget.style.background = '#ffe4cc';
-                                    }
-                                  }}
+                                  style={{ height: '26px' }}
                                 >
                                   {carregandoSubtarefas[tarefa.id] ? (
                                     <i className="fas fa-spinner fa-spin"></i>
                                   ) : (
                                     <>
                                       <i className="fas fa-list-ul"></i>
-                                      Subtarefas {subtarefasPorTarefa[tarefa.id]?.length || tarefa.subtarefas?.length || 0}
+                                      <span>Subtarefas {subtarefasPorTarefa[tarefa.id]?.length || tarefa.subtarefas?.length || 0}</span>
                                     </>
                                   )}
                                 </button>

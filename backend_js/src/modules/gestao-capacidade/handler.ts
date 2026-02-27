@@ -47,6 +47,13 @@ function registroTempoParaMs(r: RegistroTempo): number {
 }
 
 /** Quantos dias da regra caem no período do request (opcional: excluir finais de semana e feriados). */
+/** TBD / Utility Parse ISO sem deslocamento de fuso no TS */
+function parseLocalISODate(isoStr: string): Date {
+  if (!isoStr) return new Date();
+  const [y, m, d] = isoStr.substring(0, 10).split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
 /** Quantos dias da regra caem no período do request (opcional: excluir finais de semana e feriados). OTIMIZADO COM CACHE. */
 function diasNaInterseccao(
   regraInicio: string,
@@ -59,8 +66,13 @@ function diasNaInterseccao(
   const cacheKey = `${regraInicio}|${regraFim}|${periodoInicio}|${periodoFim}|${ignorarFinaisSemana}`;
   if (diasInterseccaoCache.has(cacheKey)) return diasInterseccaoCache.get(cacheKey)!;
 
-  const startMs = Math.max(new Date(regraInicio).getTime(), new Date(periodoInicio).getTime());
-  const endMs = Math.min(new Date(regraFim).getTime(), new Date(periodoFim).getTime());
+  const rInDate = parseLocalISODate(regraInicio);
+  const pInDate = parseLocalISODate(periodoInicio);
+  const startMs = Math.max(rInDate.getTime(), pInDate.getTime());
+
+  const rOutDate = parseLocalISODate(regraFim);
+  const pOutDate = parseLocalISODate(periodoFim);
+  const endMs = Math.min(rOutDate.getTime(), pOutDate.getTime());
 
   if (startMs > endMs) return 0;
 
@@ -193,7 +205,7 @@ function getIdParaNivel(
     if (nivel === 'tarefa') return (r as RegistroTempo).tarefa_id ?? null;
   } else {
     const e = r as EstimadoRegra;
-    if (nivel === 'colaborador') return e.responsavel_id;
+    if (nivel === 'colaborador') return e.responsavel_id ?? 'sem-responsavel';
     if (nivel === 'cliente') return e.cliente_id ?? null;
     if (nivel === 'produto') return e.produto_id ?? null;
     if (nivel === 'tipo_tarefa') return e.tipo_tarefa_id ?? null;
@@ -245,7 +257,7 @@ function montarHierarquia({
           const uid = (r as RegistroTempo).usuario_id;
           return usuarioParaMembro.get(uid) ?? uid;
         }
-        return (r as EstimadoRegra)?.responsavel_id ?? null;
+        return (r as EstimadoRegra)?.responsavel_id ?? 'sem-responsavel';
       }
       case 'cliente': return r?.cliente_id;
       case 'produto': return r?.produto_id;
@@ -258,7 +270,10 @@ function montarHierarquia({
   const getNome = (nivel: string, id: string | number) => {
     const key = String(id);
     switch (nivel) {
-      case 'colaborador': return nomeColaborador[key] || `Colaborador #${key}`;
+      case 'colaborador': {
+        if (key === 'sem-responsavel') return 'Sem Responsável';
+        return nomeColaborador[key] || `Colaborador #${key}`;
+      }
       case 'cliente': return nomeCliente[key] || `Cliente #${key}`;
       case 'produto': return nomeProduto[key] || `Produto #${key}`;
       case 'tipo_tarefa': return nomeTipoTarefa[key] || `Tipo #${key}`;
@@ -274,7 +289,7 @@ function montarHierarquia({
     estimado?: EstimadoRegra
   ) => {
     if (!niveis.length) return;
-    const chaveRaw = mapNivel(niveis[0], registro) || mapNivel(niveis[0], estimado);
+    const chaveRaw = registro != null ? mapNivel(niveis[0], registro) : mapNivel(niveis[0], estimado);
     if (chaveRaw == null || chaveRaw === '') return;
     const chave = String(chaveRaw);
 
@@ -693,8 +708,14 @@ export async function cardsHandler(c: Context) {
       .from('tempo_estimado_regra')
       .select('*')
       .lte('data_inicio', periodoFimStr)
-      .gte('data_fim', periodoInicioStr)
-      .in('responsavel_id', membroIds);
+      .gte('data_fim', periodoInicioStr);
+
+    if (colaborador_id != null && colaborador_id.length > 0) {
+      queryEstimado = queryEstimado.in('responsavel_id', membroIds);
+    } else {
+      // Se não houver filtro de colaborador, incluir os que estão com responsavel_id NULL
+      queryEstimado = queryEstimado.or(`responsavel_id.in.(${membroIds.join(',')}),responsavel_id.is.null`);
+    }
 
     if (cliente_id && cliente_id.length > 0) {
       queryEstimado = cliente_id.length === 1
@@ -770,9 +791,7 @@ export async function cardsHandler(c: Context) {
       });
     }
     if (tarefaIds.length) {
-      const tarefaIdsNum = tarefaIds.map((id) => parseInt(id, 10)).filter((n) => !Number.isNaN(n));
-      const idsQuery = tarefaIdsNum.length === tarefaIds.length ? tarefaIdsNum : tarefaIds;
-      const { data: tarefas } = await supabase.schema(SCHEMA).from('cp_tarefa').select('id, nome').in('id', idsQuery);
+      const { data: tarefas } = await supabase.schema(SCHEMA).from('cp_tarefa').select('id, nome').in('id', tarefaIds);
       tarefas?.forEach((t: Record<string, unknown>) => {
         const key = String(t.id);
         const nome = String(t.nome ?? t.Nome ?? t.name ?? t.titulo ?? '').trim();

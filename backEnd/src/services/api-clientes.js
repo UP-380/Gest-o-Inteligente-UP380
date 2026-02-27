@@ -310,7 +310,7 @@ async function getcp_clientesIdNome(req, res) {
     }
 
     const cp_clientes = (data || []).map(row => ({
-      id: row.id,
+      id: row.id != null ? String(row.id) : null,
       nome: row.nome
     }));
 
@@ -349,10 +349,10 @@ async function getMembrosIdNome(req, res) {
 
     // Buscar foto_perfil dos usuários vinculados aos membros
     const membros = (data || []).map(row => ({
-      id: row.id,
+      id: row.id != null ? String(row.id) : null,
       nome: row.nome,
       status: row.status || 'ativo', // Incluir status, assumir 'ativo' se não estiver definido
-      usuario_id: row.usuario_id, // Incluir usuario_id para permitir busca por usuario_id
+      usuario_id: row.usuario_id != null ? String(row.usuario_id) : null, // Incluir usuario_id para permitir busca por usuario_id
       foto_perfil: null // Será preenchido abaixo
     }));
 
@@ -436,10 +436,10 @@ async function getMembrosIdNomeTodos(req, res) {
     }
 
     const membros = (data || []).map(row => ({
-      id: row.id,
+      id: row.id != null ? String(row.id) : null,
       nome: row.nome,
       status: row.status || 'ativo', // Incluir status, assumir 'ativo' se não estiver definido
-      usuario_id: row.usuario_id // Incluir usuario_id (pode ser null)
+      usuario_id: row.usuario_id != null ? String(row.usuario_id) : null // Incluir usuario_id (pode ser null)
     }));
 
     return res.json({

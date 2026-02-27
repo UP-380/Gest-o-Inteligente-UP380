@@ -509,16 +509,16 @@ async function atualizarHistoricoAtribuicao(req, res) {
         regrasParaInserir.push({
           agrupador_id: agrupador_id,
           cliente_id: String(clienteIdFinal).trim(),
-          produto_id: produtoId ? parseInt(produtoId, 10) : null,
-          tarefa_id: parseInt(tarefaId, 10),
-          responsavel_id: parseInt(responsavelIdFinal, 10),
+          produto_id: produtoId ? String(produtoId).trim() : null,
+          tarefa_id: String(tarefaId).trim(),
+          responsavel_id: String(responsavelIdFinal).trim(),
           tipo_tarefa_id: tipoTarefaId,
           data_inicio: dataInicioFinal.split('T')[0], // Apenas data, sem hora
           data_fim: dataFimFinal.split('T')[0], // Apenas data, sem hora
           tempo_estimado_dia: tempoEstimado,
           incluir_finais_semana: true, // Default true (pode ser ajustado se necessário)
           incluir_feriados: true, // Default true (pode ser ajustado se necessário)
-          created_by: historicoAtual.usuario_criador_id || null
+          created_by: historicoAtual.usuario_criador_id ? String(historicoAtual.usuario_criador_id).trim() : null
         });
       }
     }
