@@ -3430,11 +3430,15 @@ async function salvarConfiguracaoCliente(req, res) {
           const responsavelIdNum = rawId ? parseInt(rawId, 10) : null;
           const responsavel_id = (responsavelIdNum != null && !Number.isNaN(responsavelIdNum)) ? responsavelIdNum : null;
 
+          const prodIdRaw = produto_id ? parseInt(String(produto_id).trim(), 10) : null;
+          const tarefaIdNum = tarefa_id ? parseInt(String(tarefa_id).trim(), 10) : null;
+          const criadorIdNum = membroIdCriador ? parseInt(String(membroIdCriador).trim(), 10) : null;
+
           regrasParaInserir.push({
             agrupador_id,
             cliente_id: String(cliente_id).trim(),
-            produto_id: produto_id ? String(produto_id).trim() : null,
-            tarefa_id: String(tarefa_id).trim(),
+            produto_id: (prodIdRaw && !isNaN(prodIdRaw)) ? prodIdRaw : null,
+            tarefa_id: tarefaIdNum,
             responsavel_id,
             data_inicio: seg.data_inicio,
             data_fim: seg.data_fim,
@@ -3442,7 +3446,7 @@ async function salvarConfiguracaoCliente(req, res) {
             tempo_estimado_dia: seg.tempo_estimado_dia,
             incluir_finais_semana,
             incluir_feriados,
-            created_by: membroIdCriador ? String(membroIdCriador).trim() : null
+            created_by: (criadorIdNum && !isNaN(criadorIdNum)) ? criadorIdNum : null
           });
         }
       }
@@ -3467,13 +3471,13 @@ async function salvarConfiguracaoCliente(req, res) {
         agrupador_id,
         cliente_id: String(cliente_id).trim(),
         responsavel_id: null, // No modo estrutural, o histórico não foca em um responsável único
-        usuario_criador_id: membroIdCriador,
+        usuario_criador_id: membroIdCriador ? parseInt(String(membroIdCriador), 10) : null,
         data_inicio: regrasParaInserir[0]?.data_inicio || null,
         data_fim: dataFimLimite,
-        produto_ids: [...new Set(regrasParaInserir.map(r => String(r.produto_id)))],
+        produto_ids: [...new Set(regrasParaInserir.map(r => r.produto_id).filter(id => id != null))].map(id => parseInt(id, 10)),
         tarefas: configuracoes.map(c => ({
-          tarefa_id: c.tarefa_id,
-          produto_id: c.produto_id,
+          tarefa_id: parseInt(String(c.tarefa_id), 10),
+          produto_id: c.produto_id ? parseInt(String(c.produto_id), 10) : null,
           tempo_minutos: c.estimativas[0]?.tempo_minutos || 0
         })),
         is_plug_rapido: false
