@@ -470,8 +470,9 @@ const CommunicationDrawer = ({ user }) => {
     // Form States para Novos Itens
     const [showNewAvisoForm, setShowNewAvisoForm] = useState(false);
     const [showNewChamadoForm, setShowNewChamadoForm] = useState(false);
-    const [formData, setFormData] = useState({ titulo: '', conteudo: '', destacado: false, categoria_id: '', prazo_desejado: '' });
+    const [formData, setFormData] = useState({ titulo: '', conteudo: '', destacado: false, categoria_id: '', departamento_id: '', prazo_desejado: '' });
     const [categorias, setCategorias] = useState([]);
+    const [departamentos, setDepartamentos] = useState([]);
     const [templates, setTemplates] = useState([]);
     const [dynamicFields, setDynamicFields] = useState({});
     const [isSaving, setIsSaving] = useState(false);
@@ -615,6 +616,17 @@ const CommunicationDrawer = ({ user }) => {
         }
     };
 
+    const loadDepartamentos = async () => {
+        try {
+            const response = await departamentosAPI.getAll(1, 100);
+            if (response.success) {
+                setDepartamentos(response.data);
+            }
+        } catch (error) {
+            console.error('Erro ao buscar departamentos:', error);
+        }
+    };
+
     const loadTemplates = async () => {
         try {
             console.log('[DEBUG] Carregando templates...');
@@ -644,7 +656,7 @@ const CommunicationDrawer = ({ user }) => {
             if (activeTab === 'comunicados') loadComunicados();
             if (activeTab === 'chamados') {
                 if (!selectedChamado) loadChamados();
-                if (categorias.length === 0) loadCategorias();
+                if (departamentos.length === 0) loadDepartamentos();
                 if (templates.length === 0) loadTemplates();
             }
         }
@@ -871,6 +883,7 @@ const CommunicationDrawer = ({ user }) => {
                     destacado: formData.destacado
                 } : (tipo === 'CHAMADO' ? {
                     categoria_id: formData.categoria_id,
+                    departamento_id: formData.departamento_id,
                     campos_dinamicos: dynamicFields
                 } : {})
             };
@@ -878,7 +891,7 @@ const CommunicationDrawer = ({ user }) => {
             const response = await comunicacaoAPI.enviarMensagem(payload);
 
             if (response.success) {
-                setFormData({ titulo: '', conteudo: '', destacado: false, categoria_id: '', prazo_desejado: '' });
+                setFormData({ titulo: '', conteudo: '', destacado: false, categoria_id: '', departamento_id: '', prazo_desejado: '' });
                 setDynamicFields({});
                 setShowNewAvisoForm(false);
                 setShowNewChamadoForm(false);
@@ -1163,7 +1176,7 @@ const CommunicationDrawer = ({ user }) => {
                                     <span>Aberto por: <strong>{cham.criador?.nome_usuario || 'Usuário'}</strong></span>
                                     <span className="chamado-preview-dept">
                                         <i className="fas fa-building"></i>
-                                        Departamento: <strong>{cham.categoria?.departamento?.nome || 'Não especificado'}</strong>
+                                        Departamento: <strong>{cham.categoria?.departamento?.nome || departamentos.find(d => String(d.id) === String(cham.metadata?.departamento_id))?.nome || 'Não especificado'}</strong>
                                     </span>
                                     {cham.metadata?.responsavel && (
                                         <span>Responsável: <strong>{cham.metadata.responsavel}</strong></span>
@@ -1461,32 +1474,26 @@ const CommunicationDrawer = ({ user }) => {
 
                 {tipo === 'CHAMADO' && (
                     <div className="comm-drawer-form-group">
-                        <label className="comm-drawer-form-label">Tópico de Ajuda (Categoria) *</label>
+                        <label className="comm-drawer-form-label">Selecione o departamento desejado *</label>
                         <select
-                            value={formData.categoria_id}
+                            value={formData.departamento_id}
                             onChange={(e) => {
-                                setFormData({ ...formData, categoria_id: e.target.value });
+                                setFormData({ ...formData, departamento_id: e.target.value });
                                 setDynamicFields({});
                             }}
                             className="comm-drawer-form-select"
                         >
-                            <option value="">Selecione o tipo de problema</option>
-                            {categorias.map(cat => (
-                                <option key={cat.id} value={cat.id}>
-                                    {cat.nome}
+                            <option value="">Selecione o departamento</option>
+                            {departamentos.map(dept => (
+                                <option key={dept.id} value={dept.id}>
+                                    {dept.nome}
                                 </option>
                             ))}
                         </select>
-                        {formData.categoria_id && (
-                            <div className="mt-1 ml-1 text-[10px] text-gray-500 flex items-center gap-1 opacity-80">
-                                <i className="fas fa-building"></i>
-                                Departamento: <strong>{categorias.find(c => String(c.id) === String(formData.categoria_id))?.departamento?.nome || 'Não especificado'}</strong>
-                            </div>
-                        )}
                     </div>
                 )}
 
-                {(tipo === 'COMUNICADO' || formData.categoria_id) && (
+                {(tipo === 'COMUNICADO' || formData.departamento_id) && (
                     <>
                         {tipo === 'CHAMADO' && categorias.find(c => String(c.id) === String(formData.categoria_id))?.campos_esquema?.map(field => (
                             <div className="comm-drawer-form-group" key={field.name}>
@@ -1566,7 +1573,7 @@ const CommunicationDrawer = ({ user }) => {
                         : 'bg-[#0e3b6f] text-white cursor-pointer hover:bg-[#0a2b53]'
                         }`}
                     onClick={() => handleCreateItem(tipo)}
-                    disabled={isSaving || !formData.titulo.trim() || !formData.conteudo.trim() || (tipo === 'CHAMADO' && !formData.categoria_id)}
+                    disabled={isSaving || !formData.titulo.trim() || !formData.conteudo.trim() || (tipo === 'CHAMADO' && !formData.departamento_id)}
                 >
                     {isSaving ? 'Salvando...' : (tipo === 'COMUNICADO' ? 'Publicar Aviso' : 'Abrir Chamado')}
                 </button>

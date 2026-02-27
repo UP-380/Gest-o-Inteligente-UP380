@@ -107,10 +107,10 @@ async function enviarMensagem(req, res) {
             const isNovoChamado = !mensagem_pai_id;
 
             if (isNovoChamado) {
-                // Lógica de SLA e Categoria
-                const { categoria_id } = metadata || {};
+                // Lógica de SLA e Categoria / Departamento
+                const { categoria_id, departamento_id } = metadata || {};
                 let prazo_sla = null;
-                let categoria = null;
+                let finalDepartamentoId = departamento_id || null;
 
                 if (categoria_id) {
                     // Buscar SLA da categoria
@@ -121,10 +121,10 @@ async function enviarMensagem(req, res) {
                         .single();
 
                     if (catData) {
-                        categoria = catData;
-                        const horasSla = categoria.sla_horas || 24;
+                        const horasSla = catData.sla_horas || 24;
                         prazo_sla = new Date();
                         prazo_sla.setHours(prazo_sla.getHours() + horasSla);
+                        finalDepartamentoId = catData.departamento_id || finalDepartamentoId;
 
                         // Atualizar a mensagem com categoria_id e prazo_sla
                         await supabase
@@ -139,6 +139,20 @@ async function enviarMensagem(req, res) {
                         mensagem.categoria_id = categoria_id;
                         mensagem.prazo_sla = prazo_sla.toISOString();
                     }
+                } else if (finalDepartamentoId) {
+                    // Se não tem categoria mas tem departamento, usamos um SLA padrão de 24h
+                    const horasSla = 24;
+                    prazo_sla = new Date();
+                    prazo_sla.setHours(prazo_sla.getHours() + horasSla);
+
+                    await supabase
+                        .from('comunicacao_mensagens')
+                        .update({
+                            prazo_sla: prazo_sla.toISOString()
+                        })
+                        .eq('id', mensagem.id);
+
+                    mensagem.prazo_sla = prazo_sla.toISOString();
                 }
 
                 // Notificar gestores sobre novo chamado
@@ -148,7 +162,7 @@ async function enviarMensagem(req, res) {
                     mensagem: `${req.session.usuario.nome_usuario} abriu um chamado: ${titulo || (conteudo && conteudo.substring(0, 30)) + '...'}`,
                     referencia_id: mensagem.id,
                     link: '/comunicacao?tab=chamados',
-                    departamento_id: categoria?.departamento_id || null
+                    departamento_id: finalDepartamentoId
                 });
             } else {
                 // É uma resposta. Notificar dono original e gestores do departamento específico.
@@ -446,8 +460,10 @@ async function listarChamados(req, res) {
         // 1. Admin/Gestor vê tudo
         // 2. Colaborador vê o que criou OU o que é do seu departamento
         if (!isGestorOuAdmin) {
+            let filterString = `criador_id.eq.${usuario_id}`;
+
+            // Filtro por categorias dos meus departamentos
             if (meusDeptos.length > 0) {
-                // Ajuste: Vamos buscar os IDs das categorias que pertencem aos departamentos do usuário
                 const { data: catIds } = await supabase
                     .from('cp_chamados_categorias')
                     .select('id')
@@ -455,13 +471,17 @@ async function listarChamados(req, res) {
 
                 const ids = (catIds || []).map(c => c.id);
                 if (ids.length > 0) {
-                    query = query.or(`criador_id.eq.${usuario_id},categoria_id.in.(${ids.join(',')})`);
-                } else {
-                    query = query.eq('criador_id', usuario_id);
+                    filterString += `,categoria_id.in.(${ids.join(',')})`;
                 }
-            } else {
-                query = query.eq('criador_id', usuario_id);
+
+                // Filtro por departamento_id direto no metadata
+                // Nota: Supabase or() com metadata pode ser chato, mas tentamos:
+                meusDeptos.forEach(dId => {
+                    filterString += `,metadata->>departamento_id.eq.${dId}`;
+                });
             }
+
+            query = query.or(filterString);
         }
 
         const { data, error } = await query;
@@ -469,7 +489,7 @@ async function listarChamados(req, res) {
 
         // Adicionar flag pode_gerenciar
         const enrichedData = data.map(cham => {
-            const deptoId = cham.categoria?.departamento?.id;
+            const deptoId = cham.categoria?.departamento?.id || (cham.metadata?.departamento_id ? parseInt(cham.metadata.departamento_id, 10) : null);
             return {
                 ...cham,
                 pode_gerenciar: isGestorOuAdmin || (deptoId && meusDeptos.includes(deptoId))
@@ -567,7 +587,7 @@ async function listarRespostasChamado(req, res) {
 
         const enrichedData = data.map(msg => {
             if (msg.id === id || msg.id === String(id)) {
-                const deptoId = msg.categoria?.departamento_id;
+                const deptoId = msg.categoria?.departamento_id || (msg.metadata?.departamento_id ? parseInt(msg.metadata.departamento_id, 10) : null);
                 return {
                     ...msg,
                     pode_gerenciar: isGestorOuAdmin || (deptoId && meusDeptos.includes(deptoId))
