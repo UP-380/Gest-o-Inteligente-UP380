@@ -3,6 +3,7 @@ import { comunicacaoAPI } from '../../services/comunicacao.service';
 import { usuariosAPI, authAPI, departamentosAPI } from '../../services/api';
 import { hasPermissionSync } from '../../utils/permissions';
 import Avatar from '../user/Avatar';
+import ConfirmModal from '../common/ConfirmModal';
 import './CommunicationDrawer.css';
 
 // ==============================================================================
@@ -424,7 +425,7 @@ const RichEditor = ({ initialValue, onContentChange, placeholder, minHeight = '1
 // Main Component
 const CommunicationDrawer = ({ user }) => {
     const [isOpen, setIsOpen] = useState(false);
-    const canSeeComm = user && hasPermissionSync(user.permissoes, '/comunicacao');
+    const canSeeComm = !!user;
     const [activeTab, setActiveTab] = useState('chats'); // 'chats', 'comunicados', 'chamados'
     const [selectedChat, setSelectedChat] = useState(null);
     const [expandedImage, setExpandedImage] = useState(null);
@@ -447,6 +448,11 @@ const CommunicationDrawer = ({ user }) => {
     const [showNewChatList, setShowNewChatList] = useState(false);
     const [allUsers, setAllUsers] = useState([]);
     const [userSearchText, setUserSearchText] = useState('');
+
+    // Status Confirmation States
+    const [showStatusConfirm, setShowStatusConfirm] = useState(false);
+    const [statusConfirmPending, setStatusConfirmPending] = useState(null);
+    const [loadingStatusChange, setLoadingStatusChange] = useState(false);
 
     // Comunicados States
     const [comunicados, setComunicados] = useState([]);
@@ -762,6 +768,25 @@ const CommunicationDrawer = ({ user }) => {
 
     const handleChangeChamadoStatus = async (newStatus) => {
         if (!selectedChamado) return;
+
+        // Se já for o status atual, não faz nada
+        if (selectedChamado.status_chamado === newStatus) return;
+
+        // Caso 1: Quem abriu o chamado (Owner)
+        const isOwner = Number(selectedChamado.criador_id) === Number(user?.id);
+
+        // Se for o dono e estiver tentando encerrar/cancelar, pede confirmação estilo delete
+        if (isOwner && ['ENCERRADO', 'CANCELADO'].includes(newStatus)) {
+            setStatusConfirmPending(newStatus);
+            setShowStatusConfirm(true);
+            return;
+        }
+
+        await executeStatusChange(newStatus);
+    };
+
+    const executeStatusChange = async (newStatus) => {
+        setLoadingStatusChange(true);
         try {
             const response = await comunicacaoAPI.atualizarStatusChamado(selectedChamado.id, newStatus);
             if (response.success) {
@@ -777,15 +802,22 @@ const CommunicationDrawer = ({ user }) => {
                     if (resMsg.success) {
                         setChamadoMessages(resMsg.data);
                         // Garantir que o objeto selecionado tenha os dados mais recentes (incluindo pode_gerenciar)
-                        const root = resMsg.data.find(m => m.id === selectedChamado.id);
+                        const root = resMsg.data.find(m => m.id === selectedChamado.id || String(m.id) === String(selectedChamado.id));
                         if (root) setSelectedChamado(root);
                     }
                 } catch (err) {
                     console.error('Erro ao recarregar mensagens após troca de status:', err);
                 }
+            } else {
+                alert(response.message || 'Erro ao atualizar status.');
             }
         } catch (error) {
             console.error('Erro ao atualizar status:', error);
+            alert('Erro de conexão ao atualizar status.');
+        } finally {
+            setLoadingStatusChange(false);
+            setShowStatusConfirm(false);
+            setStatusConfirmPending(null);
         }
     };
 
@@ -1173,7 +1205,9 @@ const CommunicationDrawer = ({ user }) => {
                             <p className="comm-card-content">{getPreviewText(cham.conteudo)}</p>
                             <div className="comm-card-footer">
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                    <span>Data da solicitação: <strong>{cham.created_at ? formatDate(cham.created_at) : (cham.data_criacao ? formatDate(cham.data_criacao) : 'Data não disponível')}</strong></span>
                                     <span>Aberto por: <strong>{cham.criador?.nome_usuario || 'Usuário'}</strong></span>
+                                    <span>Respondido por: <strong>{cham.respondido_por || 'Não respondido'}</strong></span>
                                     <span className="chamado-preview-dept">
                                         <i className="fas fa-building"></i>
                                         Departamento: <strong>{cham.categoria?.departamento?.nome || departamentos.find(d => String(d.id) === String(cham.metadata?.departamento_id))?.nome || 'Não especificado'}</strong>
@@ -1182,7 +1216,6 @@ const CommunicationDrawer = ({ user }) => {
                                         <span>Responsável: <strong>{cham.metadata.responsavel}</strong></span>
                                     )}
                                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                        <span>{formatDate(cham.created_at)}</span>
                                         <span style={{
                                             fontSize: '0.7rem',
                                             padding: '1px 6px',
@@ -1208,256 +1241,282 @@ const CommunicationDrawer = ({ user }) => {
         </div>
     );
 
-    const renderChamadoDetail = () => (
-        <div className="chat-detail-container">
-            <div className="chat-detail-header">
-                <button className="back-btn" onClick={() => setSelectedChamado(null)}>
-                    <i className="fas fa-arrow-left"></i>
-                </button>
-                <div className="chat-detail-info">
-                    <span className="chat-target-name">{selectedChamado.titulo}</span>
-                    <div className="chat-detail-sub">
-                        <span className={`comm-drawer-sla-badge ${selectedChamado.prazo_confirmado ? (new Date(selectedChamado.prazo_confirmado) < new Date() ? 'overdue' : 'on-time') : ''}`}
-                            style={!selectedChamado.prazo_confirmado ? { backgroundColor: '#f1f5f9', color: '#64748b' } : {}}>
-                            <i className="far fa-clock"></i> Data estimada: {selectedChamado.prazo_confirmado ? formatDate(selectedChamado.prazo_confirmado) : 'não confirmado'}
-                        </span>
-                        <span className="chat-detail-created">Aberto em {formatDate(selectedChamado.created_at)}</span>
-                    </div>
-                </div>
-            </div>
+    const renderChamadoDetail = () => {
+        if (!selectedChamado) return null;
 
-            {selectedChamado.prazo_desejado && (
-                <div style={{ padding: '8px 15px', borderBottom: '1px solid #f1f5f9', fontSize: '12px', display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
-                    <div style={{ color: '#0e3b6f' }}>
-                        <i className="far fa-calendar-alt"></i> Prazo desejado: <strong>{formatDate(selectedChamado.prazo_desejado)}</strong>
-                    </div>
-                    {selectedChamado.prazo_confirmado && (
-                        <div style={{ color: '#15803d' }}>
-                            <i className="fas fa-check-circle"></i> Prazo confirmado: <strong>{formatDate(selectedChamado.prazo_confirmado)}</strong>
-                        </div>
-                    )}
-                </div>
-            )}
+        const isOwner = Number(selectedChamado.criador_id) === Number(user?.id);
+        const isSupport = !!selectedChamado.pode_gerenciar;
+        const isUnrelated = !isOwner && !isSupport;
 
-            {selectedChamado.pode_gerenciar && !selectedChamado.prazo_confirmado && (
-                <div style={{ padding: '12px 15px', backgroundColor: '#f0f9ff', borderBottom: '1px solid #bae6fd' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#0369a1', marginBottom: '8px' }}>CONFIRMAR ESTIMATIVA</div>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <button
-                            className="comm-btn-save"
-                            style={{ flex: 1, padding: '6px', fontSize: '11px' }}
-                            onClick={() => {
-                                if (!selectedChamado.prazo_desejado) {
-                                    alert('O usuário não definiu um prazo desejado. Por favor, proponha uma data.');
-                                    return;
-                                }
-                                if (window.confirm(`Confirmar prazo para ${formatDate(selectedChamado.prazo_desejado)}?`)) {
-                                    comunicacaoAPI.confirmarEstimativaChamado(selectedChamado.id, { prazo_confirmado: selectedChamado.prazo_desejado })
-                                        .then(res => {
-                                            if (res.success) {
-                                                setSelectedChamado({ ...selectedChamado, prazo_confirmado: selectedChamado.prazo_desejado });
-                                                // Recarregar mensagens para ver a mensagem de sistema
-                                                comunicacaoAPI.listarRespostasChamado(selectedChamado.id).then(r => r.success && setChamadoMessages(r.data));
-                                            }
-                                        });
-                                }
-                            }}
-                        >
-                            Aceitar Prazo Desejado
-                        </button>
-                        <div style={{ flex: 1 }}>
-                            <input
-                                type="date"
-                                className="comm-drawer-form-input"
-                                style={{ padding: '5px', fontSize: '11px', height: '28px' }}
-                                id="new-prazo-confirmado"
-                                min={new Date().toISOString().split('T')[0]}
-                            />
-                        </div>
-                        <button
-                            className="comm-btn-save"
-                            style={{ padding: '6px 12px', fontSize: '11px', backgroundColor: '#0ea5e9' }}
-                            onClick={() => {
-                                const val = document.getElementById('new-prazo-confirmado').value;
-                                if (!val) return alert('Selecione uma data.');
-                                if (window.confirm(`Definir novo prazo para ${formatDate(val)}?`)) {
-                                    comunicacaoAPI.confirmarEstimativaChamado(selectedChamado.id, { prazo_confirmado: val })
-                                        .then(res => {
-                                            if (res.success) {
-                                                setSelectedChamado({ ...selectedChamado, prazo_confirmado: val });
-                                                comunicacaoAPI.listarRespostasChamado(selectedChamado.id).then(r => r.success && setChamadoMessages(r.data));
-                                            }
-                                        });
-                                }
-                            }}
-                        >
-                            <i className="fas fa-check"></i> Propor Outro
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            <div className="comm-drawer-status-selector">
-                <span className="label">Status:</span>
-                {['ABERTO', 'EM_ANALISE', 'RESPONDIDO', 'ENCERRADO', 'CANCELADO'].map(status => (
-                    <button
-                        key={status}
-                        onClick={() => handleChangeChamadoStatus(status)}
-                        className={`comm-drawer-status-btn ${selectedChamado.status_chamado === status ? 'active' : ''}`}
-                    >
-                        {status === 'RESPONDIDO' ? 'EM PROCESSO' :
-                            status === 'EM_ANALISE' ? 'EM ANÁLISE' :
-                                status === 'ENCERRADO' ? 'ENCERRADO' :
-                                    status.replace('_', ' ')}
+        return (
+            <div className="chat-detail-container">
+                <div className="chat-detail-header">
+                    <button className="back-btn" onClick={() => setSelectedChamado(null)}>
+                        <i className="fas fa-arrow-left"></i>
                     </button>
-                ))}
-            </div>
+                    <div className="chat-detail-info">
+                        <span className="chat-target-name">{selectedChamado.titulo}</span>
+                        <div className="chat-detail-sub">
+                            <span className={`comm-drawer-sla-badge ${selectedChamado.prazo_confirmado ? (new Date(selectedChamado.prazo_confirmado) < new Date() ? 'overdue' : 'on-time') : ''}`}
+                                style={!selectedChamado.prazo_confirmado ? { backgroundColor: '#f1f5f9', color: '#64748b' } : {}}>
+                                <i className="far fa-clock"></i> Data estimada: {selectedChamado.prazo_confirmado ? formatDate(selectedChamado.prazo_confirmado) : 'não confirmado'}
+                            </span>
+                            <span className="chat-detail-created">Aberto em {formatDate(selectedChamado.created_at)}</span>
+                        </div>
+                    </div>
+                </div>
 
-            <div className="comm-messages-list">
-                {loadingChamadoMessages ? (
-                    <div className="comm-loading"><i className="fas fa-spinner fa-spin"></i></div>
-                ) : (
-                    chamadoMessages.map((msg, index) => {
-                        const isMe = msg.criador_id === user?.id;
-                        const isEditing = editingMessageId === msg.id;
+                {selectedChamado.prazo_desejado && (
+                    <div style={{ padding: '8px 15px', borderBottom: '1px solid #f1f5f9', fontSize: '12px', display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
+                        <div style={{ color: '#0e3b6f' }}>
+                            <i className="far fa-calendar-alt"></i> Prazo desejado: <strong>{formatDate(selectedChamado.prazo_desejado)}</strong>
+                        </div>
+                        {selectedChamado.prazo_confirmado && (
+                            <div style={{ color: '#15803d' }}>
+                                <i className="fas fa-check-circle"></i> Prazo confirmado: <strong>{formatDate(selectedChamado.prazo_confirmado)}</strong>
+                            </div>
+                        )}
+                    </div>
+                )}
 
-                        // Date Separator Logic
-                        const prevMsg = index > 0 ? chamadoMessages[index - 1] : null;
-                        const currentDateLabel = getDateLabel(msg.created_at);
-                        const prevDateLabel = prevMsg ? getDateLabel(prevMsg.created_at) : null;
-                        const showDateSeparator = currentDateLabel !== prevDateLabel;
+                {selectedChamado.pode_gerenciar && !selectedChamado.prazo_confirmado && (
+                    <div style={{ padding: '12px 15px', backgroundColor: '#f0f9ff', borderBottom: '1px solid #bae6fd' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#0369a1', marginBottom: '8px' }}>CONFIRMAR ESTIMATIVA</div>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <button
+                                className="comm-btn-save"
+                                style={{ flex: 1, padding: '6px', fontSize: '11px' }}
+                                onClick={() => {
+                                    if (!selectedChamado.prazo_desejado) {
+                                        alert('O usuário não definiu um prazo desejado. Por favor, proponha uma data.');
+                                        return;
+                                    }
+                                    if (window.confirm(`Confirmar prazo para ${formatDate(selectedChamado.prazo_desejado)}?`)) {
+                                        comunicacaoAPI.confirmarEstimativaChamado(selectedChamado.id, { prazo_confirmado: selectedChamado.prazo_desejado })
+                                            .then(res => {
+                                                if (res.success) {
+                                                    setSelectedChamado({ ...selectedChamado, prazo_confirmado: selectedChamado.prazo_desejado });
+                                                    // Recarregar mensagens para ver a mensagem de sistema
+                                                    comunicacaoAPI.listarRespostasChamado(selectedChamado.id).then(r => r.success && setChamadoMessages(r.data));
+                                                }
+                                            });
+                                    }
+                                }}
+                            >
+                                Aceitar Prazo Desejado
+                            </button>
+                            <div style={{ flex: 1 }}>
+                                <input
+                                    type="date"
+                                    className="comm-drawer-form-input"
+                                    style={{ padding: '5px', fontSize: '11px', height: '28px' }}
+                                    id="new-prazo-confirmado"
+                                    min={new Date().toISOString().split('T')[0]}
+                                />
+                            </div>
+                            <button
+                                className="comm-btn-save"
+                                style={{ padding: '6px 12px', fontSize: '11px', backgroundColor: '#0ea5e9' }}
+                                onClick={() => {
+                                    const val = document.getElementById('new-prazo-confirmado').value;
+                                    if (!val) return alert('Selecione uma data.');
+                                    if (window.confirm(`Definir novo prazo para ${formatDate(val)}?`)) {
+                                        comunicacaoAPI.confirmarEstimativaChamado(selectedChamado.id, { prazo_confirmado: val })
+                                            .then(res => {
+                                                if (res.success) {
+                                                    setSelectedChamado({ ...selectedChamado, prazo_confirmado: val });
+                                                    comunicacaoAPI.listarRespostasChamado(selectedChamado.id).then(r => r.success && setChamadoMessages(r.data));
+                                                }
+                                            });
+                                    }
+                                }}
+                            >
+                                <i className="fas fa-check"></i> Propor Outro
+                            </button>
+                        </div>
+                    </div>
+                )}
 
-                        {/* Rich Editor for Editing */ }
-                        if (isEditing) {
+                {!isUnrelated && (
+                    <div className="comm-drawer-status-selector">
+                        <span className="label">Status:</span>
+                        {(isSupport
+                            ? ['ABERTO', 'EM_ANALISE', 'RESPONDIDO', 'ENCERRADO', 'CANCELADO']
+                            : ['ENCERRADO', 'CANCELADO']
+                        ).map(status => {
+                            const isFinalStatus = ['ENCERRADO', 'CANCELADO', 'CONCLUIDO'].includes(selectedChamado.status_chamado);
+                            const isDisabledForOwner = !isSupport && isFinalStatus;
+
+                            return (
+                                <button
+                                    key={status}
+                                    onClick={() => handleChangeChamadoStatus(status)}
+                                    disabled={isDisabledForOwner}
+                                    className={`comm-drawer-status-btn ${(selectedChamado.status_chamado === status || (status === 'ENCERRADO' && selectedChamado.status_chamado === 'CONCLUIDO')) ? 'active' : ''}`}
+                                    title={isDisabledForOwner ? "Você já finalizou este chamado e não pode mais alterar o status" : ""}
+                                >
+                                    {status === 'RESPONDIDO' ? 'EM PROCESSO' :
+                                        status === 'EM_ANALISE' ? 'EM ANÁLISE' :
+                                            status === 'CONCLUIDO' ? 'ENCERRADO' :
+                                                status.replace('_', ' ')}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
+
+                <div className="comm-messages-list">
+                    {loadingChamadoMessages ? (
+                        <div className="comm-loading"><i className="fas fa-spinner fa-spin"></i></div>
+                    ) : (
+                        chamadoMessages.map((msg, index) => {
+                            const isMe = msg.criador_id === user?.id;
+                            const isEditing = editingMessageId === msg.id;
+
+                            // Date Separator Logic
+                            const prevMsg = index > 0 ? chamadoMessages[index - 1] : null;
+                            const currentDateLabel = getDateLabel(msg.created_at);
+                            const prevDateLabel = prevMsg ? getDateLabel(prevMsg.created_at) : null;
+                            const showDateSeparator = currentDateLabel !== prevDateLabel;
+
+                            {/* Rich Editor for Editing */ }
+                            if (isEditing) {
+                                return (
+                                    <React.Fragment key={msg.id}>
+                                        {showDateSeparator && (
+                                            <div className="chat-date-separator" style={{ textAlign: 'center', margin: '15px 0', position: 'relative' }}>
+                                                <span style={{
+                                                    backgroundColor: '#e1f5fe',
+                                                    color: '#0e3b6f',
+                                                    fontSize: '11px',
+                                                    padding: '4px 12px',
+                                                    borderRadius: '12px',
+                                                    fontWeight: '600',
+                                                    display: 'inline-block'
+                                                }}>
+                                                    {currentDateLabel}
+                                                </span>
+                                            </div>
+                                        )}
+                                        <div className={`comm-msg-bubble ${isMe ? 'me' : 'other'} comm-msg-edit-container`}>
+                                            <div className="comm-msg-edit-label">Editando mensagem...</div>
+                                            <RichEditor
+                                                initialValue={editContent}
+                                                onContentChange={setEditContent}
+                                                placeholder="Digite sua mensagem..."
+                                                minHeight="80px"
+                                                showUploadIcon={true}
+                                                onImageClick={setExpandedImage}
+                                            />
+                                            <div className="comm-msg-edit-actions">
+                                                <button onClick={handleCancelEdit} className="comm-btn-cancel">Cancelar</button>
+                                                <button onClick={() => handleSaveEdit(msg.id)} className="comm-btn-save">Salvar</button>
+                                            </div>
+                                        </div>
+                                    </React.Fragment>
+                                );
+                            }
+
                             return (
                                 <React.Fragment key={msg.id}>
                                     {showDateSeparator && (
-                                        <div className="chat-date-separator" style={{ textAlign: 'center', margin: '15px 0', position: 'relative' }}>
-                                            <span style={{
-                                                backgroundColor: '#e1f5fe',
-                                                color: '#0e3b6f',
-                                                fontSize: '11px',
-                                                padding: '4px 12px',
-                                                borderRadius: '12px',
-                                                fontWeight: '600',
-                                                display: 'inline-block'
-                                            }}>
+                                        <div className="chat-date-separator">
+                                            <span className="date-label">
                                                 {currentDateLabel}
                                             </span>
                                         </div>
                                     )}
-                                    <div className={`comm-msg-bubble ${isMe ? 'me' : 'other'} comm-msg-edit-container`}>
-                                        <div className="comm-msg-edit-label">Editando mensagem...</div>
-                                        <RichEditor
-                                            initialValue={editContent}
-                                            onContentChange={setEditContent}
-                                            placeholder="Digite sua mensagem..."
-                                            minHeight="80px"
-                                            showUploadIcon={true}
-                                            onImageClick={setExpandedImage}
-                                        />
-                                        <div className="comm-msg-edit-actions">
-                                            <button onClick={handleCancelEdit} className="comm-btn-cancel">Cancelar</button>
-                                            <button onClick={() => handleSaveEdit(msg.id)} className="comm-btn-save">Salvar</button>
-                                        </div>
-                                    </div>
-                                </React.Fragment>
-                            );
-                        }
-
-                        return (
-                            <React.Fragment key={msg.id}>
-                                {showDateSeparator && (
-                                    <div className="chat-date-separator">
-                                        <span className="date-label">
-                                            {currentDateLabel}
-                                        </span>
-                                    </div>
-                                )}
-                                {msg.metadata?.sistema ? (
-                                    <div className="system-msg">
-                                        <div dangerouslySetInnerHTML={{ __html: markdownToHtml(msg.conteudo) }} />
-                                    </div>
-                                ) : (
-                                    <div className={`comm-msg-bubble ${isMe ? 'me' : 'other'} chamado-msg`}>
-                                        {isMe && (
-                                            <div className="msg-actions">
-                                                <i className="fas fa-pencil-alt" title="Editar" onClick={() => handleStartEdit(msg)}></i>
-                                            </div>
-                                        )}
-                                        <div className="msg-author">
-                                            {msg.criador?.nome_usuario || 'Sistema'}
-                                        </div>
-                                        <div className="msg-content" onClick={handleImageClick}>
+                                    {msg.metadata?.sistema ? (
+                                        <div className="system-msg">
                                             <div dangerouslySetInnerHTML={{ __html: markdownToHtml(msg.conteudo) }} />
                                         </div>
-                                        <div className="msg-time msg-time-with-receipt">
-                                            {formatTime(msg.created_at)}
+                                    ) : (
+                                        <div className={`comm-msg-bubble ${isMe ? 'me' : 'other'} chamado-msg`}>
                                             {isMe && (
-                                                <span className="msg-read-receipt" title="Enviado">
-                                                    <i className="fas fa-check-double msg-sent" aria-hidden="true"></i>
-                                                </span>
+                                                <div className="msg-actions">
+                                                    <i className="fas fa-pencil-alt" title="Editar" onClick={() => handleStartEdit(msg)}></i>
+                                                </div>
                                             )}
+                                            <div className="msg-author">
+                                                {msg.criador?.nome_usuario || 'Sistema'}
+                                            </div>
+                                            <div className="msg-content" onClick={handleImageClick}>
+                                                <div dangerouslySetInnerHTML={{ __html: markdownToHtml(msg.conteudo) }} />
+                                            </div>
+                                            <div className="msg-time msg-time-with-receipt">
+                                                {formatTime(msg.created_at)}
+                                                {isMe && (
+                                                    <span className="msg-read-receipt" title="Enviado">
+                                                        <i className="fas fa-check-double msg-sent" aria-hidden="true"></i>
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
-                            </React.Fragment>
-                        );
-                    })
-                )}
-                <div ref={messagesEndRef} />
-            </div>
-
-            {selectedChamado.status_chamado !== 'CONCLUIDO' && selectedChamado.status_chamado !== 'ENCERRADO' && selectedChamado.status_chamado !== 'CANCELADO' ? (
-                <form className="comm-chat-form" onSubmit={handleSendChamadoReply}>
-                    {templates.length > 0 && selectedChamado.pode_gerenciar && selectedChamado.criador_id !== user?.id && (
-                        <div className="comm-templates-container">
-                            <div className="comm-templates-header">
-                                <i className="fas fa-magic"></i>
-                                <span>Respostas Rápidas</span>
-                            </div>
-                            <select
-                                className="comm-templates-select"
-                                value=""
-                                onChange={(e) => {
-                                    const val = e.target.value;
-                                    if (val) {
-                                        setNewMessage(prev => {
-                                            const current = (prev || '').trim();
-                                            return current ? `${current}\n${val}` : val;
-                                        });
-                                    }
-                                }}
-                            >
-                                <option value="" disabled>Selecione um modelo...</option>
-                                {templates.map(t => (
-                                    <option key={t.id} value={t.conteudo}>{t.titulo}</option>
-                                ))}
-                            </select>
-                        </div>
+                                    )}
+                                </React.Fragment>
+                            );
+                        })
                     )}
-                    <div className="comm-chat-form-row">
-                        <div className="comm-chat-editor-container">
-                            <RichEditor
-                                initialValue={newMessage}
-                                onContentChange={setNewMessage}
-                                placeholder="Responder chamado..."
-                                minHeight="40px"
-                                onImageClick={setExpandedImage}
-                            />
-                        </div>
-                        <button type="submit" className="comm-send-btn" disabled={!newMessage.trim() || replyingToChamado}>
-                            <i className="fas fa-paper-plane"></i>
-                        </button>
-                    </div>
-                </form>
-            ) : (
-                <div style={{ padding: '15px', textAlign: 'center', backgroundColor: '#f1f5f9', fontSize: '12px', color: '#64748b' }}>
-                    <i className="fas fa-lock"></i> Este chamado foi {selectedChamado.status_chamado === 'CANCELADO' ? 'cancelado' : 'encerrado'} e está fechado para novas respostas.
+                    <div ref={messagesEndRef} />
                 </div>
-            )}
-        </div>
-    );
+
+                {isUnrelated ? (
+                    <div style={{ padding: '20px', textAlign: 'center', backgroundColor: '#f8fafc', color: '#64748b', fontSize: '13px', borderTop: '1px solid #e2e8f0' }}>
+                        <i className="fas fa-eye" style={{ marginRight: '8px', opacity: 0.5 }}></i>
+                        Você está visualizando este chamado como observador. Apenas o autor e a equipe de suporte podem enviar mensagens.
+                    </div>
+                ) : (selectedChamado.status_chamado !== 'CONCLUIDO' && selectedChamado.status_chamado !== 'ENCERRADO' && selectedChamado.status_chamado !== 'CANCELADO') ? (
+                    <form className="comm-chat-form" onSubmit={handleSendChamadoReply}>
+                        {templates.length > 0 && isSupport && selectedChamado.criador_id !== user?.id && (
+                            <div className="comm-templates-container">
+                                <div className="comm-templates-header">
+                                    <i className="fas fa-magic"></i>
+                                    <span>Respostas Rápidas</span>
+                                </div>
+                                <select
+                                    className="comm-templates-select"
+                                    value=""
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (val) {
+                                            setNewMessage(prev => {
+                                                const current = (prev || '').trim();
+                                                return current ? `${current}\n${val}` : val;
+                                            });
+                                        }
+                                    }}
+                                >
+                                    <option value="" disabled>Selecione um modelo...</option>
+                                    {templates.map(t => (
+                                        <option key={t.id} value={t.conteudo}>{t.titulo}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+                        <div className="comm-chat-form-row">
+                            <div className="comm-chat-editor-container">
+                                <RichEditor
+                                    initialValue={newMessage}
+                                    onContentChange={setNewMessage}
+                                    placeholder="Responder chamado..."
+                                    minHeight="40px"
+                                    onImageClick={setExpandedImage}
+                                />
+                            </div>
+                            <button type="submit" className="comm-send-btn" disabled={!newMessage.trim() || replyingToChamado}>
+                                <i className="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </form>
+                ) : (
+                    <div style={{ padding: '15px', textAlign: 'center', backgroundColor: '#f1f5f9', fontSize: '12px', color: '#64748b' }}>
+                        <i className="fas fa-lock"></i> Este chamado foi {selectedChamado.status_chamado === 'CANCELADO' ? 'cancelado' : 'encerrado'} e está fechado para novas respostas.
+                        Caso a equipe de suporte reabra, você poderá interagir novamente.
+                    </div>
+                )}
+            </div>
+        );
+    };
 
     const renderNewItemForm = (tipo) => (
         <div className="chat-detail-container">
@@ -1646,6 +1705,21 @@ const CommunicationDrawer = ({ user }) => {
                     />
                 </div>
             )}
+
+            {/* Modal de Confirmação de Status para o Dono (Estilo Delete) */}
+            <ConfirmModal
+                isOpen={showStatusConfirm}
+                onClose={() => {
+                    setShowStatusConfirm(false);
+                    setStatusConfirmPending(null);
+                }}
+                onConfirm={() => executeStatusChange(statusConfirmPending)}
+                title={statusConfirmPending === 'CANCELADO' ? 'Cancelar Chamado' : 'Encerrar Chamado'}
+                message={`Deseja mesmo ${statusConfirmPending === 'CANCELADO' ? 'CANCELAR' : 'ENCERRAR'} este chamado? Esta ação não poderá ser desfeita.`}
+                confirmText={statusConfirmPending === 'CANCELADO' ? 'Confirmar Cancelamento' : 'Confirmar Encerramento'}
+                confirmButtonClass="btn-danger"
+                loading={loadingStatusChange}
+            />
 
             {/* Hidden Input for Global Uploads (Chamados/Avisos/Respostas) */}
             <input

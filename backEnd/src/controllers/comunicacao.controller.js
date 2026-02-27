@@ -28,18 +28,70 @@ async function enviarMensagem(req, res) {
             return sendValidationError(res, 'Tipo e conteúdo são obrigatórios.');
         }
 
-        // 1. Inserir Mensagem
+        // 1. Verificar Permissões para Respostas de Chamados
+        const tipoNormalizado = String(tipo || '').toUpperCase();
+        if (mensagem_pai_id && tipoNormalizado === 'CHAMADO') {
+            const rootId = await getChamadoRoot(supabase, mensagem_pai_id);
+            const { data: rootTicket } = await supabase
+                .from('comunicacao_mensagens')
+                .select('criador_id, categoria_id, metadata, status_chamado')
+                .eq('id', rootId)
+                .single();
+
+            if (rootTicket) {
+                if (['ENCERRADO', 'CANCELADO', 'CONCLUIDO'].includes(rootTicket.status_chamado)) {
+                    return sendError(res, 403, 'Este chamado está fechado para novas respostas.');
+                }
+
+                const normalizedPerms = String(req.session.usuario.permissoes || '').toLowerCase();
+                const isGestorOuAdmin = normalizedPerms.includes('administrador') ||
+                    normalizedPerms.includes('gestor') ||
+                    req.session.usuario.nivel === 'administrador' ||
+                    req.session.usuario.nivel === 'gestor';
+                const isOwner = Number(rootTicket.criador_id) === Number(criador_id);
+
+                // Buscar departamentos do autor da resposta
+                const { data: colab } = await supabase
+                    .from('colaboradores')
+                    .select('id')
+                    .eq('usuario_id', criador_id)
+                    .single();
+
+                let meusDeptos = [];
+                if (colab) {
+                    const { data: deptosMembros } = await supabase
+                        .from('departamento_membros')
+                        .select('departamento_id')
+                        .eq('membro_id', colab.id);
+                    meusDeptos = (deptosMembros || []).map(d => d.departamento_id);
+                }
+
+                let deptoId = rootTicket.metadata?.departamento_id ? Number(rootTicket.metadata.departamento_id) : null;
+                if (!deptoId && rootTicket.categoria_id) {
+                    const { data: cat } = await supabase.from('cp_chamados_categorias').select('departamento_id').eq('id', rootTicket.categoria_id).single();
+                    deptoId = cat?.departamento_id;
+                }
+
+                const isSupport = isGestorOuAdmin || (deptoId && meusDeptos.map(Number).includes(Number(deptoId)));
+
+                if (!isOwner && !isSupport) {
+                    return sendError(res, 403, 'Você não tem permissão para enviar mensagens neste chamado.');
+                }
+            }
+        }
+
+        // 2. Inserir Mensagem
         const { data: mensagem, error } = await supabase
 
             .from('comunicacao_mensagens')
             .insert({
                 tipo,
                 criador_id,
-                destinatario_id: destinatario_id || null, // Apenas para CHAT 1x1
+                destinatario_id: destinatario_id || null,
                 mensagem_pai_id: mensagem_pai_id || null,
                 titulo: titulo || null,
                 conteudo,
-                status_chamado: status_chamado || (tipo === 'CHAMADO' ? 'ABERTO' : null),
+                status_chamado: status_chamado || (tipo === 'CHAMADO' && !mensagem_pai_id ? 'ABERTO' : null),
                 metadata: metadata || {},
                 prazo_desejado: prazo_desejado || null
             })
@@ -48,9 +100,9 @@ async function enviarMensagem(req, res) {
 
         if (error) throw error;
 
-        // 2. Processar Destinatários e Notificações (aceita CHAT ou chat)
-        const tipoNormalizado = String(tipo || '').toUpperCase();
-        if (tipoNormalizado === 'CHAT' && (destinatario_id != null && destinatario_id !== '')) {
+        // 3. Processar Destinatários e Notificações (aceita CHAT ou chat)
+        const tFinal = String(tipo || '').toUpperCase();
+        if (tFinal === 'CHAT' && (destinatario_id != null && destinatario_id !== '')) {
             const destinatarioId = parseInt(destinatario_id, 10) || destinatario_id;
             console.log('[COMUNICACAO] CHAT: criando notificação para destinatario_id', destinatarioId);
             // Inserir leitura para o destinatário
@@ -423,7 +475,13 @@ async function listarChamados(req, res) {
     try {
         const usuario_id = req.session.usuario.id;
         const permissoes = req.session.usuario.permissoes;
-        const isGestorOuAdmin = permissoes === 'administrador' || permissoes === 'gestor';
+
+        // Verifica se é admin ou gestor de forma mais flexível
+        const normalizedPerms = String(permissoes || '').toLowerCase();
+        const isGestorOuAdmin = normalizedPerms.includes('administrador') ||
+            normalizedPerms.includes('gestor') ||
+            req.session.usuario.nivel === 'administrador' ||
+            req.session.usuario.nivel === 'gestor';
 
         // Buscar departamentos do usuário para filtro/permissão
         const { data: colab } = await supabase
@@ -460,10 +518,12 @@ async function listarChamados(req, res) {
         // 1. Admin/Gestor vê tudo
         // 2. Colaborador vê o que criou OU o que é do seu departamento
         if (!isGestorOuAdmin) {
-            let filterString = `criador_id.eq.${usuario_id}`;
+            // Condição base: chamados criados pelo usuário
+            let orConditions = `criador_id.eq.${usuario_id}`;
 
-            // Filtro por categorias dos meus departamentos
+            // Se o usuário faz parte de departamentos, ele também vê chamados vinculados a esses departamentos
             if (meusDeptos.length > 0) {
+                // 1. Chamados com categorias que pertencem aos departamentos dele
                 const { data: catIds } = await supabase
                     .from('cp_chamados_categorias')
                     .select('id')
@@ -471,28 +531,57 @@ async function listarChamados(req, res) {
 
                 const ids = (catIds || []).map(c => c.id);
                 if (ids.length > 0) {
-                    filterString += `,categoria_id.in.(${ids.join(',')})`;
+                    orConditions += `,categoria_id.in.(${ids.join(',')})`;
                 }
 
-                // Filtro por departamento_id direto no metadata
-                // Nota: Supabase or() com metadata pode ser chato, mas tentamos:
+                // 2. Chamados que foram direcionados a esses departamentos via metadata (novo fluxo)
+                // Usamos a sintaxe PostgREST para campos JSONB no or()
                 meusDeptos.forEach(dId => {
-                    filterString += `,metadata->>departamento_id.eq.${dId}`;
+                    // Nota: dId pode ser string ou número, o metadata extrai como texto.
+                    // Adicionamos a condição ao or
+                    orConditions += `,metadata->>departamento_id.eq.${dId}`;
                 });
             }
 
-            query = query.or(filterString);
+            query = query.or(orConditions);
         }
 
         const { data, error } = await query;
         if (error) throw error;
 
-        // Adicionar flag pode_gerenciar
+        // --- ENRIQUECIMENTO: Buscar quem respondeu por último ---
+        const chamadosIds = data.map(c => c.id);
+        const responderMap = {};
+
+        if (chamadosIds.length > 0) {
+            // Buscar todas as mensagens que são respostas aos chamados listados
+            const { data: replies, error: errReplies } = await supabase
+                .from('comunicacao_mensagens')
+                .select('mensagem_pai_id, criador_id, created_at, criador:criador_id(nome_usuario)')
+                .in('mensagem_pai_id', chamadosIds)
+                .order('created_at', { ascending: false });
+
+            if (!errReplies && replies) {
+                replies.forEach(r => {
+                    // Se ainda não temos um respondedor para este chamado (como está ordenado DESC, o primeiro é o último)
+                    if (!responderMap[r.mensagem_pai_id]) {
+                        const chamOriginal = data.find(c => c.id === r.mensagem_pai_id);
+                        // Atribui se o criador da resposta for diferente do criador do chamado (suporte/gestor)
+                        if (chamOriginal && Number(r.criador_id) !== Number(chamOriginal.criador_id)) {
+                            responderMap[r.mensagem_pai_id] = r.criador?.nome_usuario;
+                        }
+                    }
+                });
+            }
+        }
+
+        // Adicionar flag pode_gerenciar e respondido_por
         const enrichedData = data.map(cham => {
             const deptoId = cham.categoria?.departamento?.id || (cham.metadata?.departamento_id ? parseInt(cham.metadata.departamento_id, 10) : null);
             return {
                 ...cham,
-                pode_gerenciar: isGestorOuAdmin || (deptoId && meusDeptos.includes(deptoId))
+                pode_gerenciar: isGestorOuAdmin || (deptoId && meusDeptos.map(Number).includes(Number(deptoId))),
+                respondido_por: responderMap[cham.id] || 'Não respondido'
             };
         });
 
@@ -554,7 +643,11 @@ async function listarRespostasChamado(req, res) {
         const { id } = req.params;
         const usuario_id = req.session.usuario.id;
         const permissoes = req.session.usuario.permissoes;
-        const isGestorOuAdmin = permissoes === 'administrador' || permissoes === 'gestor';
+        const normalizedPerms = String(permissoes || '').toLowerCase();
+        const isGestorOuAdmin = normalizedPerms.includes('administrador') ||
+            normalizedPerms.includes('gestor') ||
+            req.session.usuario.nivel === 'administrador' ||
+            req.session.usuario.nivel === 'gestor';
 
 
         const { data, error } = await supabase
@@ -590,7 +683,7 @@ async function listarRespostasChamado(req, res) {
                 const deptoId = msg.categoria?.departamento_id || (msg.metadata?.departamento_id ? parseInt(msg.metadata.departamento_id, 10) : null);
                 return {
                     ...msg,
-                    pode_gerenciar: isGestorOuAdmin || (deptoId && meusDeptos.includes(deptoId))
+                    pode_gerenciar: isGestorOuAdmin || (deptoId && meusDeptos.map(Number).includes(Number(deptoId)))
                 };
             }
             return msg;
@@ -612,14 +705,57 @@ async function atualizarStatusChamado(req, res) {
         const { status } = req.body;
         const usuario_id = req.session.usuario.id;
 
-        const { data: chamado, error: errorBusca } = await supabase
+        const normalizedPerms = String(req.session.usuario.permissoes || '').toLowerCase();
+        const isGestorOuAdmin = normalizedPerms.includes('administrador') ||
+            normalizedPerms.includes('gestor') ||
+            req.session.usuario.nivel === 'administrador' ||
+            req.session.usuario.nivel === 'gestor';
 
+        // Buscar departamentos do usuário para filtro/permissão
+        const { data: colab } = await supabase
+            .from('colaboradores')
+            .select('id')
+            .eq('usuario_id', req.session.usuario.id)
+            .single();
+
+        let meusDeptos = [];
+        if (colab) {
+            const { data: deptosMembros } = await supabase
+                .from('departamento_membros')
+                .select('departamento_id')
+                .eq('membro_id', colab.id);
+            meusDeptos = (deptosMembros || []).map(d => d.departamento_id);
+        }
+
+        const { data: chamado, error: errorBusca } = await supabase
             .from('comunicacao_mensagens')
-            .select('*')
+            .select('*, categoria:categoria_id(departamento_id)')
             .eq('id', id)
             .single();
 
         if (errorBusca || !chamado) return sendNotFound(res, 'Chamado');
+
+        // Determinar papéis para permissão
+        const isOwner = Number(chamado.criador_id) === Number(usuario_id);
+        const deptoId = chamado.categoria?.departamento_id || (chamado.metadata?.departamento_id ? Number(chamado.metadata.departamento_id) : null);
+        const isSupport = isGestorOuAdmin || (deptoId && meusDeptos.map(Number).includes(Number(deptoId)));
+
+        // Regra: Apenas o dono ou suporte podem mudar status
+        if (!isOwner && !isSupport) {
+            return sendError(res, 403, 'Apenas o autor ou a equipe de suporte podem alterar o status.');
+        }
+
+        // Regra do Autor: Dono só pode Encerrar ou Cancelar
+        if (isOwner && !isSupport) {
+            // Se o chamado já foi finalizado (ENCERRADO/CANCELADO), o autor não pode mudar mais NADA
+            if (['ENCERRADO', 'CANCELADO', 'CONCLUIDO'].includes(chamado.status_chamado)) {
+                return sendError(res, 403, 'Este chamado já foi finalizado e seu status não pode mais ser alterado por você.');
+            }
+
+            if (!['ENCERRADO', 'CANCELADO'].includes(status)) {
+                return sendError(res, 403, 'Como autor, você só tem permissão para ENCERRAR ou CANCELAR este chamado.');
+            }
+        }
 
         const { error } = await supabase
 
@@ -641,15 +777,7 @@ async function atualizarStatusChamado(req, res) {
         });
 
         // Notificar interessados (Criador e Gestores do Departamento)
-        let deptoId = null;
-        if (chamado.categoria_id) {
-            const { data: cat } = await supabase
-                .from('cp_chamados_categorias')
-                .select('departamento_id')
-                .eq('id', chamado.categoria_id)
-                .single();
-            deptoId = cat?.departamento_id;
-        }
+        // Reutilizamos o deptoId já calculado acima
 
         // 1. Notificar criador (sempre)
         if (chamado.criador_id !== usuario_id) {
