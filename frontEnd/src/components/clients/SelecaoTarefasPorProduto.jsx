@@ -1201,7 +1201,15 @@ const SelecaoTarefasPorProduto = ({
                                       source={getPeriodoTarefaInterno(produtoIdNum, tarefa.id)?.source}
                                       onSourceChange={(src) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { source: src })}
                                       recorrenciaConfig={getPeriodoTarefaInterno(produtoIdNum, tarefa.id)?.recorrenciaConfig}
-                                      onRecorrenciaConfigChange={(cfg) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { recorrenciaConfig: cfg })}
+                                      onRecorrenciaConfigChange={(cfg) => {
+                                        const updates = { recorrenciaConfig: cfg };
+                                        if (cfg?.termina === 'em_data') {
+                                          updates.fim = cfg.terminaData || null;
+                                        } else if (cfg?.termina === 'nunca') {
+                                          updates.fim = null;
+                                        }
+                                        if (onPeriodoChange) onPeriodoChange(produtoIdNum, tarefa.id, updates);
+                                      }}
                                       showRecurrence={true}
                                       onOpenChange={(isOpen) => setActiveDropdown(prev => isOpen ? `${produtoIdNum}_${tarefa.id}` : (prev === `${produtoIdNum}_${tarefa.id}` ? null : prev))}
                                     />
@@ -1279,91 +1287,32 @@ const SelecaoTarefasPorProduto = ({
                                   onClick={(e) => e.stopPropagation()}
                                   onMouseDown={(e) => e.stopPropagation()}
                                 >
-                                  <div style={{ width: '100%' }}>
-                                    <button
-                                      type="button"
-                                      className="btn-configurar-tempo-row"
-                                      onClick={() => {
-                                        const key = `${produtoIdNum}_${tarefa.id}`;
-                                        setShowTempoConfigTarefa(prev => ({ ...prev, [key]: !prev[key] }));
-                                      }}
-                                      disabled={disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id))}
-                                      style={{
-                                        cursor: (disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id))) ? 'not-allowed' : 'pointer'
-                                      }}
-                                    >
-                                      <i className="fas fa-cog"></i>
-                                      <span>{tempoConfigPorTarefa[`${produtoIdNum}_${tarefa.id}`] ? 'Configurado' : 'Tempo'}</span>
-                                    </button>
-
-                                    {showTempoConfigTarefa[`${produtoIdNum}_${tarefa.id}`] && (
-                                      <TempoConfigCard
-                                        initialConfig={tempoConfigPorTarefa[`${produtoIdNum}_${tarefa.id}`] || {}}
-                                        onSave={(config) => {
-                                          if (onTempoConfigChange) onTempoConfigChange(produtoIdNum, tarefa.id, config);
-                                          const key = `${produtoIdNum}_${tarefa.id}`;
-                                          setShowTempoConfigTarefa(prev => ({ ...prev, [key]: false }));
-                                        }}
-                                        onClose={() => {
-                                          const key = `${produtoIdNum}_${tarefa.id}`;
-                                          setShowTempoConfigTarefa(prev => ({ ...prev, [key]: false }));
-                                        }}
-                                        dataInicioPadrao={periodosPorTarefa[`${produtoIdNum}_${tarefa.id}`]?.inicio}
-                                        responsavelId={(() => {
-                                          const ids = getResponsavelTarefa(produtoIdNum, tarefa.id);
-                                          return ids.length === 1 ? ids[0] : null;
-                                        })()}
-                                      />
-                                    )}
-                                  </div>
+                                  <TempoConfigCard
+                                    label={tempoConfigPorTarefa[`${produtoIdNum}_${tarefa.id}`] ? 'Configurado' : 'Tempo'}
+                                    initialConfig={tempoConfigPorTarefa[`${produtoIdNum}_${tarefa.id}`] || {}}
+                                    onSave={(config) => {
+                                      if (onTempoConfigChange) onTempoConfigChange(produtoIdNum, tarefa.id, config);
+                                      const key = `${produtoIdNum}_${tarefa.id}`;
+                                      setShowTempoConfigTarefa(prev => ({ ...prev, [key]: false }));
+                                    }}
+                                    dataInicioPadrao={periodosPorTarefa[`${produtoIdNum}_${tarefa.id}`]?.inicio}
+                                    responsavelId={(() => {
+                                      const ids = getResponsavelTarefa(produtoIdNum, tarefa.id);
+                                      return ids.length === 1 ? ids[0] : null;
+                                    })()}
+                                    disabled={disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id))}
+                                    className="btn-configurar-tempo-row-container"
+                                    onOpenChange={(isOpen) => {
+                                      const key = `${produtoIdNum}_${tarefa.id}`;
+                                      setShowTempoConfigTarefa(prev => ({ ...prev, [key]: isOpen }));
+                                    }}
+                                  />
                                   {ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id) && (
                                     <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000, whiteSpace: 'nowrap' }}>
                                       Preencha o período primeiro
                                     </div>
                                   )}
                                 </div>
-                              )}
-                              {tarefa.ehExcecao === true && (
-                                <span style={{
-                                  fontSize: '10px',
-                                  padding: '2px 6px',
-                                  backgroundColor: tarefa.selecionada ? 'rgba(255, 255, 255, 0.2)' : '#fef3c7',
-                                  color: tarefa.selecionada ? 'white' : '#92400e',
-                                  borderRadius: '3px',
-                                  fontWeight: '500',
-                                  flexShrink: 0
-                                }}>
-                                  Exceção
-                                </span>
-                              )}
-                              {/* Botão para ver subtarefas - mostrar apenas se showSubtarefas=true */}
-                              {showSubtarefas && (tarefa.subtarefas?.length > 0 || subtarefasPorTarefa[tarefa.id]?.length > 0) && (
-                                <button
-                                  type="button"
-                                  className="btn-configurar-tempo-row"
-                                  title="Ver subtarefas"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const temSubtarefas = subtarefasPorTarefa[tarefa.id]?.length > 0;
-                                    if (!temSubtarefas && !carregandoSubtarefas[tarefa.id]) {
-                                      carregarSubtarefasTarefa(tarefa.id, produtoIdNum);
-                                    }
-                                    setTarefasExpandidas(prev => ({
-                                      ...prev,
-                                      [tarefa.id]: !prev[tarefa.id]
-                                    }));
-                                  }}
-                                  style={{ width: 'auto', height: '26px' }}
-                                >
-                                  {carregandoSubtarefas[tarefa.id] ? (
-                                    <i className="fas fa-spinner fa-spin"></i>
-                                  ) : (
-                                    <>
-                                      <i className="fas fa-list-ul"></i>
-                                      <span>Subtarefas {subtarefasPorTarefa[tarefa.id]?.length || tarefa.subtarefas?.length || 0}</span>
-                                    </>
-                                  )}
-                                </button>
                               )}
                             </div>
                           </div>
@@ -1413,6 +1362,7 @@ const SelecaoTarefasPorProduto = ({
                           )}
                         </div>
                       ))}
+
 
                       {/* Separador entre tarefas normais e exceções */}
                       {tarefasNormais.length > 0 && tarefasExcecao.length > 0 && (
@@ -1560,6 +1510,19 @@ const SelecaoTarefasPorProduto = ({
                                     datasIndividuais={periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.datasIndividuais || []}
                                     onDatasIndividuaisChange={(arr) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { datasIndividuais: Array.isArray(arr) ? arr : [] })}
                                     onOpenChange={(isOpen) => setActiveDropdown(prev => isOpen ? `${produtoIdNum}_${tarefa.id}` : (prev === `${produtoIdNum}_${tarefa.id}` ? null : prev))}
+                                    source={periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.source}
+                                    onSourceChange={(src) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { source: src })}
+                                    recorrenciaConfig={periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.recorrenciaConfig}
+                                    onRecorrenciaConfigChange={(cfg) => {
+                                      const updates = { recorrenciaConfig: cfg };
+                                      if (cfg?.termina === 'em_data') {
+                                        updates.fim = cfg.terminaData || null;
+                                      } else if (cfg?.termina === 'nunca') {
+                                        updates.fim = null;
+                                      }
+                                      if (onPeriodoChange) onPeriodoChange(produtoIdNum, tarefa.id, updates);
+                                    }}
+                                    showRecurrence={true}
                                     style={{ height: '26px' }}
                                   />
                                 </div>
@@ -1631,92 +1594,32 @@ const SelecaoTarefasPorProduto = ({
                                   onClick={(e) => e.stopPropagation()}
                                   onMouseDown={(e) => e.stopPropagation()}
                                 >
-                                  <div style={{ width: '100%' }}>
-                                    <button
-                                      type="button"
-                                      className="btn-configurar-tempo-row"
-                                      onClick={() => {
-                                        const key = `${produtoIdNum}_${tarefa.id}`;
-                                        setShowTempoConfigTarefa(prev => ({ ...prev, [key]: !prev[key] }));
-                                      }}
-                                      disabled={disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id))}
-                                      style={{
-                                        cursor: (disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id))) ? 'not-allowed' : 'pointer',
-                                        height: '26px'
-                                      }}
-                                    >
-                                      <i className="fas fa-cog"></i>
-                                      <span>{tempoConfigPorTarefa[`${produtoIdNum}_${tarefa.id}`] ? 'Configurado' : 'Tempo'}</span>
-                                    </button>
-
-                                    {showTempoConfigTarefa[`${produtoIdNum}_${tarefa.id}`] && (
-                                      <TempoConfigCard
-                                        initialConfig={tempoConfigPorTarefa[`${produtoIdNum}_${tarefa.id}`] || {}}
-                                        onSave={(config) => {
-                                          if (onTempoConfigChange) onTempoConfigChange(produtoIdNum, tarefa.id, config);
-                                          const key = `${produtoIdNum}_${tarefa.id}`;
-                                          setShowTempoConfigTarefa(prev => ({ ...prev, [key]: false }));
-                                        }}
-                                        onClose={() => {
-                                          const key = `${produtoIdNum}_${tarefa.id}`;
-                                          setShowTempoConfigTarefa(prev => ({ ...prev, [key]: false }));
-                                        }}
-                                        dataInicioPadrao={periodosPorTarefa[`${produtoIdNum}_${tarefa.id}`]?.inicio}
-                                        responsavelId={(() => {
-                                          const ids = getResponsavelTarefa(produtoIdNum, tarefa.id);
-                                          return ids.length === 1 ? ids[0] : null;
-                                        })()}
-                                      />
-                                    )}
-                                  </div>
+                                  <TempoConfigCard
+                                    label={tempoConfigPorTarefa[`${produtoIdNum}_${tarefa.id}`] ? 'Configurado' : 'Tempo'}
+                                    initialConfig={tempoConfigPorTarefa[`${produtoIdNum}_${tarefa.id}`] || {}}
+                                    onSave={(config) => {
+                                      if (onTempoConfigChange) onTempoConfigChange(produtoIdNum, tarefa.id, config);
+                                      const key = `${produtoIdNum}_${tarefa.id}`;
+                                      setShowTempoConfigTarefa(prev => ({ ...prev, [key]: false }));
+                                    }}
+                                    dataInicioPadrao={periodosPorTarefa[`${produtoIdNum}_${tarefa.id}`]?.inicio}
+                                    responsavelId={(() => {
+                                      const ids = getResponsavelTarefa(produtoIdNum, tarefa.id);
+                                      return ids.length === 1 ? ids[0] : null;
+                                    })()}
+                                    disabled={disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id))}
+                                    className="btn-configurar-tempo-row-container"
+                                    onOpenChange={(isOpen) => {
+                                      const key = `${produtoIdNum}_${tarefa.id}`;
+                                      setShowTempoConfigTarefa(prev => ({ ...prev, [key]: isOpen }));
+                                    }}
+                                  />
                                   {ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id) && (
                                     <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000, whiteSpace: 'nowrap' }}>
                                       Preencha o período primeiro
                                     </div>
                                   )}
                                 </div>
-                              )}
-                              {tarefa.ehExcecao === true && (
-                                <span style={{
-                                  fontSize: '10px',
-                                  padding: '2px 6px',
-                                  backgroundColor: tarefa.selecionada ? 'rgba(255, 255, 255, 0.2)' : '#ffd8a8',
-                                  color: tarefa.selecionada ? 'white' : '#fd7e14',
-                                  borderRadius: '3px',
-                                  fontWeight: '500',
-                                  flexShrink: 0
-                                }}>
-                                  Exceção
-                                </span>
-                              )}
-                              {/* Botão para ver subtarefas - mostrar apenas se showSubtarefas=true */}
-                              {showSubtarefas && (tarefa.subtarefas?.length > 0 || subtarefasPorTarefa[tarefa.id]?.length > 0) && (
-                                <button
-                                  type="button"
-                                  className="btn-configurar-tempo-row"
-                                  title="Ver subtarefas"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const temSubtarefas = subtarefasPorTarefa[tarefa.id]?.length > 0;
-                                    if (!temSubtarefas && !carregandoSubtarefas[tarefa.id]) {
-                                      carregarSubtarefasTarefa(tarefa.id, produtoIdNum);
-                                    }
-                                    setTarefasExpandidas(prev => ({
-                                      ...prev,
-                                      [tarefa.id]: !prev[tarefa.id]
-                                    }));
-                                  }}
-                                  style={{ height: '26px' }}
-                                >
-                                  {carregandoSubtarefas[tarefa.id] ? (
-                                    <i className="fas fa-spinner fa-spin"></i>
-                                  ) : (
-                                    <>
-                                      <i className="fas fa-list-ul"></i>
-                                      <span>Subtarefas {subtarefasPorTarefa[tarefa.id]?.length || tarefa.subtarefas?.length || 0}</span>
-                                    </>
-                                  )}
-                                </button>
                               )}
                             </div>
                           </div>
@@ -1764,66 +1667,69 @@ const SelecaoTarefasPorProduto = ({
                               ))}
                             </div>
                           )}
-                        </div>
+                        </div >
                       ))}
                     </>
                   );
                 })()}
               </div>
-            )}
-          </div>
+            )
+            }
+          </div >
         );
       })}
 
       {/* Mensagem de validação de tempo total - mostrar apenas se showTempoEstimado=true */}
-      {showTempoEstimado && horasDisponiveisDia != null && Object.keys(tarefasPorProduto).length > 0 && (() => {
-        let totalTempoMs = 0;
-        Object.entries(tarefasPorProduto).forEach(([produtoId, tarefas]) => {
-          tarefas.forEach(tarefa => {
-            if (tarefa.selecionada === true) {
-              // Tentar primeiro com chave composta, depois fallback para chave simples
-              const chaveComposta = `${produtoId}_${tarefa.id}`;
-              totalTempoMs += tempoEstimadoDia[chaveComposta] || tempoEstimadoDia[tarefa.id] || 0;
-            }
+      {
+        showTempoEstimado && horasDisponiveisDia != null && Object.keys(tarefasPorProduto).length > 0 && (() => {
+          let totalTempoMs = 0;
+          Object.entries(tarefasPorProduto).forEach(([produtoId, tarefas]) => {
+            tarefas.forEach(tarefa => {
+              if (tarefa.selecionada === true) {
+                // Tentar primeiro com chave composta, depois fallback para chave simples
+                const chaveComposta = `${produtoId}_${tarefa.id}`;
+                totalTempoMs += tempoEstimadoDia[chaveComposta] || tempoEstimadoDia[tarefa.id] || 0;
+              }
+            });
           });
-        });
-        const totalHorasPorDia = totalTempoMs / (1000 * 60 * 60);
+          const totalHorasPorDia = totalTempoMs / (1000 * 60 * 60);
 
-        if (totalHorasPorDia > 0) {
-          const estaExcedendo = totalHorasPorDia > horasDisponiveisDia;
+          if (totalHorasPorDia > 0) {
+            const estaExcedendo = totalHorasPorDia > horasDisponiveisDia;
 
-          return (
-            <div style={{
-              marginTop: '16px',
-              padding: '12px',
-              backgroundColor: estaExcedendo ? '#fef2f2' : '#f0fdf4',
-              border: `1px solid ${estaExcedendo ? '#fecaca' : '#bbf7d0'}`,
-              borderRadius: '6px'
-            }}>
+            return (
               <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontSize: '12px',
-                color: estaExcedendo ? '#dc2626' : '#16a34a',
-                fontWeight: '500'
+                marginTop: '16px',
+                padding: '12px',
+                backgroundColor: estaExcedendo ? '#fef2f2' : '#f0fdf4',
+                border: `1px solid ${estaExcedendo ? '#fecaca' : '#bbf7d0'}`,
+                borderRadius: '6px'
               }}>
-                <i className={`fas fa-${estaExcedendo ? 'exclamation-triangle' : 'check-circle'}`}></i>
-                <span>
-                  Tempo total por dia: <strong>{totalHorasPorDia.toFixed(2)}h</strong> de <strong>{horasDisponiveisDia}h</strong> disponíveis
-                  {estaExcedendo && (
-                    <span style={{ marginLeft: '8px', color: '#dc2626', fontWeight: '600' }}>
-                      (Ultrapassando em {(totalHorasPorDia - horasDisponiveisDia).toFixed(2)}h)
-                    </span>
-                  )}
-                </span>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '12px',
+                  color: estaExcedendo ? '#dc2626' : '#16a34a',
+                  fontWeight: '500'
+                }}>
+                  <i className={`fas fa-${estaExcedendo ? 'exclamation-triangle' : 'check-circle'}`}></i>
+                  <span>
+                    Tempo total por dia: <strong>{totalHorasPorDia.toFixed(2)}h</strong> de <strong>{horasDisponiveisDia}h</strong> disponíveis
+                    {estaExcedendo && (
+                      <span style={{ marginLeft: '8px', color: '#dc2626', fontWeight: '600' }}>
+                        (Ultrapassando em {(totalHorasPorDia - horasDisponiveisDia).toFixed(2)}h)
+                      </span>
+                    )}
+                  </span>
+                </div>
               </div>
-            </div>
-          );
-        }
-        return null;
-      })()}
-    </div>
+            );
+          }
+          return null;
+        })()
+      }
+    </div >
   );
 };
 

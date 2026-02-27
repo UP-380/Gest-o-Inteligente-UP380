@@ -3405,7 +3405,9 @@ async function salvarConfiguracaoCliente(req, res) {
         estimativas = [],
         responsaveis = [],
         incluir_finais_semana = false,
-        incluir_feriados = false
+        incluir_feriados = false,
+        data_fim = null,
+        datas_individuais = []
       } = config;
 
       // Se não houver estimativas, usar um fallback simples de 0 ou ignorar
@@ -3415,8 +3417,37 @@ async function salvarConfiguracaoCliente(req, res) {
         console.warn(`⚠️ [SALVAR-CONFIG] Config com estimativas mas sem responsáveis (cliente=${cliente_id}, tarefa=${tarefa_id}). Regras serão gravadas com responsavel_id NULL.`);
       }
 
+      // Se a config específica tiver um fim, usamos ele. Caso contrário, usamos o limite geral.
+      const dataFimTarefa = data_fim || dataFimLimite;
+
       // Segmentar as estimativas de tempo ao longo do calendário
-      const segmentosTempo = segmentarVigenciasTempo(estimativas, dataFimLimite);
+      let segmentosTempo = segmentarVigenciasTempo(estimativas, dataFimTarefa);
+
+      // Se houver datas individuais (recorrência ou seleção manual), filtrar vigências por elas
+      const validDatasIndividuais = Array.isArray(datas_individuais) ? datas_individuais.filter(d => typeof d === 'string' && d.length >= 10).map(d => d.split('T')[0]) : [];
+      if (validDatasIndividuais.length > 0) {
+        console.log(`📍 Processando ${validDatasIndividuais.length} datas individuais para tarefa ${tarefa_id}`);
+        const novosSegmentos = [];
+        const datasSort = [...validDatasIndividuais].sort();
+
+        for (const seg of segmentosTempo) {
+          // Filtrar datas que pertencem a esta vigência/segmento
+          const datasNoSegmento = datasSort.filter(d => d >= seg.data_inicio && d <= seg.data_fim);
+          if (datasNoSegmento.length > 0) {
+            // Agrupar estas datas em sub-segmentos contínuos para economia de registros
+            // Passamos true, true pois as datas já foram filtradas pelo frontend/recorrência
+            const subSegmentos = await agruparDatasEmSegmentos(datasNoSegmento, true, true);
+            for (const ss of subSegmentos) {
+              novosSegmentos.push({
+                ...seg,
+                data_inicio: ss.inicio,
+                data_fim: ss.fim
+              });
+            }
+          }
+        }
+        segmentosTempo = novosSegmentos;
+      }
 
       // Se houver responsáveis, as regras são vinculadas a eles.
       // Caso contrário, cria-se uma regra estrutural (responsavel_id = NULL)
@@ -3464,6 +3495,11 @@ async function salvarConfiguracaoCliente(req, res) {
       }
     }
 
+    // Calcular a maior data fim real entre as regras criadas para o histórico
+    const maxDataFimReal = regrasParaInserir.length > 0
+      ? regrasParaInserir.map(r => r.data_fim).sort().reverse()[0]
+      : dataFimLimite;
+
     // 4. Criar Histórico Consolidado
     const { error: histError } = await supabase
       .from('historico_atribuicoes')
@@ -3473,7 +3509,7 @@ async function salvarConfiguracaoCliente(req, res) {
         responsavel_id: null, // No modo estrutural, o histórico não foca em um responsável único
         usuario_criador_id: membroIdCriador ? parseInt(String(membroIdCriador), 10) : null,
         data_inicio: regrasParaInserir[0]?.data_inicio || null,
-        data_fim: dataFimLimite,
+        data_fim: maxDataFimReal,
         produto_ids: [...new Set(regrasParaInserir.map(r => r.produto_id).filter(id => id != null))].map(id => parseInt(id, 10)),
         tarefas: configuracoes.map(c => ({
           tarefa_id: parseInt(String(c.tarefa_id), 10),
