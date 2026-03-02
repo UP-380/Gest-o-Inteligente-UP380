@@ -210,10 +210,10 @@ const SelecaoTarefasPorProduto = ({
                   subtarefasSelecionadas = [];
                 }
               } else {
-                // MODO NOVA ATRIBUIÇÃO (Manter comportamento original)
-                // Marcar como selecionada se está vinculada ao cliente OU tem subtarefas vinculadas
-                selecionada = estaVinculadaAoCliente || temSubtarefasVinculadas;
-                subtarefasSelecionadas = tarefa.subtarefasVinculadasCliente || [];
+                // MODO NOVA ATRIBUIÇÃO
+                // Não marcar nada por padrão, para que seja realmente uma "nova" atribuição
+                selecionada = false;
+                subtarefasSelecionadas = [];
               }
 
               return {
