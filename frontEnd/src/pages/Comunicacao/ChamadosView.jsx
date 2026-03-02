@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { comunicacaoAPI } from '../../services/comunicacao.service';
 import { departamentosAPI } from '../../services/api';
 import { formatDate } from '../../utils/dateUtils';
+import SearchInput from '../../components/common/SearchInput';
 import RichEditor from '../../components/common/RichEditor';
 import './ChamadosView.css';
 
@@ -12,19 +13,32 @@ const ChamadosView = () => {
     const [newChamado, setNewChamado] = useState({
         titulo: '',
         conteudo: '',
-        categoria_id: '',
+        departamento_id: '',
         metadata: { prioridade: 'media' }
     });
-    const [categorias, setCategorias] = useState([]);
+    const [departamentos, setDepartamentos] = useState([]);
     const [dynamicFields, setDynamicFields] = useState({});
     const [selectedFile, setSelectedFile] = useState(null);
     const [expandedImage, setExpandedImage] = useState(null);
     const fileInputRef = useRef(null);
+    const [statusFilter, setStatusFilter] = useState('Todos');
+    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         loadChamados();
-        loadCategorias();
+        loadDepartamentos();
     }, []);
+
+    const loadDepartamentos = async () => {
+        try {
+            const response = await departamentosAPI.getAll(1, 100);
+            if (response.success) {
+                setDepartamentos(response.data);
+            }
+        } catch (error) {
+            console.error('Erro ao buscar departamentos:', error);
+        }
+    };
 
     const loadChamados = async () => {
         setLoading(true);
@@ -40,16 +54,7 @@ const ChamadosView = () => {
         }
     };
 
-    const loadCategorias = async () => {
-        try {
-            const response = await comunicacaoAPI.listarCategorias();
-            if (response.success) {
-                setCategorias(response.data);
-            }
-        } catch (error) {
-            console.error('Erro ao buscar categorias:', error);
-        }
-    };
+
 
     const handleFileSelect = (e) => {
         if (e.target.files && e.target.files[0]) {
@@ -90,15 +95,14 @@ const ChamadosView = () => {
                 status_chamado: 'ABERTO',
                 metadata: {
                     ...newChamado.metadata,
-                    categoria_id: newChamado.categoria_id,
-                    campos_dinamicos: dynamicFields,
+                    departamento_id: newChamado.departamento_id,
                     anexos: anexos
                 }
             };
             const response = await comunicacaoAPI.enviarMensagem(payload);
             if (response.success) {
                 setShowModal(false);
-                setNewChamado({ titulo: '', conteudo: '', categoria_id: '', metadata: { prioridade: 'media' } });
+                setNewChamado({ titulo: '', conteudo: '', departamento_id: '', metadata: { prioridade: 'media' } });
                 setDynamicFields({});
                 setSelectedFile(null);
                 loadChamados();
@@ -130,16 +134,92 @@ const ChamadosView = () => {
                     </button>
                 </div>
 
+                <div className="chamados-controls" style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '15px',
+                    marginBottom: '25px',
+                    padding: '0 20px'
+                }}>
+                    <div style={{ width: '100%', maxWidth: '500px' }}>
+                        <SearchInput
+                            value={searchTerm}
+                            onChange={setSearchTerm}
+                            placeholder="Pesquisar chamados por título, conteúdo ou autor..."
+                        />
+                    </div>
+
+                    <div className="chamados-filters" style={{
+                        display: 'flex',
+                        gap: '10px',
+                        overflowX: 'auto',
+                        paddingBottom: '5px',
+                        width: '100%',
+                        justifyContent: 'center'
+                    }}>
+                        {['Todos', 'ABERTO', 'EM_ANALISE', 'RESPONDIDO', 'ENCERRADO', 'CANCELADO'].map(st => (
+                            <button
+                                key={st}
+                                onClick={() => setStatusFilter(st)}
+                                className={`status-filter-btn ${statusFilter === st ? 'active' : ''}`}
+                                style={{
+                                    padding: '6px 16px',
+                                    borderRadius: '20px',
+                                    border: '1px solid #e2e8f0',
+                                    background: statusFilter === st ? '#0e3b6f' : 'white',
+                                    color: statusFilter === st ? 'white' : '#64748b',
+                                    fontSize: '13px',
+                                    fontWeight: '600',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s',
+                                    whiteSpace: 'nowrap'
+                                }}
+                            >
+                                {st === 'Todos' ? 'Todos' :
+                                    st === 'EM_ANALISE' ? 'Em análise' :
+                                        st === 'RESPONDIDO' ? 'Em processo' :
+                                            st === 'ENCERRADO' ? 'Encerrado' :
+                                                st === 'CANCELADO' ? 'Cancelado' : st}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
                 <div className="chamados-list">
                     {loading ? (
                         <div className="loading"><i className="fas fa-spinner fa-spin"></i> Carregando...</div>
-                    ) : chamados.length === 0 ? (
+                    ) : chamados.filter(c => {
+                        const matchesStatus = statusFilter === 'Todos' ||
+                            (statusFilter === 'ENCERRADO' ? (c.status_chamado === 'ENCERRADO' || c.status_chamado === 'CONCLUIDO') : c.status_chamado === statusFilter);
+
+                        const searchLower = searchTerm.toLowerCase();
+                        const matchesSearch = !searchTerm.trim() ||
+                            (c.titulo?.toLowerCase().includes(searchLower)) ||
+                            (c.conteudo?.toLowerCase().includes(searchLower)) ||
+                            (c.criador?.nome_usuario?.toLowerCase().includes(searchLower)) ||
+                            (c.metadata?.responsavel?.toLowerCase().includes(searchLower));
+
+                        return matchesStatus && matchesSearch;
+                    }).length === 0 ? (
                         <div className="empty-state">
                             <i className="fas fa-clipboard-list"></i>
                             <p>Nenhum chamado encontrado.</p>
                         </div>
                     ) : (
-                        chamados.map(chamado => (
+                        chamados.filter(c => {
+                            const matchesStatus = statusFilter === 'Todos' ||
+                                (statusFilter === 'ENCERRADO' ? (c.status_chamado === 'ENCERRADO' || c.status_chamado === 'CONCLUIDO') : c.status_chamado === statusFilter);
+
+                            const searchLower = searchTerm.toLowerCase();
+                            const matchesSearch = !searchTerm.trim() ||
+                                (c.titulo?.toLowerCase().includes(searchLower)) ||
+                                (c.conteudo?.toLowerCase().includes(searchLower)) ||
+                                (c.criador?.nome_usuario?.toLowerCase().includes(searchLower)) ||
+                                (c.metadata?.responsavel?.toLowerCase().includes(searchLower));
+
+                            return matchesStatus && matchesSearch;
+                        }).map(chamado => (
                             <div key={chamado.id} className="chamado-card">
                                 <div className="chamado-status-stripe" style={{ backgroundColor: getStatusColor(chamado.status_chamado) }}></div>
                                 <div className="chamado-body">
@@ -154,7 +234,7 @@ const ChamadosView = () => {
                                             </span>
                                         ) : (
                                             <span className="chamado-category">
-                                                Categoria: {chamado.metadata?.categoria || 'Geral'}
+                                                Departamento: <strong>{departamentos.find(d => String(d.id) === String(chamado.metadata?.departamento_id))?.nome || chamado.categoria?.departamento?.nome || 'Geral'}</strong>
                                             </span>
                                         )}
                                         <span className="chamado-date">
@@ -186,40 +266,26 @@ const ChamadosView = () => {
                             <h3>Novo Chamado</h3>
                             <form onSubmit={handleCreate}>
                                 <div className="form-group">
-                                    <label>Tópico de Ajuda (Categoria)</label>
+                                    <label>Selecione o departamento desejado *</label>
                                     <select
-                                        value={newChamado.categoria_id}
+                                        value={newChamado.departamento_id}
                                         onChange={e => {
-                                            const catId = e.target.value;
-                                            setNewChamado({ ...newChamado, categoria_id: catId });
-                                            setDynamicFields({}); // Reset campos dinâmicos ao trocar categoria
+                                            setNewChamado({ ...newChamado, departamento_id: e.target.value });
+                                            setDynamicFields({});
                                         }}
                                         required
                                     >
-                                        <option value="">Selecione o tipo de problema</option>
-                                        {categorias.map(cat => (
-                                            <option key={cat.id} value={cat.id}>
-                                                {cat.nome}
+                                        <option value="">Selecione o departamento</option>
+                                        {departamentos.map(dept => (
+                                            <option key={dept.id} value={dept.id}>
+                                                {dept.nome}
                                             </option>
                                         ))}
                                     </select>
                                 </div>
 
-                                {newChamado.categoria_id && (
+                                {newChamado.departamento_id && (
                                     <>
-                                        {/* Renderizar campos dinâmicos se existirem */}
-                                        {categorias.find(c => String(c.id) === String(newChamado.categoria_id))?.campos_esquema?.map(field => (
-                                            <div className="form-group" key={field.name}>
-                                                <label>{field.label} {field.required && '*'}</label>
-                                                <input
-                                                    type={field.type || 'text'}
-                                                    value={dynamicFields[field.name] || ''}
-                                                    onChange={e => setDynamicFields({ ...dynamicFields, [field.name]: e.target.value })}
-                                                    required={field.required}
-                                                    placeholder={field.placeholder || ''}
-                                                />
-                                            </div>
-                                        ))}
                                         <div className="form-group">
                                             <label>Assunto</label>
                                             <input

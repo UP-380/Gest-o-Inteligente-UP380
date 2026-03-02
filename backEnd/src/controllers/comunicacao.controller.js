@@ -52,18 +52,31 @@ async function enviarMensagem(req, res) {
 
                 // Buscar departamentos do autor da resposta
                 const { data: colab } = await supabase
-                    .from('colaboradores')
-                    .select('id')
+                    .from('membro')
+                    .select('id, nome')
                     .eq('usuario_id', criador_id)
                     .single();
 
                 let meusDeptos = [];
                 if (colab) {
+                    // 1. Departamentos onde é membro
                     const { data: deptosMembros } = await supabase
                         .from('departamento_membros')
                         .select('departamento_id')
                         .eq('membro_id', colab.id);
-                    meusDeptos = (deptosMembros || []).map(d => d.departamento_id);
+
+                    // 2. Departamentos onde é o responsável (HEAD)
+                    // Como o frontend salva 'head' como string de nomes, buscamos por ID ou Nome
+                    const { data: deptosHead } = await supabase
+                        .from('departamentos')
+                        .select('id')
+                        .or(`head.eq.${colab.id},head.ilike.%${colab.nome}%`);
+
+                    const idsMembros = (deptosMembros || []).map(d => d.departamento_id);
+                    const idsHead = (deptosHead || []).map(d => d.id);
+
+                    // Unir e remover duplicatas
+                    meusDeptos = [...new Set([...idsMembros, ...idsHead])];
                 }
 
                 let deptoId = rootTicket.metadata?.departamento_id ? Number(rootTicket.metadata.departamento_id) : null;
@@ -485,18 +498,32 @@ async function listarChamados(req, res) {
 
         // Buscar departamentos do usuário para filtro/permissão
         const { data: colab } = await supabase
-            .from('colaboradores')
-            .select('id')
+            .from('membro')
+            .select('id, nome')
             .eq('usuario_id', usuario_id)
             .single();
 
         let meusDeptos = [];
         if (colab) {
+            // 1. Departamentos onde é membro
             const { data: deptosMembros } = await supabase
                 .from('departamento_membros')
                 .select('departamento_id')
                 .eq('membro_id', colab.id);
-            meusDeptos = (deptosMembros || []).map(d => d.departamento_id);
+
+            // 2. Departamentos onde é o responsável (HEAD)
+            // Como o frontend salva 'head' como string de nomes (ex: "João, Maria"),
+            // buscamos onde o ID bate (legado/robusto) ou onde o nome aparece
+            const { data: deptosHead } = await supabase
+                .from('departamentos')
+                .select('id')
+                .or(`head.eq.${colab.id},head.ilike.%${colab.nome}%`);
+
+            const idsMembros = (deptosMembros || []).map(d => d.departamento_id);
+            const idsHead = (deptosHead || []).map(d => d.id);
+
+            // Unir e remover duplicatas
+            meusDeptos = [...new Set([...idsMembros, ...idsHead])];
         }
 
         let query = supabase
@@ -671,11 +698,22 @@ async function listarRespostasChamado(req, res) {
 
         let meusDeptos = [];
         if (colab) {
+            // 1. Departamentos onde é membro
             const { data: deptosMembros } = await supabase
                 .from('departamento_membros')
                 .select('departamento_id')
                 .eq('membro_id', colab.id);
-            meusDeptos = (deptosMembros || []).map(d => d.departamento_id);
+
+            // 2. Departamentos onde é o responsável (HEAD)
+            const { data: deptosHead } = await supabase
+                .from('departamentos')
+                .select('id')
+                .eq('head', colab.id);
+
+            const idsMembros = (deptosMembros || []).map(d => d.departamento_id);
+            const idsHead = (deptosHead || []).map(d => d.id);
+
+            meusDeptos = [...new Set([...idsMembros, ...idsHead])];
         }
 
         const enrichedData = data.map(msg => {
@@ -720,11 +758,22 @@ async function atualizarStatusChamado(req, res) {
 
         let meusDeptos = [];
         if (colab) {
+            // 1. Departamentos onde é membro
             const { data: deptosMembros } = await supabase
                 .from('departamento_membros')
                 .select('departamento_id')
                 .eq('membro_id', colab.id);
-            meusDeptos = (deptosMembros || []).map(d => d.departamento_id);
+
+            // 2. Departamentos onde é o responsável (HEAD)
+            const { data: deptosHead } = await supabase
+                .from('departamentos')
+                .select('id')
+                .eq('head', colab.id);
+
+            const idsMembros = (deptosMembros || []).map(d => d.departamento_id);
+            const idsHead = (deptosHead || []).map(d => d.id);
+
+            meusDeptos = [...new Set([...idsMembros, ...idsHead])];
         }
 
         const { data: chamado, error: errorBusca } = await supabase
@@ -1067,23 +1116,65 @@ async function atualizarPrioridadeChamado(req, res) {
 async function assumirChamado(req, res) {
     try {
         const { id } = req.params;
-        const usuario_id = req.session.usuario.id;
-        // Tenta obter o nome do usuario na sessão (pode ser nome_usuario ou nome dependedo do login)
-        const nome_usuario = req.session.usuario.nome_usuario || req.session.usuario.nome || 'Usuário';
+        const { responsavel_id } = req.body; // Aceita responsavel_id personalizado do body
+        const usuario_sessao_id = req.session.usuario.id;
+
+        // Converter para número se for numérico
+        const parsed_id = (responsavel_id && !isNaN(responsavel_id)) ? Number(responsavel_id) : responsavel_id;
+        let target_id = parsed_id || usuario_sessao_id;
+        let target_nome = '';
+
+        // Se passamos um responsavel_id específico (via seletor), precisamos buscar o nome dele
+        if (parsed_id) {
+            // 1. Tenta buscar no usuarios primeiro (quem tem login)
+            const { data: userObj } = await supabase
+                .from('usuarios')
+                .select('nome_usuario, nome')
+                .eq('id', parsed_id)
+                .maybeSingle();
+
+            if (userObj) {
+                target_nome = userObj.nome_usuario || userObj.nome || 'Usuário';
+            } else {
+                // 2. Se não achou no usuarios, tenta no membro (pelo ID do membro)
+                const { data: membroObj } = await supabase
+                    .from('membro')
+                    .select('nome')
+                    .eq('id', parsed_id)
+                    .maybeSingle();
+
+                if (membroObj) {
+                    target_nome = membroObj.nome || 'Usuário';
+                } else {
+                    // 3. Fallback: Se ainda não achou, pode ser um usuario_id órfão ou vindo de outra tabela
+                    const { data: fallbackObj } = await supabase
+                        .from('membro')
+                        .select('nome')
+                        .eq('usuario_id', parsed_id)
+                        .maybeSingle();
+
+                    if (!fallbackObj) return sendNotFound(res, 'Responsável');
+                    target_nome = fallbackObj.nome || 'Usuário';
+                }
+            }
+        } else {
+            // Caso contrário, usa o usuário logado (botão assumir normal)
+            target_nome = req.session.usuario.nome_usuario || req.session.usuario.nome || 'Usuário';
+        }
 
         const { data: chamado, error: errorBusca } = await supabase
             .from('comunicacao_mensagens')
             .select('metadata')
             .eq('id', id)
-            .single();
+            .maybeSingle();
 
         if (errorBusca || !chamado) return sendNotFound(res, 'Chamado');
 
         const existingMetadata = chamado.metadata || {};
         const newMetadata = {
             ...existingMetadata,
-            responsavel: nome_usuario,
-            responsavel_id: usuario_id
+            responsavel: target_nome,
+            responsavel_id: target_id
         };
 
         const { error } = await supabase
@@ -1093,16 +1184,7 @@ async function assumirChamado(req, res) {
 
         if (error) throw error;
 
-        // Opcional: Adicionar mensagem de sistema no chat para informar quem assumiu
-        await supabase.from('comunicacao_mensagens').insert({
-            tipo: 'CHAMADO',
-            mensagem_pai_id: id,
-            criador_id: usuario_id,
-            conteudo: `O chamado foi assumido por **${nome_usuario}**`,
-            metadata: { sistema: true, acao: 'CHAMADO_ASSUMIDO', responsavel: nome_usuario, responsavel_id: usuario_id }
-        });
-
-        return sendSuccess(res, 200, { responsavel: nome_usuario }, 'Chamado assumido com sucesso.');
+        return sendSuccess(res, 200, { responsavel: target_nome, responsavel_id: target_id }, 'Responsável definido com sucesso.');
     } catch (error) {
         console.error('Erro ao assumir chamado:', error);
         return sendError(res, 500, 'Erro ao assumir chamado.', error.message);

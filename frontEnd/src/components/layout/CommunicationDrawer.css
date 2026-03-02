@@ -1243,3 +1243,37 @@ video.media-preview {
     cursor: not-allowed;
     background-color: #f1f5f9;
 }
+
+/* Custom styling for FilterColaborador in the drawer header */
+.chat-detail-header .colaborador-filter-container {
+    width: 100%;
+}
+
+.chat-detail-header .colaborador-select-field {
+    min-height: 34px !important;
+}
+
+.chat-detail-header .colaborador-select-display {
+    padding: 4px 12px !important;
+    font-size: 13px !important;
+    background-color: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 6px !important;
+    min-height: 34px !important;
+}
+
+.chat-detail-header .colaborador-select-text {
+    font-size: 13px !important;
+    color: #475569 !important;
+    font-weight: 500 !important;
+}
+
+.chat-detail-header .colaborador-select-arrow {
+    font-size: 10px !important;
+}
+
+.chat-detail-header .colaborador-dropdown {
+    width: 250px !important;
+    left: auto !important;
+    right: 0 !important;
+}

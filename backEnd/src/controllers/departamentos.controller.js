@@ -194,7 +194,8 @@ async function getMembrosDepartamento(req, res) {
         membro:membro_id (
           id,
           nome,
-          cpf
+          cpf,
+          usuario_id
         )
       `)
             .eq('departamento_id', id);
@@ -208,6 +209,7 @@ async function getMembrosDepartamento(req, res) {
         const formattedData = data.map(record => ({
             id: record.id, // ID da associação
             membro_id: record.membro_id,
+            usuario_id: record.membro?.usuario_id,
             departamento_id: record.departamento_id,
             name: record.membro?.nome || 'Desconhecido', // Usar nome da tabela membro
             email: record.membro?.email || '', // Email pode estar na associação ou buscar de outro lugar se necessário

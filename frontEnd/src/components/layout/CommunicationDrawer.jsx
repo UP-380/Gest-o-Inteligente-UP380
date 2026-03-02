@@ -2,9 +2,11 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { comunicacaoAPI } from '../../services/comunicacao.service';
 import { usuariosAPI, authAPI, departamentosAPI } from '../../services/api';
 import { hasPermissionSync } from '../../utils/permissions';
+import SearchInput from '../common/SearchInput';
 import Avatar from '../user/Avatar';
 import ConfirmModal from '../common/ConfirmModal';
 import ButtonPrimary from '../common/ButtonPrimary';
+import FilterColaborador from '../filters/FilterColaborador';
 import './CommunicationDrawer.css';
 
 // ==============================================================================
@@ -467,18 +469,30 @@ const CommunicationDrawer = ({ user }) => {
     const [loadingChamadoMessages, setLoadingChamadoMessages] = useState(false);
     const [replyingToChamado, setReplyingToChamado] = useState(false);
     const [statusFilter, setStatusFilter] = useState('Todos');
+    const [chamadoSearchText, setChamadoSearchText] = useState('');
+    const [deptMembers, setDeptMembers] = useState([]);
+    const [loadingDeptMembers, setLoadingDeptMembers] = useState(false);
 
     const filteredChamados = chamados.filter(c => {
-        if (statusFilter === 'Todos') return true;
-        if (statusFilter === 'ENCERRADO') return c.status_chamado === 'ENCERRADO' || c.status_chamado === 'CONCLUIDO';
-        return c.status_chamado === statusFilter;
+        // Filtro por status
+        const matchesStatus = statusFilter === 'Todos' ||
+            (statusFilter === 'ENCERRADO' ? (c.status_chamado === 'ENCERRADO' || c.status_chamado === 'CONCLUIDO') : c.status_chamado === statusFilter);
+
+        // Filtro por termo de busca
+        const searchLower = chamadoSearchText.toLowerCase();
+        const matchesSearch = !chamadoSearchText.trim() ||
+            (c.titulo?.toLowerCase().includes(searchLower)) ||
+            (c.conteudo?.toLowerCase().includes(searchLower)) ||
+            (c.criador?.nome_usuario?.toLowerCase().includes(searchLower)) ||
+            (c.metadata?.responsavel?.toLowerCase().includes(searchLower));
+
+        return matchesStatus && matchesSearch;
     });
 
     // Form States para Novos Itens
     const [showNewAvisoForm, setShowNewAvisoForm] = useState(false);
     const [showNewChamadoForm, setShowNewChamadoForm] = useState(false);
-    const [formData, setFormData] = useState({ titulo: '', conteudo: '', destacado: false, categoria_id: '', departamento_id: '', prazo_desejado: '' });
-    const [categorias, setCategorias] = useState([]);
+    const [formData, setFormData] = useState({ titulo: '', conteudo: '', destacado: false, departamento_id: '', prazo_desejado: '' });
     const [departamentos, setDepartamentos] = useState([]);
     const [templates, setTemplates] = useState([]);
     const [dynamicFields, setDynamicFields] = useState({});
@@ -612,16 +626,7 @@ const CommunicationDrawer = ({ user }) => {
         }
     };
 
-    const loadCategorias = async () => {
-        try {
-            const response = await comunicacaoAPI.listarCategorias();
-            if (response.success) {
-                setCategorias(response.data);
-            }
-        } catch (error) {
-            console.error('Erro ao buscar categorias:', error);
-        }
-    };
+
 
     const loadDepartamentos = async () => {
         try {
@@ -725,9 +730,20 @@ const CommunicationDrawer = ({ user }) => {
     const handleSelectChamado = async (chamado) => {
         setSelectedChamado(chamado);
         setLoadingChamadoMessages(true);
-
+        setDeptMembers([]); // Reset members
 
         try {
+            // Se o chamado tem departamento, carregar membros do departamento para o seletor de responsável
+            const deptoId = chamado.metadata?.departamento_id || chamado.categoria?.departamento?.id;
+            if (deptoId) {
+                setLoadingDeptMembers(true);
+                departamentosAPI.getMembros(deptoId).then(res => {
+                    if (res.success) {
+                        setDeptMembers(res.data || []);
+                    }
+                }).finally(() => setLoadingDeptMembers(false));
+            }
+
             const response = await comunicacaoAPI.listarRespostasChamado(chamado.id);
             if (response.success) {
                 setChamadoMessages(response.data);
@@ -822,24 +838,27 @@ const CommunicationDrawer = ({ user }) => {
         }
     };
 
-    const handleAssumirChamado = async () => {
+    const handleAssumirChamado = async (responsavelId = null) => {
         if (!selectedChamado) return;
 
         try {
-            const response = await comunicacaoAPI.assumirChamado(selectedChamado.id);
+            const payload = responsavelId ? { responsavel_id: responsavelId } : {};
+            const response = await comunicacaoAPI.assumirChamado(selectedChamado.id, payload);
+
             if (response.success) {
                 const responsavel = response.data?.responsavel;
+                const target_responsavel_id = responsavelId || user?.id;
 
                 setSelectedChamado(prev => ({
                     ...prev,
-                    metadata: { ...(prev.metadata || {}), responsavel, responsavel_id: user?.id }
+                    metadata: { ...(prev.metadata || {}), responsavel, responsavel_id: target_responsavel_id }
                 }));
 
                 setChamados(prev => prev.map(c => {
                     if (String(c.id) === String(selectedChamado.id)) {
                         return {
                             ...c,
-                            metadata: { ...(c.metadata || {}), responsavel, responsavel_id: user?.id }
+                            metadata: { ...(c.metadata || {}), responsavel, responsavel_id: target_responsavel_id }
                         };
                     }
                     return c;
@@ -854,7 +873,7 @@ const CommunicationDrawer = ({ user }) => {
             }
         } catch (error) {
             console.error('Erro ao assumir chamado:', error);
-            alert('Erro de conexão ao assumir chamado.');
+            alert(error.message || 'Erro de conexão ao assumir chamado.');
         }
     };
 
@@ -951,16 +970,14 @@ const CommunicationDrawer = ({ user }) => {
                 metadata: tipo === 'COMUNICADO' ? {
                     destacado: formData.destacado
                 } : (tipo === 'CHAMADO' ? {
-                    categoria_id: formData.categoria_id,
-                    departamento_id: formData.departamento_id,
-                    campos_dinamicos: dynamicFields
+                    departamento_id: formData.departamento_id
                 } : {})
             };
 
             const response = await comunicacaoAPI.enviarMensagem(payload);
 
             if (response.success) {
-                setFormData({ titulo: '', conteudo: '', destacado: false, categoria_id: '', departamento_id: '', prazo_desejado: '' });
+                setFormData({ titulo: '', conteudo: '', destacado: false, departamento_id: '', prazo_desejado: '' });
                 setDynamicFields({});
                 setShowNewAvisoForm(false);
                 setShowNewChamadoForm(false);
@@ -1190,11 +1207,21 @@ const CommunicationDrawer = ({ user }) => {
 
     const renderChamados = () => (
         <div className="comm-list-view">
-            <div className="comm-actions">
-                <button className="new-chat-btn" onClick={() => setShowNewChamadoForm(true)}>
+            <div className="comm-actions" style={{ flexDirection: 'column', gap: '12px' }}>
+                <button className="new-chat-btn" onClick={() => setShowNewChamadoForm(true)} style={{ width: '100%' }}>
                     <i className="fas fa-headset"></i> Abrir Chamado
                 </button>
-                <div className="chamados-filters" style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+
+                <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+                    <SearchInput
+                        value={chamadoSearchText}
+                        onChange={setChamadoSearchText}
+                        placeholder="Pesquisar chamados por título, conteúdo ou autor..."
+                        className="chamados-search-input"
+                    />
+                </div>
+
+                <div className="chamados-filters" style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px', width: '100%', justifyContent: 'center' }}>
                     {['Todos', 'ABERTO', 'EM_ANALISE', 'RESPONDIDO', 'ENCERRADO', 'CANCELADO'].map(st => (
                         <button
                             key={st}
@@ -1257,7 +1284,7 @@ const CommunicationDrawer = ({ user }) => {
                                     <span>Responsável: <strong>{cham.metadata?.responsavel || cham.respondido_por || 'Não assumido'}</strong></span>
                                     <span className="chamado-preview-dept">
                                         <i className="fas fa-building"></i>
-                                        Departamento: <strong>{cham.categoria?.departamento?.nome || departamentos.find(d => String(d.id) === String(cham.metadata?.departamento_id))?.nome || 'Não especificado'}</strong>
+                                        Departamento: <strong>{departamentos.find(d => String(d.id) === String(cham.metadata?.departamento_id))?.nome || cham.categoria?.departamento?.nome || 'Geral'}</strong>
                                     </span>
                                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
                                         <span style={{
@@ -1306,20 +1333,29 @@ const CommunicationDrawer = ({ user }) => {
                     </div>
 
                     {isSupport && (
-                        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
-                            <ButtonPrimary
-                                style={{
-                                    padding: '8px 16px',
-                                    fontSize: '12px',
-                                    backgroundColor: selectedChamado.metadata?.responsavel_id === user?.id ? '#15803d' : undefined,
-                                }}
-                                onClick={handleAssumirChamado}
-                                disabled={selectedChamado.metadata?.responsavel_id === user?.id}
-                                title={selectedChamado.metadata?.responsavel_id === user?.id ? 'Você já assumiu este chamado' : 'Assumir chamado'}
-                                icon={selectedChamado.metadata?.responsavel_id === user?.id ? "fas fa-check-circle" : "fas fa-hand-paper"}
-                            >
-                                {selectedChamado.metadata?.responsavel_id === user?.id ? 'Assumido' : 'Assumir chamado'}
-                            </ButtonPrimary>
+                        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', minWidth: '220px' }}>
+                            {loadingDeptMembers ? (
+                                <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                    <i className="fas fa-spinner fa-spin"></i> Carregando membros...
+                                </div>
+                            ) : (
+                                <FilterColaborador
+                                    hideLabel
+                                    placeholder="Definir Responsável"
+                                    value={selectedChamado.metadata?.responsavel_id ? [selectedChamado.metadata.responsavel_id] : []}
+                                    options={deptMembers.map(m => ({ id: m.usuario_id || m.membro_id, nome: m.name }))}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (val && val.length > 0) {
+                                            // Pega o último ID selecionado (como é toggle, se clicou em um novo ele vem por último)
+                                            // Ou simplesmente pega o primeiro se quisermos forçar um único
+                                            const newId = val[val.length - 1];
+                                            handleAssumirChamado(newId);
+                                        }
+                                    }}
+                                    allowEmpty={true}
+                                />
+                            )}
                         </div>
                     )}
                 </div>
@@ -1660,19 +1696,6 @@ const CommunicationDrawer = ({ user }) => {
 
                 {(tipo === 'COMUNICADO' || formData.departamento_id) && (
                     <>
-                        {tipo === 'CHAMADO' && categorias.find(c => String(c.id) === String(formData.categoria_id))?.campos_esquema?.map(field => (
-                            <div className="comm-drawer-form-group" key={field.name}>
-                                <label className="comm-drawer-form-label">{field.label} {field.required && '*'}</label>
-                                <input
-                                    type={field.type || 'text'}
-                                    value={dynamicFields[field.name] || ''}
-                                    onChange={e => setDynamicFields({ ...dynamicFields, [field.name]: e.target.value })}
-                                    required={field.required}
-                                    placeholder={field.placeholder || ''}
-                                    className="comm-drawer-form-input"
-                                />
-                            </div>
-                        ))}
                         <div className="comm-drawer-form-group">
                             <label className="comm-drawer-form-label">Título *</label>
                             <input
@@ -1733,7 +1756,7 @@ const CommunicationDrawer = ({ user }) => {
                 )}
 
                 <button
-                    className={`btn-confirm w-full p-3 rounded-lg border-none font-bold transition-all ${(isSaving || !formData.titulo.trim() || !formData.conteudo.trim() || (tipo === 'CHAMADO' && !formData.categoria_id))
+                    className={`btn-confirm w-full p-3 rounded-lg border-none font-bold transition-all ${(isSaving || !formData.titulo.trim() || !formData.conteudo.trim() || (tipo === 'CHAMADO' && !formData.departamento_id))
                         ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
                         : 'bg-[#0e3b6f] text-white cursor-pointer hover:bg-[#0a2b53]'
                         }`}
