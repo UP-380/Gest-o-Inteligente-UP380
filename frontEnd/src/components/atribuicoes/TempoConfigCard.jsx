@@ -185,7 +185,8 @@ const TempoConfigCard = ({
                 disabled={disabled}
             >
                 <i className="fas fa-cog"></i>
-                <span>{label}</span>
+                <span style={{ flex: 1, textAlign: 'left' }}>{label}</span>
+                <i className={`fas ${isOpen ? 'fa-chevron-up' : 'fa-chevron-down'}`} style={{ fontSize: '10px', opacity: 0.6, marginLeft: '4px' }}></i>
             </button>
         </div>
     );

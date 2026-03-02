@@ -1216,6 +1216,49 @@ const SelecaoTarefasPorProduto = ({
                                   </div>
                                 </div>
                               )}
+                              {/* Campo de tempo estimado - mostrar apenas se showTempoEstimado=true e tarefa selecionada */}
+                              {showTempoEstimado && tarefa.selecionada && (
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'flex-start',
+                                    pointerEvents: 'auto',
+                                    position: 'relative',
+                                    zIndex: showTempoConfigTarefa[`${produtoIdNum}_${tarefa.id}`] ? 9999 : 10,
+                                    width: '100px',
+                                    flexShrink: 0
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                >
+                                  <TempoConfigCard
+                                    label={tempoConfigPorTarefa[`${produtoIdNum}_${tarefa.id}`] ? 'Estimado' : 'Estimar'}
+                                    initialConfig={tempoConfigPorTarefa[`${produtoIdNum}_${tarefa.id}`] || {}}
+                                    onSave={(config) => {
+                                      if (onTempoConfigChange) onTempoConfigChange(produtoIdNum, tarefa.id, config);
+                                      const key = `${produtoIdNum}_${tarefa.id}`;
+                                      setShowTempoConfigTarefa(prev => ({ ...prev, [key]: false }));
+                                    }}
+                                    dataInicioPadrao={periodosPorTarefa[`${produtoIdNum}_${tarefa.id}`]?.inicio}
+                                    responsavelId={(() => {
+                                      const ids = getResponsavelTarefa(produtoIdNum, tarefa.id);
+                                      return ids.length === 1 ? ids[0] : null;
+                                    })()}
+                                    disabled={disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id))}
+                                    className="btn-configurar-tempo-row-container"
+                                    onOpenChange={(isOpen) => {
+                                      const key = `${produtoIdNum}_${tarefa.id}`;
+                                      setShowTempoConfigTarefa(prev => ({ ...prev, [key]: isOpen }));
+                                    }}
+                                  />
+                                  {ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id) && (
+                                    <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000, whiteSpace: 'nowrap' }}>
+                                      Preencha o período primeiro
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                               {/* Card de responsável - mostrar apenas quando tarefa estiver selecionada */}
                               {tarefa.selecionada && onResponsavelChange && colaboradores.length > 0 && (
                                 <div
@@ -1265,49 +1308,6 @@ const SelecaoTarefasPorProduto = ({
                                     />
                                   </div>
                                   {ordemPreenchimento && !ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && (
-                                    <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000, whiteSpace: 'nowrap' }}>
-                                      Preencha o período primeiro
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                              {/* Campo de tempo estimado - mostrar apenas se showTempoEstimado=true e tarefa selecionada */}
-                              {showTempoEstimado && tarefa.selecionada && (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'flex-start',
-                                    pointerEvents: 'auto',
-                                    position: 'relative',
-                                    zIndex: showTempoConfigTarefa[`${produtoIdNum}_${tarefa.id}`] ? 9999 : 10,
-                                    width: '100px',
-                                    flexShrink: 0
-                                  }}
-                                  onClick={(e) => e.stopPropagation()}
-                                  onMouseDown={(e) => e.stopPropagation()}
-                                >
-                                  <TempoConfigCard
-                                    label={tempoConfigPorTarefa[`${produtoIdNum}_${tarefa.id}`] ? 'Configurado' : 'Tempo'}
-                                    initialConfig={tempoConfigPorTarefa[`${produtoIdNum}_${tarefa.id}`] || {}}
-                                    onSave={(config) => {
-                                      if (onTempoConfigChange) onTempoConfigChange(produtoIdNum, tarefa.id, config);
-                                      const key = `${produtoIdNum}_${tarefa.id}`;
-                                      setShowTempoConfigTarefa(prev => ({ ...prev, [key]: false }));
-                                    }}
-                                    dataInicioPadrao={periodosPorTarefa[`${produtoIdNum}_${tarefa.id}`]?.inicio}
-                                    responsavelId={(() => {
-                                      const ids = getResponsavelTarefa(produtoIdNum, tarefa.id);
-                                      return ids.length === 1 ? ids[0] : null;
-                                    })()}
-                                    disabled={disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id))}
-                                    className="btn-configurar-tempo-row-container"
-                                    onOpenChange={(isOpen) => {
-                                      const key = `${produtoIdNum}_${tarefa.id}`;
-                                      setShowTempoConfigTarefa(prev => ({ ...prev, [key]: isOpen }));
-                                    }}
-                                  />
-                                  {ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id) && (
                                     <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000, whiteSpace: 'nowrap' }}>
                                       Preencha o período primeiro
                                     </div>
@@ -1527,6 +1527,49 @@ const SelecaoTarefasPorProduto = ({
                                   />
                                 </div>
                               )}
+                              {/* Campo de tempo estimado - mostrar apenas se showTempoEstimado=true e tarefa selecionada */}
+                              {showTempoEstimado && tarefa.selecionada && (
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'flex-start',
+                                    pointerEvents: 'auto',
+                                    position: 'relative',
+                                    zIndex: showTempoConfigTarefa[`${produtoIdNum}_${tarefa.id}`] ? 9999 : 10,
+                                    width: '100px',
+                                    flexShrink: 0
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                >
+                                  <TempoConfigCard
+                                    label={tempoConfigPorTarefa[`${produtoIdNum}_${tarefa.id}`] ? 'Estimado' : 'Estimar'}
+                                    initialConfig={tempoConfigPorTarefa[`${produtoIdNum}_${tarefa.id}`] || {}}
+                                    onSave={(config) => {
+                                      if (onTempoConfigChange) onTempoConfigChange(produtoIdNum, tarefa.id, config);
+                                      const key = `${produtoIdNum}_${tarefa.id}`;
+                                      setShowTempoConfigTarefa(prev => ({ ...prev, [key]: false }));
+                                    }}
+                                    dataInicioPadrao={periodosPorTarefa[`${produtoIdNum}_${tarefa.id}`]?.inicio}
+                                    responsavelId={(() => {
+                                      const ids = getResponsavelTarefa(produtoIdNum, tarefa.id);
+                                      return ids.length === 1 ? ids[0] : null;
+                                    })()}
+                                    disabled={disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id))}
+                                    className="btn-configurar-tempo-row-container"
+                                    onOpenChange={(isOpen) => {
+                                      const key = `${produtoIdNum}_${tarefa.id}`;
+                                      setShowTempoConfigTarefa(prev => ({ ...prev, [key]: isOpen }));
+                                    }}
+                                  />
+                                  {ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id) && (
+                                    <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000, whiteSpace: 'nowrap' }}>
+                                      Preencha o período primeiro
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                               {/* Card de responsável - mostrar apenas quando tarefa estiver selecionada (exceção) */}
                               {tarefa.selecionada && onResponsavelChange && colaboradores.length > 0 && (
                                 <div
@@ -1572,49 +1615,6 @@ const SelecaoTarefasPorProduto = ({
                                     />
                                   </div>
                                   {ordemPreenchimento && !ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && (
-                                    <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000, whiteSpace: 'nowrap' }}>
-                                      Preencha o período primeiro
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                              {/* Campo de tempo estimado - mostrar apenas se showTempoEstimado=true e tarefa selecionada */}
-                              {showTempoEstimado && tarefa.selecionada && (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'flex-start',
-                                    pointerEvents: 'auto',
-                                    position: 'relative',
-                                    zIndex: showTempoConfigTarefa[`${produtoIdNum}_${tarefa.id}`] ? 9999 : 10,
-                                    width: '100px',
-                                    flexShrink: 0
-                                  }}
-                                  onClick={(e) => e.stopPropagation()}
-                                  onMouseDown={(e) => e.stopPropagation()}
-                                >
-                                  <TempoConfigCard
-                                    label={tempoConfigPorTarefa[`${produtoIdNum}_${tarefa.id}`] ? 'Configurado' : 'Tempo'}
-                                    initialConfig={tempoConfigPorTarefa[`${produtoIdNum}_${tarefa.id}`] || {}}
-                                    onSave={(config) => {
-                                      if (onTempoConfigChange) onTempoConfigChange(produtoIdNum, tarefa.id, config);
-                                      const key = `${produtoIdNum}_${tarefa.id}`;
-                                      setShowTempoConfigTarefa(prev => ({ ...prev, [key]: false }));
-                                    }}
-                                    dataInicioPadrao={periodosPorTarefa[`${produtoIdNum}_${tarefa.id}`]?.inicio}
-                                    responsavelId={(() => {
-                                      const ids = getResponsavelTarefa(produtoIdNum, tarefa.id);
-                                      return ids.length === 1 ? ids[0] : null;
-                                    })()}
-                                    disabled={disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id))}
-                                    className="btn-configurar-tempo-row-container"
-                                    onOpenChange={(isOpen) => {
-                                      const key = `${produtoIdNum}_${tarefa.id}`;
-                                      setShowTempoConfigTarefa(prev => ({ ...prev, [key]: isOpen }));
-                                    }}
-                                  />
-                                  {ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id) && (
                                     <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000, whiteSpace: 'nowrap' }}>
                                       Preencha o período primeiro
                                     </div>

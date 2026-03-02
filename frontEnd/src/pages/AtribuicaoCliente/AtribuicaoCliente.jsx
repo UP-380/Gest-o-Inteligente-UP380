@@ -264,10 +264,10 @@ const AtribuicaoCliente = () => {
   };
 
   const podePreencherTempo = () => {
-    // Permitir se há período completo OU datas individuais, E há responsáveis selecionados
+    // Permitir se há período completo OU datas individuais
     const temPeriodoCompleto = !!(periodoGlobal.inicio && periodoGlobal.fim);
     const temDatasIndividuais = Array.isArray(periodoGlobal.datasIndividuais) && periodoGlobal.datasIndividuais.length > 0;
-    return (temPeriodoCompleto || temDatasIndividuais) && Array.isArray(responsaveisGlobais) && responsaveisGlobais.length > 0;
+    return (temPeriodoCompleto || temDatasIndividuais);
   };
 
   // Função para obter o período consolidado de uma tarefa (com fallback global)
@@ -2728,6 +2728,26 @@ const AtribuicaoCliente = () => {
                               showRecurrence={true}
                             />
                           </div>
+                          <div style={{ minWidth: '140px', width: '140px', position: 'relative', display: 'flex', flexDirection: 'column', zIndex: showTempoConfigGlobal ? 9999 : 10 }} className="tempo-global-wrapper">
+                            <div style={{ width: '100%' }}>
+                              <TempoConfigCard
+                                label={Object.keys(tempoConfigGlobal).length > 0 ? 'Tempo Estimado' : 'Estimar Tempo'}
+                                initialConfig={tempoConfigGlobal}
+                                onSave={handleTempoConfigGlobalChange}
+                                dataInicioPadrao={periodoGlobal.inicio}
+                                dataFimPadrao={periodoGlobal.fim}
+                                disabled={loading || submitting || !clienteSelecionado || produtosSelecionados.length === 0 || !podePreencherTempo()}
+                                className="tempo-global-btn-container"
+                                onOpenChange={(isOpen) => setShowTempoConfigGlobal(isOpen)}
+                              />
+                            </div>
+
+                            {!podePreencherTempo() && (
+                              <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000 }}>
+                                Preencha o período ou selecione dias específicos primeiro
+                              </div>
+                            )}
+                          </div>
                           <div style={{ minWidth: '182px', position: 'relative', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '8px' }} className="responsavel-card-global-wrapper">
                             <div style={{ width: '100%', flex: '1 1 auto', minWidth: 0 }}>
                               <ResponsavelCard
@@ -2760,31 +2780,6 @@ const AtribuicaoCliente = () => {
                               </div>
                             )}
 
-                          </div>
-                          <div style={{ minWidth: '140px', width: '140px', position: 'relative', display: 'flex', flexDirection: 'column', zIndex: showTempoConfigGlobal ? 9999 : 10 }} className="tempo-global-wrapper">
-                            <div style={{ width: '100%' }}>
-                              <TempoConfigCard
-                                label={Object.keys(tempoConfigGlobal).length > 0 ? 'Tempo Configurado' : 'Configurar Tempo'}
-                                initialConfig={tempoConfigGlobal}
-                                onSave={handleTempoConfigGlobalChange}
-                                dataInicioPadrao={periodoGlobal.inicio}
-                                dataFimPadrao={periodoGlobal.fim}
-                                disabled={loading || submitting || !clienteSelecionado || produtosSelecionados.length === 0 || !podePreencherTempo()}
-                                className="tempo-global-btn-container"
-                                onOpenChange={(isOpen) => setShowTempoConfigGlobal(isOpen)}
-                              />
-                            </div>
-
-                            {!podePreencherTempo() && podePreencherResponsavel() && (
-                              <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000 }}>
-                                Preencha o responsável primeiro
-                              </div>
-                            )}
-                            {!podePreencherTempo() && !podePreencherResponsavel() && (
-                              <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000 }}>
-                                Preencha o período ou selecione dias específicos primeiro
-                              </div>
-                            )}
                           </div>
                           <button
                             type="button"
