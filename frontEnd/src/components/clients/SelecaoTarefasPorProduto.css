@@ -58,3 +58,41 @@
   font-size: 11px !important;
   color: #ffffff !important;
 }
+
+/* Sincronizar design do TempoConfigCard dentro da linha da tarefa selecionada */
+.selected-item-tag .btn-configurar-tempo-row-container .btn-configurar-tempo-generic {
+  padding: 4px 10px !important;
+  background: rgba(255, 255, 255, 0.2) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  border-radius: 4px !important;
+  font-size: 11px !important;
+  min-height: 26px !important;
+  height: 26px !important;
+  color: #ffffff !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  justify-content: space-between !important;
+  box-shadow: none !important;
+}
+
+.selected-item-tag .btn-configurar-tempo-row-container .btn-configurar-tempo-generic i,
+.selected-item-tag .btn-configurar-tempo-row-container .btn-configurar-tempo-generic span {
+  color: #ffffff !important;
+}
+
+.selected-item-tag .btn-configurar-tempo-row-container .btn-configurar-tempo-generic i.fa-cog {
+  margin-right: 4px !important;
+  font-size: 11px !important;
+}
+
+.selected-item-tag .btn-configurar-tempo-row-container .btn-configurar-tempo-generic .fa-chevron-down,
+.selected-item-tag .btn-configurar-tempo-row-container .btn-configurar-tempo-generic .fa-chevron-up {
+  font-size: 9px !important;
+  opacity: 0.8 !important;
+  margin-left: 4px !important;
+}
+
+.selected-item-tag .btn-configurar-tempo-row-container .btn-configurar-tempo-generic:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.3) !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
+}
