@@ -473,21 +473,44 @@ const CommunicationDrawer = ({ user }) => {
     const [deptMembers, setDeptMembers] = useState([]);
     const [loadingDeptMembers, setLoadingDeptMembers] = useState(false);
 
-    const filteredChamados = chamados.filter(c => {
-        // Filtro por status
-        const matchesStatus = statusFilter === 'Todos' ||
-            (statusFilter === 'ENCERRADO' ? (c.status_chamado === 'ENCERRADO' || c.status_chamado === 'CONCLUIDO') : c.status_chamado === statusFilter);
+    const filteredChamados = chamados
+        .filter(c => {
+            // Filtro por status
+            const matchesStatus = statusFilter === 'Todos' ||
+                (statusFilter === 'ENCERRADO' ? (c.status_chamado === 'ENCERRADO' || c.status_chamado === 'CONCLUIDO') : c.status_chamado === statusFilter);
 
-        // Filtro por termo de busca
-        const searchLower = chamadoSearchText.toLowerCase();
-        const matchesSearch = !chamadoSearchText.trim() ||
-            (c.titulo?.toLowerCase().includes(searchLower)) ||
-            (c.conteudo?.toLowerCase().includes(searchLower)) ||
-            (c.criador?.nome_usuario?.toLowerCase().includes(searchLower)) ||
-            (c.metadata?.responsavel?.toLowerCase().includes(searchLower));
+            // Filtro por termo de busca
+            const searchLower = chamadoSearchText.toLowerCase();
+            const matchesSearch = !chamadoSearchText.trim() ||
+                (c.titulo?.toLowerCase().includes(searchLower)) ||
+                (c.conteudo?.toLowerCase().includes(searchLower)) ||
+                (c.criador?.nome_usuario?.toLowerCase().includes(searchLower)) ||
+                (c.metadata?.responsavel?.toLowerCase().includes(searchLower));
 
-        return matchesStatus && matchesSearch;
-    });
+            return matchesStatus && matchesSearch;
+        })
+        .sort((a, b) => {
+            // 1. Critério de Status: Encerrados e Cancelados por último
+            const isClosed = (s) => ['ENCERRADO', 'CANCELADO', 'CONCLUIDO'].includes(s);
+            const closedA = isClosed(a.status_chamado) ? 1 : 0;
+            const closedB = isClosed(b.status_chamado) ? 1 : 0;
+
+            if (closedA !== closedB) {
+                return closedA - closedB; // Aberto (0) antes de Fechado (1)
+            }
+
+            // 2. Critério de Prioridade: Dentro do mesmo grupo (aberto ou fechado)
+            const priorityMap = { 'URGENTE': 4, 'ALTA': 3, 'NORMAL': 2, 'BAIXA': 1 };
+            const priA = priorityMap[a.metadata?.prioridade] || 1;
+            const priB = priorityMap[b.metadata?.prioridade] || 1;
+
+            if (priA !== priB) {
+                return priB - priA; // Maior prioridade primeiro
+            }
+
+            // 3. Critério de Data: Caso empate em status e prioridade
+            return new Date(b.created_at) - new Date(a.created_at);
+        });
 
     // Form States para Novos Itens
     const [showNewAvisoForm, setShowNewAvisoForm] = useState(false);
@@ -1321,43 +1344,44 @@ const CommunicationDrawer = ({ user }) => {
 
         return (
             <div className="chat-detail-container">
-                <div className="chat-detail-header">
-                    <button className="back-btn" onClick={() => setSelectedChamado(null)}>
-                        <i className="fas fa-arrow-left"></i>
-                    </button>
-                    <div className="chat-detail-info">
-                        <div className="chat-detail-sub">
-                            <span className="chat-detail-created">Aberto em {formatDate(selectedChamado.created_at)}</span>
-                        </div>
-                        <span className="chat-target-name" style={{ display: 'block', marginTop: '4px' }}>{selectedChamado.titulo}</span>
-                    </div>
+                <div className="chat-detail-header" style={{ display: 'flex', flexDirection: 'column', padding: '10px 16px', gap: '0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: '12px' }}>
+                        <button className="back-btn" onClick={() => setSelectedChamado(null)} style={{ flexShrink: 0 }}>
+                            <i className="fas fa-arrow-left"></i>
+                        </button>
+                        <span className="chat-target-name" style={{ flex: 1, margin: 0, fontWeight: 700 }}>
+                            {selectedChamado.titulo}
+                        </span>
 
-                    {isSupport && (
-                        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', minWidth: '220px' }}>
-                            {loadingDeptMembers ? (
-                                <div style={{ fontSize: '11px', color: '#64748b' }}>
-                                    <i className="fas fa-spinner fa-spin"></i> Carregando membros...
-                                </div>
-                            ) : (
-                                <FilterColaborador
-                                    hideLabel
-                                    placeholder="Definir Responsável"
-                                    value={selectedChamado.metadata?.responsavel_id ? [selectedChamado.metadata.responsavel_id] : []}
-                                    options={deptMembers.map(m => ({ id: m.usuario_id || m.membro_id, nome: m.name }))}
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        if (val && val.length > 0) {
-                                            // Pega o último ID selecionado (como é toggle, se clicou em um novo ele vem por último)
-                                            // Ou simplesmente pega o primeiro se quisermos forçar um único
-                                            const newId = val[val.length - 1];
-                                            handleAssumirChamado(newId);
-                                        }
-                                    }}
-                                    allowEmpty={true}
-                                />
-                            )}
-                        </div>
-                    )}
+                        {isSupport && (
+                            <div style={{ marginLeft: 'auto', flexShrink: 0, minWidth: '220px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+                                {loadingDeptMembers ? (
+                                    <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                        <i className="fas fa-spinner fa-spin"></i>
+                                    </div>
+                                ) : (
+                                    <FilterColaborador
+                                        hideLabel
+                                        placeholder="Definir Responsável"
+                                        value={selectedChamado.metadata?.responsavel_id ? [selectedChamado.metadata.responsavel_id] : []}
+                                        options={deptMembers.map(m => ({ id: m.usuario_id || m.membro_id, nome: m.name }))}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            if (val && val.length > 0) {
+                                                const newId = val[val.length - 1];
+                                                handleAssumirChamado(newId);
+                                            }
+                                        }}
+                                        allowEmpty={true}
+                                        className="comm-colaborador-selector"
+                                    />
+                                )}
+                            </div>
+                        )}
+                    </div>
+                    <div style={{ paddingLeft: '44px', marginTop: '-4px', marginBottom: '4px' }}>
+                        <span className="chat-detail-created" style={{ fontSize: '0.7rem', opacity: 0.6 }}>Aberto em {formatDate(selectedChamado.created_at)}</span>
+                    </div>
                 </div>
 
                 {selectedChamado.prazo_desejado && (
@@ -1458,50 +1482,58 @@ const CommunicationDrawer = ({ user }) => {
                         })}
                         {isSupport && (
                             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <span className="label" style={{ marginRight: 0 }}>Prioridade:</span>
-                                <select
-                                    className="comm-custom-select"
-                                    style={{ width: 'auto' }}
-                                    value={selectedChamado.metadata?.prioridade || 'BAIXA'}
-                                    onChange={(e) => {
-                                        const novaPrioridade = e.target.value;
-                                        const oldPrioridade = selectedChamado.metadata?.prioridade || 'BAIXA';
+                                <span className="label" style={{ marginRight: '8px' }}>Prioridade:</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <i className="fas fa-flag" style={{
+                                        color: selectedChamado.metadata?.prioridade === 'URGENTE' ? '#ef4444' :
+                                            selectedChamado.metadata?.prioridade === 'ALTA' ? '#f97316' :
+                                                selectedChamado.metadata?.prioridade === 'NORMAL' ? '#22c55e' : '#3b82f6',
+                                        fontSize: '0.9rem'
+                                    }}></i>
+                                    <select
+                                        className="comm-custom-select"
+                                        style={{ width: 'auto', paddingLeft: '8px' }}
+                                        value={selectedChamado.metadata?.prioridade || 'BAIXA'}
+                                        onChange={(e) => {
+                                            const novaPrioridade = e.target.value;
+                                            const oldPrioridade = selectedChamado.metadata?.prioridade || 'BAIXA';
 
-                                        // Optimistic Update
-                                        setSelectedChamado(prev => ({
-                                            ...prev,
-                                            metadata: { ...(prev.metadata || {}), prioridade: novaPrioridade }
-                                        }));
+                                            // Optimistic Update
+                                            setSelectedChamado(prev => ({
+                                                ...prev,
+                                                metadata: { ...(prev.metadata || {}), prioridade: novaPrioridade }
+                                            }));
 
-                                        comunicacaoAPI.atualizarPrioridadeChamado(selectedChamado.id, novaPrioridade)
-                                            .then(res => {
-                                                if (res.success) {
-                                                    // Atualiza chat para refletir a mensagem de sistema
-                                                    comunicacaoAPI.listarRespostasChamado(selectedChamado.id)
-                                                        .then(r => r.success && setChamadoMessages(r.data));
-                                                } else {
-                                                    // Revert on failure
+                                            comunicacaoAPI.atualizarPrioridadeChamado(selectedChamado.id, novaPrioridade)
+                                                .then(res => {
+                                                    if (res.success) {
+                                                        // Atualiza chat para refletir a mensagem de sistema
+                                                        comunicacaoAPI.listarRespostasChamado(selectedChamado.id)
+                                                            .then(r => r.success && setChamadoMessages(r.data));
+                                                    } else {
+                                                        // Revert on failure
+                                                        setSelectedChamado(prev => ({
+                                                            ...prev,
+                                                            metadata: { ...(prev.metadata || {}), prioridade: oldPrioridade }
+                                                        }));
+                                                        alert('Erro ao atualizar prioridade.');
+                                                    }
+                                                })
+                                                .catch(() => {
                                                     setSelectedChamado(prev => ({
                                                         ...prev,
                                                         metadata: { ...(prev.metadata || {}), prioridade: oldPrioridade }
                                                     }));
-                                                    alert('Erro ao atualizar prioridade.');
-                                                }
-                                            })
-                                            .catch(() => {
-                                                setSelectedChamado(prev => ({
-                                                    ...prev,
-                                                    metadata: { ...(prev.metadata || {}), prioridade: oldPrioridade }
-                                                }));
-                                                alert('Erro de conexão ao atualizar prioridade.');
-                                            });
-                                    }}
-                                >
-                                    <option value="BAIXA">🔵 Baixa</option>
-                                    <option value="NORMAL">🟢 Normal</option>
-                                    <option value="ALTA">🟠 Alta</option>
-                                    <option value="URGENTE">🔴 Urgente</option>
-                                </select>
+                                                    alert('Erro de conexão ao atualizar prioridade.');
+                                                });
+                                        }}
+                                    >
+                                        <option value="BAIXA">Baixa</option>
+                                        <option value="NORMAL">Normal</option>
+                                        <option value="ALTA">Alta</option>
+                                        <option value="URGENTE">Urgente</option>
+                                    </select>
+                                </div>
                             </div>
                         )}
                     </div>
