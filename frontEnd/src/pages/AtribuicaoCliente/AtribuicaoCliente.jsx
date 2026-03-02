@@ -1838,7 +1838,7 @@ const AtribuicaoCliente = () => {
         console.log('✅ [AtribuicaoCliente] Produtos vinculados ao cliente:', produtosIdsStr);
         setProdutosSelecionados(produtosIdsStr);
         // Carregar tarefas automaticamente para os produtos vinculados
-        await loadTarefasPorClienteEProdutos(clienteId, produtosIdsStr);
+        await loadTarefasPorClienteEProdutos(clienteId, produtosIdsStr, false);
       } else {
         console.log('ℹ️ [AtribuicaoCliente] Nenhum produto vinculado ao cliente');
         setProdutosSelecionados([]);
@@ -1855,91 +1855,6 @@ const AtribuicaoCliente = () => {
     }
   }, [loadTarefasPorClienteEProdutos, showToast]);
 
-  const loadConfiguracaoExistente = useCallback(async (clienteId) => {
-    if (!clienteId) return;
-    try {
-      console.log('🔄 [CONFIG] Carregando estimativas existentes para o cliente:', clienteId);
-      const response = await fetch(`${API_BASE_URL}/tempo-estimado?cliente_id=${clienteId}`, {
-        credentials: 'include',
-        headers: { 'Accept': 'application/json' }
-      });
-
-      if (!response.ok) return;
-
-      const result = await response.json();
-      if (!result.success || !result.data || result.data.length === 0) return;
-
-      const regras = result.data;
-
-      // Reconstruir estado a partir das regras do banco
-      const tSelPorProd = {};
-      const respPorTarefa = {};
-      const tConfPorTarefa = {};
-      const perPorTarefa = {};
-
-      regras.forEach(reg => {
-        const pId = String(reg.produto_id).trim();
-        const tId = String(reg.tarefa_id).trim();
-        const key = `${pId}_${tId}`;
-
-        // Seleção
-        if (!tSelPorProd[pId]) tSelPorProd[pId] = {};
-        tSelPorProd[pId][tId] = { selecionada: true };
-
-        // Responsáveis
-        if (reg.responsavel_id) {
-          if (!respPorTarefa[key]) respPorTarefa[key] = [];
-          const rIdStr = String(reg.responsavel_id);
-          if (!respPorTarefa[key].includes(rIdStr)) {
-            respPorTarefa[key].push(rIdStr);
-          }
-        }
-
-        // Configuração de Tempo (Escalonamento)
-        const rIdKey = reg.responsavel_id ? String(reg.responsavel_id) : 'null';
-        if (!tConfPorTarefa[key]) tConfPorTarefa[key] = {};
-        if (!tConfPorTarefa[key][rIdKey]) tConfPorTarefa[key][rIdKey] = [];
-        tConfPorTarefa[key][rIdKey].push({
-          tempo_minutos: reg.tempo_minutos,
-          data_inicio: reg.data_inicio
-        });
-
-        // Período
-        if (!perPorTarefa[key]) {
-          perPorTarefa[key] = {
-            inicio: reg.data_inicio,
-            fim: reg.data_fim,
-            incluir_finais_semana: reg.incluir_finais_semana,
-            incluir_feriados: reg.incluir_feriados,
-            datasIndividuais: [],
-            source: 'existente'
-          };
-        } else {
-          if (reg.data_inicio < perPorTarefa[key].inicio) perPorTarefa[key].inicio = reg.data_inicio;
-          if (reg.data_fim > perPorTarefa[key].fim) perPorTarefa[key].fim = reg.data_fim;
-        }
-      });
-
-      // Reconstruir formato para initialTarefas (array por produto) - Necessário para SelecaoTarefasPorProduto saber o que marcar
-      const initialTasks = {};
-      regras.forEach(reg => {
-        const pId = String(reg.produto_id).trim();
-        if (!initialTasks[pId]) initialTasks[pId] = [];
-        if (!initialTasks[pId].find(t => String(t.id) === String(reg.tarefa_id))) {
-          initialTasks[pId].push({ id: reg.tarefa_id });
-        }
-      });
-      setInitialTarefas(initialTasks);
-
-      setTarefasSelecionadasPorProduto(tSelPorProd);
-      setResponsaveisPorTarefa(respPorTarefa);
-      setTempoConfigPorTarefa(tConfPorTarefa);
-      setPeriodosPorTarefa(perPorTarefa);
-
-    } catch (error) {
-      console.error('❌ Erro ao carregar configuração existente:', error);
-    }
-  }, []);
 
   // Quando tarefas são selecionadas via SelecaoTarefasPorProduto, atualizar lista de tarefas selecionadas
   useEffect(() => {
@@ -1980,14 +1895,13 @@ const AtribuicaoCliente = () => {
       setPeriodosPorTarefa({});
 
       loadProdutosPorCliente(clienteSelecionado);
-      loadConfiguracaoExistente(clienteSelecionado);
     } else {
       setProdutos([]);
       setProdutosSelecionados([]);
       setTarefas([]);
       setTarefasSelecionadas([]);
     }
-  }, [clienteSelecionado, editingAgrupamento, loadProdutosPorCliente, loadConfiguracaoExistente]);
+  }, [clienteSelecionado, editingAgrupamento, loadProdutosPorCliente]);
 
   const handleClienteChange = (e) => {
     const novoClienteId = e.target.value;
