@@ -3,6 +3,7 @@ import { comunicacaoAPI } from '../../services/comunicacao.service';
 import { departamentosAPI } from '../../services/api';
 import { formatDate } from '../../utils/dateUtils';
 import SearchInput from '../../components/common/SearchInput';
+import FilterDate from '../../components/filters/FilterDate';
 import RichEditor from '../../components/common/RichEditor';
 import './ChamadosView.css';
 
@@ -14,7 +15,7 @@ const ChamadosView = () => {
         titulo: '',
         conteudo: '',
         departamento_id: '',
-        metadata: { prioridade: 'media' }
+        metadata: { prioridade: 'media', sistema: '', prazo_desejado: '' }
     });
     const [departamentos, setDepartamentos] = useState([]);
     const [dynamicFields, setDynamicFields] = useState({});
@@ -23,6 +24,7 @@ const ChamadosView = () => {
     const fileInputRef = useRef(null);
     const [statusFilter, setStatusFilter] = useState('Todos');
     const [searchTerm, setSearchTerm] = useState('');
+    const [membrosDepartamento, setMembrosDepartamento] = useState([]);
 
     useEffect(() => {
         loadChamados();
@@ -37,6 +39,21 @@ const ChamadosView = () => {
             }
         } catch (error) {
             console.error('Erro ao buscar departamentos:', error);
+        }
+    };
+
+    const loadMembrosDepartamento = async (deptId) => {
+        if (!deptId) {
+            setMembrosDepartamento([]);
+            return;
+        }
+        try {
+            const response = await departamentosAPI.getMembros(deptId);
+            if (response.success) {
+                setMembrosDepartamento(response.data);
+            }
+        } catch (error) {
+            console.error('Erro ao buscar membros do departamento:', error);
         }
     };
 
@@ -102,9 +119,10 @@ const ChamadosView = () => {
             const response = await comunicacaoAPI.enviarMensagem(payload);
             if (response.success) {
                 setShowModal(false);
-                setNewChamado({ titulo: '', conteudo: '', departamento_id: '', metadata: { prioridade: 'media' } });
+                setNewChamado({ titulo: '', conteudo: '', departamento_id: '', metadata: { prioridade: 'media', sistema: '' } });
                 setDynamicFields({});
                 setSelectedFile(null);
+                setMembrosDepartamento([]);
                 loadChamados();
             }
         } catch (error) {
@@ -129,7 +147,11 @@ const ChamadosView = () => {
             <div className="chamados-view">
                 <div className="chamados-header">
                     <h2>Meus Chamados</h2>
-                    <button className="new-chamado-btn" onClick={() => setShowModal(true)}>
+                    <button className="new-chamado-btn" onClick={() => {
+                        setNewChamado({ titulo: '', conteudo: '', departamento_id: '', metadata: { prioridade: 'media', sistema: '', prazo_desejado: '' } });
+                        setMembrosDepartamento([]);
+                        setShowModal(true);
+                    }}>
                         <i className="fas fa-plus"></i> Novo Chamado
                     </button>
                 </div>
@@ -240,6 +262,9 @@ const ChamadosView = () => {
                                         <span className="chamado-date">
                                             Criado em: {formatDate(chamado.created_at)}
                                         </span>
+                                        <span className="chamado-system">
+                                            <i className="fas fa-desktop" style={{ marginRight: '8px' }}></i> Sistema: <strong>{chamado.metadata?.sistema || '---'}</strong>
+                                        </span>
                                     </div>
                                     <div className="chamado-meta">
                                         <span className="badge status" style={{ backgroundColor: getStatusColor(chamado.status_chamado) }}>
@@ -250,6 +275,29 @@ const ChamadosView = () => {
                                                             chamado.status_chamado === 'CANCELADO' ? 'CANCELADO' :
                                                                 chamado.status_chamado}
                                         </span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span className="deadline-tag" style={{
+                                                fontSize: '0.75rem',
+                                                padding: '2px 8px',
+                                                borderRadius: '6px',
+                                                backgroundColor: chamado.prazo_confirmado
+                                                    ? (new Date(chamado.prazo_confirmado) < new Date() ? '#fee2e2' : '#dcfce7')
+                                                    : '#f1f5f9',
+                                                color: chamado.prazo_confirmado
+                                                    ? (new Date(chamado.prazo_confirmado) < new Date() ? '#b91c1c' : '#15803d')
+                                                    : '#64748b',
+                                                fontWeight: '700',
+                                                border: '1px solid currentColor'
+                                            }}>
+                                                Prazo: {chamado.prazo_confirmado ? formatDate(chamado.prazo_confirmado) : 'não confirmado'}
+                                            </span>
+                                            <i className="fas fa-flag" style={{
+                                                color: chamado.metadata?.prioridade === 'URGENTE' ? '#ef4444' :
+                                                    chamado.metadata?.prioridade === 'ALTA' ? '#f97316' :
+                                                        chamado.metadata?.prioridade === 'NORMAL' ? '#22c55e' : '#3b82f6',
+                                                fontSize: '1.2rem'
+                                            }} title={`Prioridade: ${chamado.metadata?.prioridade || 'Normal'}`}></i>
+                                        </div>
                                         <span className="badge priority">
                                             {chamado.metadata?.prioridade || 'Normal'}
                                         </span>
@@ -270,8 +318,15 @@ const ChamadosView = () => {
                                     <select
                                         value={newChamado.departamento_id}
                                         onChange={e => {
-                                            setNewChamado({ ...newChamado, departamento_id: e.target.value });
+                                            const deptId = e.target.value;
+                                            console.log('Selecionou departamento:', deptId);
+                                            setNewChamado({
+                                                ...newChamado,
+                                                departamento_id: deptId,
+                                                metadata: { ...newChamado.metadata, responsavel_id: '', responsavel: '' }
+                                            });
                                             setDynamicFields({});
+                                            loadMembrosDepartamento(deptId);
                                         }}
                                         required
                                     >
@@ -294,6 +349,56 @@ const ChamadosView = () => {
                                                 onChange={e => setNewChamado({ ...newChamado, titulo: e.target.value })}
                                                 required
                                             />
+                                        </div>
+
+                                        <div className="form-group">
+                                            <label>Selecione o responsável (Opcional)</label>
+                                            <select
+                                                value={newChamado.metadata.responsavel_id || ''}
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    const member = membrosDepartamento.find(m => String(m.usuario_id || m.membro_id || m.id) === String(val));
+                                                    setNewChamado({
+                                                        ...newChamado,
+                                                        metadata: {
+                                                            ...newChamado.metadata,
+                                                            responsavel_id: val,
+                                                            responsavel: member ? member.name : ''
+                                                        }
+                                                    });
+                                                }}
+                                            >
+                                                <option value="">Qualquer pessoa do departamento</option>
+                                                {membrosDepartamento.map(m => (
+                                                    <option key={m.usuario_id || m.membro_id || m.id} value={m.usuario_id || m.membro_id || m.id}>
+                                                        {m.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div className="form-group">
+                                            <label>Sistema relacionado</label>
+                                            <select
+                                                value={newChamado.metadata.sistema || ''}
+                                                onChange={e => setNewChamado({
+                                                    ...newChamado,
+                                                    metadata: { ...newChamado.metadata, sistema: e.target.value }
+                                                })}
+                                            >
+                                                <option value="">---</option>
+                                                <option value="Upmap">Upmap</option>
+                                                <option value="MongoHub">MongoHub</option>
+                                                <option value="ClickUp">ClickUp</option>
+                                                <option value="Teams">Teams</option>
+                                                <option value="Sistema de Pendências">Sistema de Pendências</option>
+                                                <option value="Whatsapp">Whatsapp</option>
+                                                <option value="Omie">Omie</option>
+                                                <option value="Kamino">Kamino</option>
+                                                <option value="Conciliadora">Conciliadora</option>
+                                                <option value="outros">outros</option>
+                                                <option value="não é sistema">não é sistema</option>
+                                            </select>
                                         </div>
 
                                         <div className="form-group description-group">
@@ -367,15 +472,27 @@ const ChamadosView = () => {
                                     </select>
                                 </div>
 
+                                <div className="form-group">
+                                    <label>Prazo Desejado para Conclusão</label>
+                                    <FilterDate
+                                        label=""
+                                        value={newChamado.metadata.prazo_desejado}
+                                        onChange={e => setNewChamado({
+                                            ...newChamado,
+                                            metadata: { ...newChamado.metadata, prazo_desejado: e.target.value }
+                                        })}
+                                    />
+                                </div>
+
                                 <div className="modal-actions">
                                     <button type="button" onClick={() => setShowModal(false)}>Cancelar</button>
                                     <button type="submit" className="confirm-btn">Abrir Chamado</button>
                                 </div>
                             </form>
                         </div>
-                    </div>
+                    </div >
                 )}
-            </div>
+            </div >
 
             {expandedImage && (
                 <div className="image-lightbox" onClick={() => setExpandedImage(null)}>

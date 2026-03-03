@@ -7,6 +7,7 @@ import Avatar from '../user/Avatar';
 import ConfirmModal from '../common/ConfirmModal';
 import ButtonPrimary from '../common/ButtonPrimary';
 import FilterColaborador from '../filters/FilterColaborador';
+import FilterDate from '../filters/FilterDate';
 import './CommunicationDrawer.css';
 
 // ==============================================================================
@@ -515,11 +516,12 @@ const CommunicationDrawer = ({ user }) => {
     // Form States para Novos Itens
     const [showNewAvisoForm, setShowNewAvisoForm] = useState(false);
     const [showNewChamadoForm, setShowNewChamadoForm] = useState(false);
-    const [formData, setFormData] = useState({ titulo: '', conteudo: '', destacado: false, departamento_id: '', prazo_desejado: '' });
+    const [formData, setFormData] = useState({ titulo: '', conteudo: '', destacado: false, departamento_id: '', prazo_desejado: '', responsavel_id: '', responsavel: '', sistema: '' });
     const [departamentos, setDepartamentos] = useState([]);
     const [templates, setTemplates] = useState([]);
     const [dynamicFields, setDynamicFields] = useState({});
     const [isSaving, setIsSaving] = useState(false);
+    const [novaEstimativa, setNovaEstimativa] = useState('');
 
 
     // Edit & Upload States
@@ -993,14 +995,17 @@ const CommunicationDrawer = ({ user }) => {
                 metadata: tipo === 'COMUNICADO' ? {
                     destacado: formData.destacado
                 } : (tipo === 'CHAMADO' ? {
-                    departamento_id: formData.departamento_id
+                    departamento_id: formData.departamento_id,
+                    responsavel_id: formData.responsavel_id,
+                    responsavel: formData.responsavel,
+                    sistema: formData.sistema
                 } : {})
             };
 
             const response = await comunicacaoAPI.enviarMensagem(payload);
 
             if (response.success) {
-                setFormData({ titulo: '', conteudo: '', destacado: false, departamento_id: '', prazo_desejado: '' });
+                setFormData({ titulo: '', conteudo: '', destacado: false, departamento_id: '', prazo_desejado: '', responsavel_id: '', responsavel: '', sistema: '' });
                 setDynamicFields({});
                 setShowNewAvisoForm(false);
                 setShowNewChamadoForm(false);
@@ -1288,17 +1293,39 @@ const CommunicationDrawer = ({ user }) => {
                                                 cham.status_chamado === 'CANCELADO' ? 'CANCELADO' :
                                                     cham.status_chamado}
                             </div>
-                            <i className="fas fa-flag"
-                                title={`Prioridade: ${cham.metadata?.prioridade || 'BAIXA'}`}
-                                style={{
-                                    position: 'absolute',
-                                    top: '16px',
-                                    right: '16px',
-                                    fontSize: '1rem',
-                                    color: cham.metadata?.prioridade === 'URGENTE' ? '#ef4444' :
-                                        cham.metadata?.prioridade === 'ALTA' ? '#f97316' :
-                                            cham.metadata?.prioridade === 'NORMAL' ? '#22c55e' : '#3b82f6'
-                                }}></i>
+                            <div style={{
+                                position: 'absolute',
+                                top: '16px',
+                                right: '16px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                            }}>
+                                <span style={{
+                                    fontSize: '0.75rem',
+                                    padding: '2px 8px',
+                                    borderRadius: '6px',
+                                    backgroundColor: cham.prazo_confirmado
+                                        ? (new Date(cham.prazo_confirmado) < new Date() ? '#fee2e2' : '#dcfce7')
+                                        : '#f1f5f9',
+                                    color: cham.prazo_confirmado
+                                        ? (new Date(cham.prazo_confirmado) < new Date() ? '#b91c1c' : '#15803d')
+                                        : '#64748b',
+                                    fontWeight: '700',
+                                    border: '1px solid currentColor',
+                                    opacity: 0.9
+                                }}>
+                                    Prazo: {cham.prazo_confirmado ? formatDate(cham.prazo_confirmado) : 'não confirmado'}
+                                </span>
+                                <i className="fas fa-flag"
+                                    title={`Prioridade: ${cham.metadata?.prioridade || 'BAIXA'}`}
+                                    style={{
+                                        fontSize: '1.2rem',
+                                        color: cham.metadata?.prioridade === 'URGENTE' ? '#ef4444' :
+                                            cham.metadata?.prioridade === 'ALTA' ? '#f97316' :
+                                                cham.metadata?.prioridade === 'NORMAL' ? '#22c55e' : '#3b82f6'
+                                    }}></i>
+                            </div>
                             <h4 className="comm-card-title">{cham.titulo}</h4>
                             <p className="comm-card-content">{getPreviewText(cham.conteudo)}</p>
                             <div className="comm-card-footer">
@@ -1306,25 +1333,13 @@ const CommunicationDrawer = ({ user }) => {
                                     <span>Aberto por: <strong>{cham.criador?.nome_usuario || 'Usuário'}</strong></span>
                                     <span>Responsável: <strong>{cham.metadata?.responsavel || cham.respondido_por || 'Não assumido'}</strong></span>
                                     <span className="chamado-preview-dept">
-                                        <i className="fas fa-building"></i>
+                                        <i className="fas fa-building" style={{ marginRight: '10px' }}></i>
                                         Departamento: <strong>{departamentos.find(d => String(d.id) === String(cham.metadata?.departamento_id))?.nome || cham.categoria?.departamento?.nome || 'Geral'}</strong>
                                     </span>
-                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
-                                        <span style={{
-                                            fontSize: '0.7rem',
-                                            padding: '1px 6px',
-                                            borderRadius: '4px',
-                                            backgroundColor: cham.prazo_confirmado
-                                                ? (new Date(cham.prazo_confirmado) < new Date() ? '#fee2e2' : '#dcfce7')
-                                                : '#f1f5f9',
-                                            color: cham.prazo_confirmado
-                                                ? (new Date(cham.prazo_confirmado) < new Date() ? '#b91c1c' : '#15803d')
-                                                : '#64748b',
-                                            fontWeight: '600'
-                                        }}>
-                                            Prazo: {cham.prazo_confirmado ? formatDate(cham.prazo_confirmado) : 'não confirmado'}
-                                        </span>
-                                    </div>
+                                    <span className="chamado-preview-system">
+                                        <i className="fas fa-desktop" style={{ marginRight: '8px' }}></i>
+                                        Sistema: <strong>{cham.metadata?.sistema || '---'}</strong>
+                                    </span>
                                 </div>
                                 <i className="fas fa-chevron-right" style={{ opacity: 0.3 }}></i>
                             </div>
@@ -1424,24 +1439,24 @@ const CommunicationDrawer = ({ user }) => {
                                 Aceitar Prazo Desejado
                             </ButtonPrimary>
                             <div style={{ flex: 1 }}>
-                                <input
-                                    type="date"
-                                    className="comm-drawer-form-input"
-                                    style={{ padding: '5px', fontSize: '11px', height: '32px' }}
-                                    id="new-prazo-confirmado"
-                                    min={new Date().toISOString().split('T')[0]}
+                                <FilterDate
+                                    label=""
+                                    value={novaEstimativa}
+                                    onChange={(e) => setNovaEstimativa(e.target.value)}
+                                    className="small-filter-date"
                                 />
                             </div>
                             <ButtonPrimary
                                 style={{ padding: '8px 12px', fontSize: '11px' }}
                                 icon="fas fa-calendar-plus"
                                 onClick={() => {
-                                    const val = document.getElementById('new-prazo-confirmado').value;
+                                    const val = novaEstimativa;
                                     if (!val) return alert('Selecione uma data.');
                                     if (window.confirm(`Definir novo prazo para ${formatDate(val)}?`)) {
                                         comunicacaoAPI.confirmarEstimativaChamado(selectedChamado.id, { prazo_confirmado: val })
                                             .then(res => {
                                                 if (res.success) {
+                                                    setNovaEstimativa('');
                                                     setSelectedChamado({ ...selectedChamado, prazo_confirmado: val });
                                                     comunicacaoAPI.listarRespostasChamado(selectedChamado.id).then(r => r.success && setChamadoMessages(r.data));
                                                 }
@@ -1711,8 +1726,19 @@ const CommunicationDrawer = ({ user }) => {
                         <select
                             value={formData.departamento_id}
                             onChange={(e) => {
-                                setFormData({ ...formData, departamento_id: e.target.value });
+                                const deptId = e.target.value;
+                                setFormData({ ...formData, departamento_id: deptId, responsavel_id: '', responsavel: '' });
                                 setDynamicFields({});
+                                if (deptId) {
+                                    setLoadingDeptMembers(true);
+                                    departamentosAPI.getMembros(deptId).then(res => {
+                                        if (res.success) {
+                                            setDeptMembers(res.data || []);
+                                        }
+                                    }).finally(() => setLoadingDeptMembers(false));
+                                } else {
+                                    setDeptMembers([]);
+                                }
                             }}
                             className="comm-drawer-form-select"
                         >
@@ -1728,6 +1754,57 @@ const CommunicationDrawer = ({ user }) => {
 
                 {(tipo === 'COMUNICADO' || formData.departamento_id) && (
                     <>
+                        {tipo === 'CHAMADO' && (
+                            <div className="comm-drawer-form-group">
+                                <label className="comm-drawer-form-label">Selecione o responsável (Opcional)</label>
+                                <select
+                                    value={formData.responsavel_id}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        const member = deptMembers.find(m => String(m.usuario_id || m.membro_id || m.id) === String(val));
+                                        setFormData({
+                                            ...formData,
+                                            responsavel_id: val,
+                                            responsavel: member ? member.name : ''
+                                        });
+                                    }}
+                                    className="comm-drawer-form-select"
+                                    disabled={loadingDeptMembers}
+                                >
+                                    <option value="">{loadingDeptMembers ? 'Carregando membros...' : 'Qualquer pessoa do departamento'}</option>
+                                    {deptMembers.map(m => (
+                                        <option key={m.usuario_id || m.membro_id || m.id} value={m.usuario_id || m.membro_id || m.id}>
+                                            {m.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+
+                        {tipo === 'CHAMADO' && (
+                            <div className="comm-drawer-form-group">
+                                <label className="comm-drawer-form-label">Sistema relacionado</label>
+                                <select
+                                    value={formData.sistema}
+                                    onChange={(e) => setFormData({ ...formData, sistema: e.target.value })}
+                                    className="comm-drawer-form-select"
+                                >
+                                    <option value="">---</option>
+                                    <option value="Upmap">Upmap</option>
+                                    <option value="MongoHub">MongoHub</option>
+                                    <option value="ClickUp">ClickUp</option>
+                                    <option value="Teams">Teams</option>
+                                    <option value="Sistema de Pendências">Sistema de Pendências</option>
+                                    <option value="Whatsapp">Whatsapp</option>
+                                    <option value="Omie">Omie</option>
+                                    <option value="Kamino">Kamino</option>
+                                    <option value="Conciliadora">Conciliadora</option>
+                                    <option value="Outros">Outros</option>
+                                    <option value="Não é sistema">Não é sistema</option>
+                                </select>
+                            </div>
+                        )}
+
                         <div className="comm-drawer-form-group">
                             <label className="comm-drawer-form-label">Título *</label>
                             <input
@@ -1760,12 +1837,10 @@ const CommunicationDrawer = ({ user }) => {
                             {tipo === 'CHAMADO' && (
                                 <div className="comm-drawer-form-group" style={{ marginTop: '15px' }}>
                                     <label className="comm-drawer-form-label">Data de Estimativa Desejada para Conclusão</label>
-                                    <input
-                                        type="date"
+                                    <FilterDate
+                                        label=""
                                         value={formData.prazo_desejado}
                                         onChange={(e) => setFormData({ ...formData, prazo_desejado: e.target.value })}
-                                        className="comm-drawer-form-input"
-                                        min={new Date().toISOString().split('T')[0]}
                                     />
                                 </div>
                             )}
