@@ -143,12 +143,26 @@ async function toggleChecklistItem(req, res) {
         const tbl = usedTable;
 
         if (existing && existing.id != null) {
-            // Usar RPC (função SQL pura) para evitar qualquer ON CONFLICT no PostgREST
+            // RPC com parâmetros na ordem que o schema cache espera: (p_concluida, p_id)
             const { error: rpcError } = await supabase.schema(SCHEMA).rpc('checklist_update_concluida', {
-                p_id: existing.id,
-                p_concluida: concluidaBool
+                p_concluida: concluidaBool,
+                p_id: existing.id
             });
             if (rpcError) {
+                const isFunctionNotFound = /could not find the function|schema cache/i.test(rpcError.message || '');
+                if (isFunctionNotFound) {
+                    // Fallback: UPDATE direto (requer que a tabela não use upsert no UPDATE)
+                    const updateResult = await tbl().update({ concluida: concluidaBool }).eq('id', existing.id);
+                    if (updateResult.error) {
+                        console.error('Erro ao atualizar item do checklist (fallback):', updateResult.error);
+                        return res.status(500).json({
+                            success: false,
+                            error: 'Erro ao atualizar item do checklist',
+                            details: updateResult.error.message
+                        });
+                    }
+                    return res.json({ success: true, data: { id: existing.id, concluida: concluidaBool } });
+                }
                 console.error('Erro ao atualizar item do checklist (RPC):', rpcError);
                 return res.status(500).json({
                     success: false,
