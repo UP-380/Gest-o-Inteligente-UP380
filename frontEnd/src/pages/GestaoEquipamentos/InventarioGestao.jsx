@@ -16,6 +16,7 @@ const InventarioGestao = () => {
     const [loading, setLoading] = useState(false); // Default to false to avoid immediate return if useEffect hasn't run
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('todos');
+    const [tipoFilter, setTipoFilter] = useState('todos');
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -140,6 +141,8 @@ const InventarioGestao = () => {
         return { isAvailable, statusText, statusClass, scheduleInfo };
     };
 
+    const TIPOS_FIXOS = ['Notebook', 'Monitor', 'Teclado', 'Fone/Headset', 'Mouse', 'Mousepad', 'Carregador Notebook', 'Fonte Monitor', 'Adaptador HDMI', 'Suporte Notebook', 'Carregador Monitor', 'Outros'];
+
     const applyFilters = () => {
         let result = [...equipamentos];
 
@@ -149,6 +152,10 @@ const InventarioGestao = () => {
             } else {
                 result = result.filter(e => e.status === statusFilter);
             }
+        }
+
+        if (tipoFilter !== 'todos') {
+            result = result.filter(e => (e.tipo || '') === tipoFilter);
         }
 
         setFilteredEquipamentos(result);
@@ -219,7 +226,7 @@ const InventarioGestao = () => {
 
     useEffect(() => {
         applyFilters();
-    }, [equipamentos, statusFilter]);
+    }, [equipamentos, statusFilter, tipoFilter]);
 
     return (
         <div className="inventario-gestao">
@@ -241,6 +248,15 @@ const InventarioGestao = () => {
                         <option value="em uso">Ocupados</option>
                         <option value="manutencao">Em Manutenção</option>
                         <option value="inativo">Indisponíveis</option>
+                    </select>
+                    <select value={tipoFilter} onChange={(e) => setTipoFilter(e.target.value)}>
+                        <option value="todos">Todos os Tipos</option>
+                        {TIPOS_FIXOS.map(tipo => (
+                            <option key={tipo} value={tipo}>{tipo}</option>
+                        ))}
+                        {[...new Set(equipamentos.map(e => e.tipo).filter(t => t && !TIPOS_FIXOS.includes(t)))].sort().map(tipo => (
+                            <option key={tipo} value={tipo}>{tipo}</option>
+                        ))}
                     </select>
                 </div>
             </div>

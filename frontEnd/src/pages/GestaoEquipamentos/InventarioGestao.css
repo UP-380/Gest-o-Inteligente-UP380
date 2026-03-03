@@ -163,6 +163,12 @@ tbody td {
     box-shadow: 0 0 0 3px rgba(14, 59, 111, 0.1);
 }
 
+.filter-box {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
 .filter-box select {
     padding: 10px 16px;
     border: 1px solid #e2e8f0;

@@ -33,6 +33,7 @@ const CadastroEquipamento = () => {
         descricao: '',
         tem_avaria: false
     });
+    const [isTipoOutros, setIsTipoOutros] = useState(false);
 
     useEffect(() => {
         if (isEditMode) {
@@ -46,9 +47,12 @@ const CadastroEquipamento = () => {
             const response = await equipamentosAPI.getEquipamentoPorId(id);
             if (response.success && response.data) {
                 const item = response.data;
+                const opcoesFixas = ['Notebook', 'Monitor', 'Teclado', 'Fone/Headset', 'Mouse', 'Mousepad', 'Carregador Notebook', 'Fonte Monitor', 'Adaptador HDMI', 'Suporte Notebook', 'Carregador Monitor', 'Outros'];
+                const tipoSalvo = item.tipo || '';
+                const ehOutros = tipoSalvo && !opcoesFixas.includes(tipoSalvo);
                 setFormData({
                     nome: item.nome || '',
-                    tipo: item.tipo || '',
+                    tipo: tipoSalvo,
                     marca: item.marca || '',
                     modelo: item.modelo || '',
                     numero_serie: item.numero_serie || '',
@@ -57,6 +61,7 @@ const CadastroEquipamento = () => {
                     descricao: item.descricao || '',
                     tem_avaria: !!item.tem_avaria
                 });
+                setIsTipoOutros(!!ehOutros);
             } else {
                 Swal.fire('Erro', 'Equipamento não encontrado.', 'error');
                 navigate('/cadastro/equipamentos');
@@ -135,6 +140,10 @@ const CadastroEquipamento = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (isTipoOutros && !formData.tipo.trim()) {
+            Swal.fire('Atenção', 'Informe o tipo (categoria) do equipamento.', 'warning');
+            return;
+        }
         setLoading(true);
         try {
             let response;
@@ -204,30 +213,61 @@ const CadastroEquipamento = () => {
                                             disabled={loading}
                                         />
                                     </div>
-                                    <div className="form-group">
+                                    <div className={`form-group ${isTipoOutros ? 'full-width' : ''}`}>
                                         <label className="form-label">Tipo (Categoria) *</label>
-                                        <select
-                                            name="tipo"
-                                            className="form-select"
-                                            value={formData.tipo}
-                                            onChange={handleInputChange}
-                                            required
-                                            disabled={loading}
-                                        >
-                                            <option value="">Selecione...</option>
-                                            <option value="Notebook">Notebook</option>
-                                            <option value="Monitor">Monitor</option>
-                                            <option value="Teclado">Teclado</option>
-                                            <option value="Fone/Headset">Fone/Headset</option>
-                                            <option value="Mouse">Mouse</option>
-                                            <option value="Mousepad">Mousepad</option>
-                                            <option value="Carregador Notebook">Carregador Notebook</option>
-                                            <option value="Fonte Monitor">Fonte Monitor</option>
-                                            <option value="Adaptador HDMI">Adaptador HDMI</option>
-                                            <option value="Suporte Notebook">Suporte Notebook</option>
-                                            <option value="Carregador Monitor">Carregador Monitor</option>
-                                            <option value="Outros">Outros</option>
-                                        </select>
+                                        {isTipoOutros ? (
+                                            <>
+                                                <input
+                                                    type="text"
+                                                    name="tipo"
+                                                    className="form-input"
+                                                    value={formData.tipo}
+                                                    onChange={handleInputChange}
+                                                    placeholder="Digite a opção desejada"
+                                                    disabled={loading}
+                                                    required
+                                                    style={{ width: '100%', boxSizing: 'border-box' }}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setIsTipoOutros(false); setFormData(prev => ({ ...prev, tipo: '' })); }}
+                                                    className="form-link"
+                                                    style={{ marginTop: '8px', background: 'none', border: 'none', color: '#0e3b6f', cursor: 'pointer', fontSize: '14px', padding: 0, textDecoration: 'underline' }}
+                                                >
+                                                    Escolher da lista
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <select
+                                                name="tipo"
+                                                className="form-select"
+                                                value={formData.tipo}
+                                                onChange={(e) => {
+                                                    if (e.target.value === 'Outros') {
+                                                        setIsTipoOutros(true);
+                                                        setFormData(prev => ({ ...prev, tipo: '' }));
+                                                    } else {
+                                                        handleInputChange(e);
+                                                    }
+                                                }}
+                                                required
+                                                disabled={loading}
+                                            >
+                                                <option value="">Selecione...</option>
+                                                <option value="Notebook">Notebook</option>
+                                                <option value="Monitor">Monitor</option>
+                                                <option value="Teclado">Teclado</option>
+                                                <option value="Fone/Headset">Fone/Headset</option>
+                                                <option value="Mouse">Mouse</option>
+                                                <option value="Mousepad">Mousepad</option>
+                                                <option value="Carregador Notebook">Carregador Notebook</option>
+                                                <option value="Fonte Monitor">Fonte Monitor</option>
+                                                <option value="Adaptador HDMI">Adaptador HDMI</option>
+                                                <option value="Suporte Notebook">Suporte Notebook</option>
+                                                <option value="Carregador Monitor">Carregador Monitor</option>
+                                                <option value="Outros">Outros</option>
+                                            </select>
+                                        )}
                                     </div>
                                     <div className="form-group">
                                         <label className="form-label">Status</label>
