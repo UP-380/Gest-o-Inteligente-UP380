@@ -112,6 +112,54 @@
   min-width: 0;
 }
 
+/* Calendário compacto do header (tamanho normal ~280x220) */
+.painel-usuario-calendar-dropdown {
+  width: 280px !important;
+  max-width: 280px !important;
+  min-width: 280px !important;
+}
+.painel-usuario-calendar-dropdown .painel-usuario-calendar-inner {
+  padding: 8px;
+}
+.painel-usuario-calendar-dropdown .painel-usuario-calendar-inner > div:first-child {
+  margin-bottom: 6px;
+}
+.painel-usuario-calendar-dropdown .periodo-calendar-container {
+  margin-top: 4px;
+  padding: 8px;
+}
+.painel-usuario-calendar-dropdown .periodo-calendar-header {
+  margin-bottom: 6px;
+  padding: 0 2px;
+}
+.painel-usuario-calendar-dropdown .periodo-calendar-month-year {
+  font-size: 12px;
+}
+.painel-usuario-calendar-dropdown .periodo-calendar-nav {
+  padding: 2px 4px;
+}
+.painel-usuario-calendar-dropdown .periodo-calendar-nav i {
+  font-size: 10px;
+}
+.painel-usuario-calendar-dropdown .periodo-calendar-weekdays {
+  gap: 2px;
+  margin-bottom: 2px;
+}
+.painel-usuario-calendar-dropdown .periodo-calendar-weekdays > div {
+  font-size: 10px;
+  padding: 2px 0;
+}
+.painel-usuario-calendar-dropdown .periodo-calendar-days {
+  gap: 2px;
+}
+.painel-usuario-calendar-dropdown .periodo-calendar-day {
+  font-size: 11px;
+  border-radius: 4px;
+  min-height: 0;
+  aspect-ratio: 1;
+  max-height: 28px;
+}
+
 .painel-usuario-coluna {
   background: #ffffff;
   border: 1.5px solid #e5e7eb;

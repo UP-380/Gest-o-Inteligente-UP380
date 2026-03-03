@@ -3137,11 +3137,11 @@ const PainelUsuario = () => {
       const { monthYear, days } = renderCalendar();
 
       return React.createElement('div', {
-        className: 'periodo-dropdown',
+        className: 'periodo-dropdown painel-usuario-calendar-dropdown',
         onClick: (e) => e.stopPropagation(),
         style: { position: 'relative', display: 'block' }
       }, React.createElement('div', { className: 'periodo-dropdown-content' },
-        React.createElement('div', { style: { padding: '12px' } },
+        React.createElement('div', { className: 'painel-usuario-calendar-inner' },
           React.createElement('div', {
             style: { display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }
           },
