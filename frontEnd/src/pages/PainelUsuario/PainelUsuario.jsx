@@ -794,11 +794,14 @@ const PainelUsuario = () => {
     return null;
   }, []);
 
-  // Salvar status no backend
+  // Salvar status no backend; retorna true se salvou com sucesso, false caso contrário (para reverter UI)
   const salvarStatusChecklist = useCallback(async (instanciaId, subtarefaId, concluida) => {
+    if (!instanciaId || subtarefaId == null || subtarefaId === '') {
+      console.warn('[Checklist] Salvando ignorado: instanciaId ou subtarefaId vazio');
+      return false;
+    }
     try {
-      console.log('[Checklist] Salvando:', { instanciaId, subtarefaId, concluida });
-      await fetch(`${API_BASE_URL}/checklist/toggle`, {
+      const response = await fetch(`${API_BASE_URL}/checklist/toggle`, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -806,14 +809,34 @@ const PainelUsuario = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          idInstancia: instanciaId,
-          subtarefaId: subtarefaId,
-          concluida: concluida
+          idInstancia: String(instanciaId),
+          subtarefaId: String(subtarefaId),
+          concluida: !!concluida
         })
       });
+      let data = null;
+      try {
+        data = await response.json();
+      } catch (_) {
+        data = {};
+      }
+      if (!response.ok) {
+        const msg = (data && data.error) || data?.message || data?.details || `Erro ${response.status}`;
+        console.error('[Checklist] Falha ao salvar:', response.status, msg, data);
+        if (response.status === 401) {
+          alert('Sessão expirada. Faça login novamente para salvar as conclusões das subtarefas.');
+        } else {
+          alert(typeof msg === 'string' ? msg : 'Não foi possível salvar a conclusão da subtarefa.');
+        }
+        return false;
+      }
+      const ok = !!(data && data.success);
+      if (!ok) console.warn('[Checklist] Resposta sem success=true:', data);
+      return ok;
     } catch (error) {
       console.error('Erro ao salvar status do checklist:', error);
-      // Opcional: Reverter estado local em caso de erro (complexo de fazer aqui sem context, mas idealmente faria)
+      alert('Falha de conexão. Verifique sua rede e tente novamente.');
+      return false;
     }
   }, []);
 
@@ -3528,15 +3551,20 @@ const PainelUsuario = () => {
             })
           );
 
-          // Iniciar busca em paralelo (não aguardar para renderizar)
-          Promise.all(promessasSubtarefas).then(() => {
-            // Após todas as buscas, atualizar contadores de todos os items
+          // Iniciar busca em paralelo; depois carregar status do checklist do backend e atualizar contadores
+          Promise.all(promessasSubtarefas).then(async () => {
+            // Carregar status persistido de cada item para que o contador e as conclusões reflitam o backend
+            await Promise.all(items.map((reg) => {
+              const chaveSubtarefas = criarChaveSubtarefas(reg);
+              const subtarefas = subtarefasCacheRef.current.get(String(reg.tarefa_id));
+              return (subtarefas && subtarefas.length > 0) ? carregarStatusChecklist(chaveSubtarefas) : Promise.resolve();
+            }));
+            // Após carregar status, atualizar contadores de todos os items
             items.forEach((reg) => {
               const chaveSubtarefas = criarChaveSubtarefas(reg);
               const subtarefas = subtarefasCacheRef.current.get(String(reg.tarefa_id));
               if (subtarefas && subtarefas.length > 0) {
                 const pendentes = contarSubtarefasPendentes(subtarefas, chaveSubtarefas);
-                // Buscar o item pelo wrapper de subtarefas que tem o data-tarefa-id
                 const itemElement = content.querySelector(`.painel-usuario-subtarefas-wrapper[data-tarefa-id="${reg.tarefa_id}"]`)?.closest('.painel-usuario-tarefa-item-lista');
                 if (itemElement) {
                   const countElement = itemElement.querySelector(`.painel-usuario-subtarefas-count`);
@@ -3709,45 +3737,52 @@ const PainelUsuario = () => {
             // Configurar wrapper de subtarefas
             const subtarefasWrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chaveSubtarefas}"]`);
             if (subtarefasWrapper) {
-              // Função helper para alternar estado de uma subtarefa
-              const alternarSubtarefa = (subtarefaId, chave, tarefaIdVal, subtarefasVal) => {
-                // Sempre pegar o estado mais atualizado do ref
+              // Função helper para alternar estado de uma subtarefa (persiste no backend)
+              const alternarSubtarefa = async (subtarefaId, chave, tarefaIdVal, subtarefasVal) => {
                 const estadoAtual = subtarefasConcluidasRef.current.get(chave) || new Set();
-                const concluidas = new Set(estadoAtual); // Criar uma cópia
+                const concluidas = new Set(estadoAtual);
                 const subtarefaIdStr = String(subtarefaId);
+                const eraConcluida = concluidas.has(subtarefaIdStr);
+                const novaConcluida = !eraConcluida;
 
-                // Alternar apenas esta subtarefa específica
-                if (concluidas.has(subtarefaIdStr)) {
+                if (eraConcluida) {
                   concluidas.delete(subtarefaIdStr);
-                  salvarStatusChecklist(chave, subtarefaIdStr, false);
                 } else {
                   concluidas.add(subtarefaIdStr);
-                  salvarStatusChecklist(chave, subtarefaIdStr, true);
                 }
 
-                // Atualizar o estado e o ref simultaneamente
                 const novoMap = new Map(subtarefasConcluidasRef.current);
                 novoMap.set(chave, concluidas);
-                subtarefasConcluidasRef.current = novoMap; // Atualizar ref imediatamente
+                subtarefasConcluidasRef.current = novoMap;
                 setSubtarefasConcluidas(novoMap);
 
-                // Atualizar renderização
                 const wrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chave}"]`);
                 if (wrapper) {
                   wrapper.innerHTML = renderizarSubtarefas(subtarefasVal, tarefaIdVal, chave);
-                  // Reaplicar listeners
                   adicionarListenersBolinhas(wrapper, tarefaIdVal, chave, subtarefasVal);
                 }
-
-                // Atualizar contador
                 const countElement = item.querySelector(`.painel-usuario-subtarefas-count`);
                 if (countElement) {
                   const pendentes = contarSubtarefasPendentes(subtarefasVal, chave);
                   countElement.textContent = `${pendentes} pendente${pendentes !== 1 ? 's' : ''}`;
-                  if (pendentes === 0) {
-                    countElement.style.color = '#10b981';
-                  } else {
-                    countElement.style.color = '#f59e0b';
+                  countElement.style.color = pendentes === 0 ? '#10b981' : '#f59e0b';
+                }
+
+                const salvou = await salvarStatusChecklist(chave, subtarefaIdStr, novaConcluida);
+                if (!salvou) {
+                  const revertido = new Set(estadoAtual);
+                  const mapRevertido = new Map(subtarefasConcluidasRef.current);
+                  mapRevertido.set(chave, revertido);
+                  subtarefasConcluidasRef.current = mapRevertido;
+                  setSubtarefasConcluidas(mapRevertido);
+                  if (wrapper) {
+                    wrapper.innerHTML = renderizarSubtarefas(subtarefasVal, tarefaIdVal, chave);
+                    adicionarListenersBolinhas(wrapper, tarefaIdVal, chave, subtarefasVal);
+                  }
+                  if (countElement) {
+                    const pendentes = contarSubtarefasPendentes(subtarefasVal, chave);
+                    countElement.textContent = `${pendentes} pendente${pendentes !== 1 ? 's' : ''}`;
+                    countElement.style.color = pendentes === 0 ? '#10b981' : '#f59e0b';
                   }
                 }
               };
@@ -3818,12 +3853,12 @@ const PainelUsuario = () => {
               }
             }
 
-            // Atualizar contador quando as subtarefas forem carregadas (se ainda não estiverem no cache)
+            // Atualizar contador quando as subtarefas forem carregadas: carregar status do backend primeiro para refletir conclusões persistidas
             (async () => {
               const subtarefas = await buscarSubtarefas(reg.tarefa_id);
 
-              // Atualizar contador quando subtarefas forem carregadas
               if (subtarefas && subtarefas.length > 0) {
+                await carregarStatusChecklist(chaveSubtarefas);
                 const pendentes = contarSubtarefasPendentes(subtarefas, chaveSubtarefas);
                 const countElement = item.querySelector(`.painel-usuario-subtarefas-count`);
                 if (countElement) {
@@ -3874,43 +3909,42 @@ const PainelUsuario = () => {
                     subtarefasWrapper.innerHTML = renderizarSubtarefas(subtarefas, tarefaId, chave);
                     subtarefasWrapper.style.display = 'block';
 
-                    // Função helper para alternar estado de uma subtarefa (lista - expandir)
-                    const alternarSubtarefaArrow = (subtarefaId, chave, tarefaIdVal, subtarefasVal) => {
-                      // Sempre pegar o estado mais atualizado do ref
+                    const alternarSubtarefaArrow = async (subtarefaId, chave, tarefaIdVal, subtarefasVal) => {
                       const estadoAtual = subtarefasConcluidasRef.current.get(chave) || new Set();
-                      const concluidas = new Set(estadoAtual); // Criar uma cópia
+                      const concluidas = new Set(estadoAtual);
                       const subtarefaIdStr = String(subtarefaId);
-
-                      // Alternar apenas esta subtarefa específica
-                      if (concluidas.has(subtarefaIdStr)) {
-                        concluidas.delete(subtarefaIdStr);
-                        salvarStatusChecklist(chave, subtarefaIdStr, false);
-                      } else {
-                        concluidas.add(subtarefaIdStr);
-                        salvarStatusChecklist(chave, subtarefaIdStr, true);
-                      }
-
-                      // Atualizar o estado e o ref simultaneamente
+                      const eraConcluida = concluidas.has(subtarefaIdStr);
+                      const novaConcluida = !eraConcluida;
+                      if (eraConcluida) concluidas.delete(subtarefaIdStr); else concluidas.add(subtarefaIdStr);
                       const novoMap = new Map(subtarefasConcluidasRef.current);
                       novoMap.set(chave, concluidas);
-                      subtarefasConcluidasRef.current = novoMap; // Atualizar ref imediatamente
+                      subtarefasConcluidasRef.current = novoMap;
                       setSubtarefasConcluidas(novoMap);
-
                       const wrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chave}"]`);
                       if (wrapper) {
                         wrapper.innerHTML = renderizarSubtarefas(subtarefasVal, tarefaIdVal, chave);
                         adicionarListenersBolinhasArrow(wrapper, tarefaIdVal, chave, subtarefasVal);
                       }
-
-                      // Atualizar contador
                       const countElement = item.querySelector(`.painel-usuario-subtarefas-count`);
                       if (countElement) {
                         const pendentes = contarSubtarefasPendentes(subtarefasVal, chave);
                         countElement.textContent = `${pendentes} pendente${pendentes !== 1 ? 's' : ''}`;
-                        if (pendentes === 0) {
-                          countElement.style.color = '#10b981';
-                        } else {
-                          countElement.style.color = '#f59e0b';
+                        countElement.style.color = pendentes === 0 ? '#10b981' : '#f59e0b';
+                      }
+                      const salvou = await salvarStatusChecklist(chave, subtarefaIdStr, novaConcluida);
+                      if (!salvou) {
+                        const mapRevertido = new Map(subtarefasConcluidasRef.current);
+                        mapRevertido.set(chave, new Set(estadoAtual));
+                        subtarefasConcluidasRef.current = mapRevertido;
+                        setSubtarefasConcluidas(mapRevertido);
+                        if (wrapper) {
+                          wrapper.innerHTML = renderizarSubtarefas(subtarefasVal, tarefaIdVal, chave);
+                          adicionarListenersBolinhasArrow(wrapper, tarefaIdVal, chave, subtarefasVal);
+                        }
+                        if (countElement) {
+                          const pendentes = contarSubtarefasPendentes(subtarefasVal, chave);
+                          countElement.textContent = `${pendentes} pendente${pendentes !== 1 ? 's' : ''}`;
+                          countElement.style.color = pendentes === 0 ? '#10b981' : '#f59e0b';
                         }
                       }
                     };
@@ -4371,8 +4405,8 @@ const PainelUsuario = () => {
           (async () => {
             const subtarefas = await buscarSubtarefas(reg.tarefa_id);
 
-            // Atualizar contador quando subtarefas forem carregadas
             if (subtarefas && subtarefas.length > 0) {
+              await carregarStatusChecklist(chaveSubtarefas);
               const pendentes = contarSubtarefasPendentes(subtarefas, chaveSubtarefas);
               const countElement = item.querySelector(`.painel-usuario-subtarefas-count`);
               if (countElement) {
@@ -4395,43 +4429,42 @@ const PainelUsuario = () => {
                 subtarefasWrapper.style.display = 'none';
               }
 
-              // Função helper para alternar estado de uma subtarefa (quadro)
-              const alternarSubtarefaQuadro = (subtarefaId, chave, tarefaIdVal, subtarefasVal) => {
-                // Sempre pegar o estado mais atualizado do ref
+              const alternarSubtarefaQuadro = async (subtarefaId, chave, tarefaIdVal, subtarefasVal) => {
                 const estadoAtual = subtarefasConcluidasRef.current.get(chave) || new Set();
-                const concluidas = new Set(estadoAtual); // Criar uma cópia
+                const concluidas = new Set(estadoAtual);
                 const subtarefaIdStr = String(subtarefaId);
-
-                // Alternar apenas esta subtarefa específica
-                if (concluidas.has(subtarefaIdStr)) {
-                  concluidas.delete(subtarefaIdStr);
-                  salvarStatusChecklist(chave, subtarefaIdStr, false);
-                } else {
-                  concluidas.add(subtarefaIdStr);
-                  salvarStatusChecklist(chave, subtarefaIdStr, true);
-                }
-
-                // Atualizar o estado e o ref simultaneamente
+                const eraConcluida = concluidas.has(subtarefaIdStr);
+                const novaConcluida = !eraConcluida;
+                if (eraConcluida) concluidas.delete(subtarefaIdStr); else concluidas.add(subtarefaIdStr);
                 const novoMap = new Map(subtarefasConcluidasRef.current);
                 novoMap.set(chave, concluidas);
-                subtarefasConcluidasRef.current = novoMap; // Atualizar ref imediatamente
+                subtarefasConcluidasRef.current = novoMap;
                 setSubtarefasConcluidas(novoMap);
-
                 const wrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chave}"]`);
                 if (wrapper) {
                   wrapper.innerHTML = renderizarSubtarefas(subtarefasVal, tarefaIdVal, chave);
                   adicionarListenersBolinhasQuadro(wrapper, tarefaIdVal, chave, subtarefasVal);
                 }
-
-                // Atualizar contador
                 const countElement = item.querySelector(`.painel-usuario-subtarefas-count`);
                 if (countElement) {
                   const pendentes = contarSubtarefasPendentes(subtarefasVal, chave);
                   countElement.textContent = `${pendentes} pendente${pendentes !== 1 ? 's' : ''}`;
-                  if (pendentes === 0) {
-                    countElement.style.color = '#10b981';
-                  } else {
-                    countElement.style.color = '#f59e0b';
+                  countElement.style.color = pendentes === 0 ? '#10b981' : '#f59e0b';
+                }
+                const salvou = await salvarStatusChecklist(chave, subtarefaIdStr, novaConcluida);
+                if (!salvou) {
+                  const mapRevertido = new Map(subtarefasConcluidasRef.current);
+                  mapRevertido.set(chave, new Set(estadoAtual));
+                  subtarefasConcluidasRef.current = mapRevertido;
+                  setSubtarefasConcluidas(mapRevertido);
+                  if (wrapper) {
+                    wrapper.innerHTML = renderizarSubtarefas(subtarefasVal, tarefaIdVal, chave);
+                    adicionarListenersBolinhasQuadro(wrapper, tarefaIdVal, chave, subtarefasVal);
+                  }
+                  if (countElement) {
+                    const pendentes = contarSubtarefasPendentes(subtarefasVal, chave);
+                    countElement.textContent = `${pendentes} pendente${pendentes !== 1 ? 's' : ''}`;
+                    countElement.style.color = pendentes === 0 ? '#10b981' : '#f59e0b';
                   }
                 }
               };
@@ -4529,43 +4562,42 @@ const PainelUsuario = () => {
                   subtarefasWrapper.innerHTML = renderizarSubtarefas(subtarefas, tarefaId, chave);
                   subtarefasWrapper.style.display = 'block';
 
-                  // Função helper para alternar estado de uma subtarefa (expandir quadro)
-                  const alternarSubtarefaExpandQuadro = (subtarefaId, chave, tarefaIdVal, subtarefasVal) => {
-                    // Sempre pegar o estado mais atualizado do ref
+                  const alternarSubtarefaExpandQuadro = async (subtarefaId, chave, tarefaIdVal, subtarefasVal) => {
                     const estadoAtual = subtarefasConcluidasRef.current.get(chave) || new Set();
-                    const concluidas = new Set(estadoAtual); // Criar uma cópia
+                    const concluidas = new Set(estadoAtual);
                     const subtarefaIdStr = String(subtarefaId);
-
-                    // Alternar apenas esta subtarefa específica
-                    if (concluidas.has(subtarefaIdStr)) {
-                      concluidas.delete(subtarefaIdStr);
-                      salvarStatusChecklist(chave, subtarefaIdStr, false);
-                    } else {
-                      concluidas.add(subtarefaIdStr);
-                      salvarStatusChecklist(chave, subtarefaIdStr, true);
-                    }
-
-                    // Atualizar o estado e o ref simultaneamente
+                    const eraConcluida = concluidas.has(subtarefaIdStr);
+                    const novaConcluida = !eraConcluida;
+                    if (eraConcluida) concluidas.delete(subtarefaIdStr); else concluidas.add(subtarefaIdStr);
                     const novoMap = new Map(subtarefasConcluidasRef.current);
                     novoMap.set(chave, concluidas);
-                    subtarefasConcluidasRef.current = novoMap; // Atualizar ref imediatamente
+                    subtarefasConcluidasRef.current = novoMap;
                     setSubtarefasConcluidas(novoMap);
-
                     const wrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chave}"]`);
                     if (wrapper) {
                       wrapper.innerHTML = renderizarSubtarefas(subtarefasVal, tarefaIdVal, chave);
                       adicionarListenersBolinhasExpandQuadro(wrapper, tarefaIdVal, chave, subtarefasVal);
                     }
-
-                    // Atualizar contador
                     const countElement = item.querySelector(`.painel-usuario-subtarefas-count`);
                     if (countElement) {
                       const pendentes = contarSubtarefasPendentes(subtarefasVal, chave);
                       countElement.textContent = `${pendentes} pendente${pendentes !== 1 ? 's' : ''}`;
-                      if (pendentes === 0) {
-                        countElement.style.color = '#10b981';
-                      } else {
-                        countElement.style.color = '#f59e0b';
+                      countElement.style.color = pendentes === 0 ? '#10b981' : '#f59e0b';
+                    }
+                    const salvou = await salvarStatusChecklist(chave, subtarefaIdStr, novaConcluida);
+                    if (!salvou) {
+                      const mapRevertido = new Map(subtarefasConcluidasRef.current);
+                      mapRevertido.set(chave, new Set(estadoAtual));
+                      subtarefasConcluidasRef.current = mapRevertido;
+                      setSubtarefasConcluidas(mapRevertido);
+                      if (wrapper) {
+                        wrapper.innerHTML = renderizarSubtarefas(subtarefasVal, tarefaIdVal, chave);
+                        adicionarListenersBolinhasExpandQuadro(wrapper, tarefaIdVal, chave, subtarefasVal);
+                      }
+                      if (countElement) {
+                        const pendentes = contarSubtarefasPendentes(subtarefasVal, chave);
+                        countElement.textContent = `${pendentes} pendente${pendentes !== 1 ? 's' : ''}`;
+                        countElement.style.color = pendentes === 0 ? '#10b981' : '#f59e0b';
                       }
                     }
                   };

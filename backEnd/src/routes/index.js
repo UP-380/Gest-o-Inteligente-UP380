@@ -344,6 +344,7 @@ router.delete('/api/subtarefa/:id', requireAuth, subtarefaController.deletarSubt
 // Rotas de Checklist de Execução (Persistência de Status)
 router.get('/api/checklist/status/:idInstancia', requireAuth, checklistExecucaoController.getChecklistStatus);
 router.post('/api/checklist/toggle', requireAuth, checklistExecucaoController.toggleChecklistItem);
+router.get('/api/checklist/debug', requireAuth, checklistExecucaoController.debugChecklist);
 
 // Rotas de Tipo de Tarefa (cp_tarefa_tipo) (CRUD completo)
 router.get('/api/tipo-tarefa', requireAuth, tipoTarefaController.getTipoTarefas);
