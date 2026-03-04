@@ -541,87 +541,101 @@ const GestaoCapacidade = () => {
                 </div>
 
                 {/* Filtros Contextuais */}
-                {estadoHierarquiaUsuario[0] === 'cliente' && (
-                  <>
-                    <div className="filtro-pai-select-wrapper">
-                      <label className="filtro-pai-label">Definir Clientes:</label>
-                      <FilterClientes
-                        value={filtroClienteSelecionado}
-                        onChange={(e) => setFiltroClienteSelecionado(e.target.value || null)}
-                        options={opcoesFiltradasClientes.length > 0 ? opcoesFiltradasClientes : clientes}
-                        disabled={loadingHierarquia || carregandoOpcoesFiltradas.cliente}
-                      />
-                    </div>
-                    <div className="filtro-pai-select-wrapper">
-                      <label className="filtro-pai-label">Status:</label>
-                      <select
-                        value={filtroStatusCliente}
-                        onChange={(e) => setFiltroStatusCliente(e.target.value)}
-                        style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid #d1d5db' }}
-                        disabled={loadingHierarquia}
-                      >
-                        <option value="todos">Todos</option>
-                        <option value="ativo">Ativo</option>
-                        <option value="inativo">Inativo</option>
-                      </select>
-                    </div>
-                  </>
-                )}
+                {estadoHierarquiaUsuario.map((nivel) => {
+                  if (nivel === 'cliente') {
+                    return (
+                      <React.Fragment key="cliente">
+                        <div className="filtro-pai-select-wrapper">
+                          <label className="filtro-pai-label">Definir Clientes:</label>
+                          <FilterClientes
+                            value={filtroClienteSelecionado}
+                            onChange={(e) => setFiltroClienteSelecionado(e.target.value || null)}
+                            options={opcoesFiltradasClientes.length > 0 ? opcoesFiltradasClientes : clientes}
+                            disabled={loadingHierarquia || carregandoOpcoesFiltradas.cliente}
+                          />
+                        </div>
+                        <div className="filtro-pai-select-wrapper">
+                          <label className="filtro-pai-label">Status:</label>
+                          <select
+                            value={filtroStatusCliente}
+                            onChange={(e) => setFiltroStatusCliente(e.target.value)}
+                            style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                            disabled={loadingHierarquia}
+                          >
+                            <option value="todos">Todos</option>
+                            <option value="ativo">Ativo</option>
+                            <option value="inativo">Inativo</option>
+                          </select>
+                        </div>
+                      </React.Fragment>
+                    );
+                  }
 
-                {estadoHierarquiaUsuario[0] === 'produto' && (
-                  <div className="filtro-pai-select-wrapper">
-                    <label className="filtro-pai-label">Definir Produtos:</label>
-                    <FilterGeneric
-                      value={filtroProdutoSelecionado}
-                      onChange={(e) => setFiltroProdutoSelecionado(e.target.value || null)}
-                      options={opcoesFiltradasProdutos.length > 0 ? opcoesFiltradasProdutos : produtos}
-                      disabled={loadingHierarquia || carregandoOpcoesFiltradas.produto}
-                      placeholder={carregandoOpcoesFiltradas.produto ? "Carregando..." : "Selecionar produtos"}
-                    />
-                  </div>
-                )}
+                  if (nivel === 'produto') {
+                    return (
+                      <div key="produto" className="filtro-pai-select-wrapper">
+                        <label className="filtro-pai-label">Definir Produtos:</label>
+                        <FilterGeneric
+                          value={filtroProdutoSelecionado}
+                          onChange={(e) => setFiltroProdutoSelecionado(e.target.value || null)}
+                          options={opcoesFiltradasProdutos.length > 0 ? opcoesFiltradasProdutos : produtos}
+                          disabled={loadingHierarquia || carregandoOpcoesFiltradas.produto}
+                          placeholder={carregandoOpcoesFiltradas.produto ? "Carregando..." : "Selecionar produtos"}
+                        />
+                      </div>
+                    );
+                  }
 
-                {estadoHierarquiaUsuario[0] === 'tarefa' && (
-                  <div className="filtro-pai-select-wrapper">
-                    <label className="filtro-pai-label">Definir Tarefas:</label>
-                    <FilterGeneric
-                      value={filtroTarefaSelecionado}
-                      onChange={(e) => setFiltroTarefaSelecionado(e.target.value || null)}
-                      options={opcoesFiltradasTarefas.length > 0 ? opcoesFiltradasTarefas : tarefas}
-                      disabled={loadingHierarquia || carregandoOpcoesFiltradas.tarefa}
-                      placeholder={carregandoOpcoesFiltradas.tarefa ? "Carregando..." : "Selecionar tarefas"}
-                    />
-                  </div>
-                )}
+                  if (nivel === 'tarefa') {
+                    return (
+                      <div key="tarefa" className="filtro-pai-select-wrapper">
+                        <label className="filtro-pai-label">Definir Tarefas:</label>
+                        <FilterGeneric
+                          value={filtroTarefaSelecionado}
+                          onChange={(e) => setFiltroTarefaSelecionado(e.target.value || null)}
+                          options={opcoesFiltradasTarefas.length > 0 ? opcoesFiltradasTarefas : tarefas}
+                          disabled={loadingHierarquia || carregandoOpcoesFiltradas.tarefa}
+                          placeholder={carregandoOpcoesFiltradas.tarefa ? "Carregando..." : "Selecionar tarefas"}
+                        />
+                      </div>
+                    );
+                  }
 
-                {estadoHierarquiaUsuario[0] === 'tipo_tarefa' && (
-                  <div className="filtro-pai-select-wrapper">
-                    <label className="filtro-pai-label">Definir Tipo de Tarefa:</label>
-                    <select
-                      value={filtroTipoTarefaSelecionado ?? ''}
-                      onChange={(e) => setFiltroTipoTarefaSelecionado(e.target.value ? Number(e.target.value) : null)}
-                      style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid #d1d5db' }}
-                      disabled={loadingHierarquia || tiposTarefa.length === 0}
-                    >
-                      <option value="">Selecionar tipo de tarefa</option>
-                      {tiposTarefa.map((t) => (
-                        <option key={t.id} value={t.id}>{t.nome}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                  if (nivel === 'tipo_tarefa') {
+                    return (
+                      <div key="tipo_tarefa" className="filtro-pai-select-wrapper">
+                        <label className="filtro-pai-label">Definir Tipo de Tarefa:</label>
+                        <select
+                          value={filtroTipoTarefaSelecionado ?? ''}
+                          onChange={(e) => setFiltroTipoTarefaSelecionado(e.target.value ? Number(e.target.value) : null)}
+                          style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                          disabled={loadingHierarquia || tiposTarefa.length === 0}
+                        >
+                          <option value="">Selecionar tipo de tarefa</option>
+                          {tiposTarefa.map((t) => (
+                            <option key={t.id} value={t.id}>{t.nome}</option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  }
 
-                {estadoHierarquiaUsuario[0] === 'colaborador' && (
-                  <div className="filtro-pai-select-wrapper">
-                    <label className="filtro-pai-label">Definir Responsáveis:</label>
-                    <FilterMembro
-                      value={filtroResponsavelSelecionado}
-                      onChange={(e) => setFiltroResponsavelSelecionado(e.target.value || null)}
-                      options={opcoesFiltradasResponsaveis.length > 0 ? opcoesFiltradasResponsaveis : membros}
-                      disabled={loadingHierarquia || carregandoOpcoesFiltradas.responsavel}
-                    />
-                  </div>
-                )}
+                  if (nivel === 'colaborador') {
+                    return (
+                      <div key="colaborador" className="filtro-pai-select-wrapper">
+                        <label className="filtro-pai-label">Definir Responsáveis:</label>
+                        <FilterMembro
+                          value={filtroResponsavelSelecionado}
+                          onChange={(e) => setFiltroResponsavelSelecionado(e.target.value || null)}
+                          options={opcoesFiltradasResponsaveis.length > 0 ? opcoesFiltradasResponsaveis : membros}
+                          disabled={loadingHierarquia || carregandoOpcoesFiltradas.responsavel}
+                        />
+                      </div>
+                    );
+                  }
+
+                  return null;
+                })}
               </div>
             </FiltersCard>
 
