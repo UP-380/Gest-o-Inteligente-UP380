@@ -7,7 +7,7 @@ import { useToast } from '../../../hooks/useToast';
 import { markdownToHtml } from '../../../utils/richEditorMarkdown';
 import './AnotacoesClienteContent.css';
 
-const AnotacoesClienteContent = ({ clienteId, onCountChange }) => {
+const AnotacoesClienteContent = ({ clienteId, onCountChange, filter }) => {
     const [anotacoes, setAnotacoes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [editingId, setEditingId] = useState(null);
@@ -109,6 +109,15 @@ const AnotacoesClienteContent = ({ clienteId, onCountChange }) => {
         setExpandedId(expandedId === id ? null : id);
     };
 
+    const filteredAnotacoes = React.useMemo(() => {
+        if (!filter || filter.trim().length < 2) return anotacoes;
+        const t = filter.toLowerCase();
+        return anotacoes.filter(a =>
+            (a.titulo || '').toLowerCase().includes(t) ||
+            (a.descricao || '').toLowerCase().includes(t)
+        );
+    }, [anotacoes, filter]);
+
     const renderConteudo = (conteudo) => {
         if (!conteudo) return null;
         if (conteudo.startsWith('<')) {
@@ -179,13 +188,13 @@ const AnotacoesClienteContent = ({ clienteId, onCountChange }) => {
             )}
 
             <div className="anotacoes-list">
-                {anotacoes.length === 0 ? (
+                {filteredAnotacoes.length === 0 ? (
                     <div className="empty-state">
                         <i className="fas fa-plus-circle"></i>
-                        <p>Nenhuma anotação encontrada para este cliente.</p>
+                        <p>{filter ? 'Nenhuma anotação corresponde ao filtro.' : 'Nenhuma anotação encontrada para este cliente.'}</p>
                     </div>
                 ) : (
-                    anotacoes.map((anotacao) => (
+                    filteredAnotacoes.map((anotacao) => (
                         anotacao.id === editingId ? (
                             <div key={anotacao.id} className="anotacao-form-card" style={{ marginTop: 0 }}>
                                 <div className="form-header">

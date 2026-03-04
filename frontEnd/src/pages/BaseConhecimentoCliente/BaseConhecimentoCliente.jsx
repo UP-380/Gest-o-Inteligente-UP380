@@ -14,6 +14,7 @@ import ClienteAdquirentesList from '../../components/clientes-adquirente/Cliente
 import { AnotacoesClienteContent } from '../../components/clients/DetailContent';
 import EditButton from '../../components/common/EditButton';
 import Avatar from '../../components/user/Avatar';
+import SearchInput from '../../components/common/SearchInput';
 import { DEFAULT_AVATAR } from '../../utils/avatars';
 import { useToast } from '../../hooks/useToast';
 import './BaseConhecimentoCliente.css';
@@ -95,6 +96,16 @@ const BaseConhecimentoCliente = () => {
   const [vinculacoesSectionExpanded, setVinculacoesSectionExpanded] = useState(false);
   const [anotacoesExpanded, setAnotacoesExpanded] = useState(false);
   const [anotacoesCount, setAnotacoesCount] = useState(0);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Extrair dados do cliente de forma segura para uso em hooks
+  const {
+    cliente = {},
+    sistemas = [],
+    contasBancarias = [],
+    adquirentes = [],
+    vinculacoes = []
+  } = dadosCliente || {};
 
   // Função para expandir/recolher todas as seções
   const toggleAllSections = () => {
@@ -108,6 +119,111 @@ const BaseConhecimentoCliente = () => {
     setVinculacoesSectionExpanded(newState);
     setAnotacoesExpanded(newState);
   };
+
+  // Filtrar dados baseado no termo de busca
+  const filteredData = React.useMemo(() => {
+    if (!searchTerm || searchTerm.trim().length < 2) {
+      return {
+        sistemas: sistemas || [],
+        contasBancarias: contasBancarias || [],
+        adquirentes: adquirentes || [],
+        vinculacoes: vinculacoes || [],
+        hasMatches: false
+      };
+    }
+
+    const t = searchTerm.toLowerCase();
+
+    const filteredSistemas = (sistemas || []).filter(s =>
+      safeStr(s.cp_sistema?.nome).toLowerCase().includes(t) ||
+      safeStr(s.servidor).toLowerCase().includes(t) ||
+      safeStr(s.usuario_servidor).toLowerCase().includes(t) ||
+      safeStr(s.vpn).toLowerCase().includes(t) ||
+      safeStr(s.usuario_sistema).toLowerCase().includes(t)
+    );
+
+    const filteredContas = (contasBancarias || []).filter(c =>
+      safeStr(c.cp_banco?.nome).toLowerCase().includes(t) ||
+      safeStr(c.cp_banco?.codigo).toLowerCase().includes(t) ||
+      safeStr(c.agencia).toLowerCase().includes(t) ||
+      safeStr(c.conta).toLowerCase().includes(t) ||
+      safeStr(c.usuario).toLowerCase().includes(t) ||
+      safeStr(c.chave_acesso).toLowerCase().includes(t) ||
+      safeStr(c.observacoes).toLowerCase().includes(t)
+    );
+
+    const filteredAdquirentes = (adquirentes || []).filter(a =>
+      safeStr(a.cp_adquirente?.nome).toLowerCase().includes(t) ||
+      safeStr(a.usuario).toLowerCase().includes(t)
+    );
+
+    const filteredVinculacoes = (vinculacoes || []).filter(v =>
+      safeStr(v.produto?.nome).toLowerCase().includes(t) ||
+      safeStr(v.tipoTarefa?.nome).toLowerCase().includes(t) ||
+      safeStr(v.tarefa?.nome).toLowerCase().includes(t) ||
+      safeStr(v.subtarefa?.nome).toLowerCase().includes(t) ||
+      stripHtml(v.tarefa?.descricao).toLowerCase().includes(t) ||
+      stripHtml(v.subtarefa?.descricao).toLowerCase().includes(t) ||
+      stripHtml(v.subtarefa?.observacaoParticular).toLowerCase().includes(t)
+    );
+
+    const matchesDadosBasicos =
+      safeStr(cliente.razao).toLowerCase().includes(t) ||
+      safeStr(cliente.fantasia).toLowerCase().includes(t) ||
+      safeStr(cliente.nome_amigavel).toLowerCase().includes(t) ||
+      safeStr(cliente.cnpj || cliente.cpf_cnpj).toLowerCase().includes(t);
+
+    return {
+      sistemas: filteredSistemas,
+      contasBancarias: filteredContas,
+      adquirentes: filteredAdquirentes,
+      vinculacoes: filteredVinculacoes,
+      matchesDadosBasicos,
+      hasMatches: true
+    };
+  }, [searchTerm, dadosCliente]);
+
+  // Efeito para expandir seções que têm resultados na busca e rolar para a primeira delas
+  useEffect(() => {
+    if (searchTerm && searchTerm.trim().length >= 2) {
+      let firstSectionId = null;
+
+      if (filteredData.matchesDadosBasicos) {
+        if (!firstSectionId) firstSectionId = 'section-dados-basicos';
+      }
+      if (filteredData.sistemas.length > 0) {
+        setSistemasExpanded(true);
+        if (!firstSectionId) firstSectionId = 'section-sistemas';
+      }
+      if (filteredData.contasBancarias.length > 0) {
+        setContasBancariasExpanded(true);
+        if (!firstSectionId) firstSectionId = 'section-contas';
+      }
+      if (filteredData.adquirentes.length > 0) {
+        setAdquirentesExpanded(true);
+        if (!firstSectionId) firstSectionId = 'section-adquirentes';
+      }
+      if (filteredData.vinculacoes.length > 0) {
+        setFluxoOperacaoExpanded(true);
+        if (!firstSectionId) firstSectionId = 'section-fluxo';
+      }
+
+      // Se houver qualquer busca, expandimos as anotações
+      setAnotacoesExpanded(true);
+      if (!firstSectionId && searchTerm.length > 3) firstSectionId = 'section-anotacoes';
+
+      // Rolar para a primeira seção com resultado (com um pequeno delay para a expansão ocorrer)
+      if (firstSectionId) {
+        const timeoutId = setTimeout(() => {
+          const element = document.getElementById(firstSectionId);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }, 300);
+        return () => clearTimeout(timeoutId);
+      }
+    }
+  }, [searchTerm, filteredData]);
 
   // Sincronizar estado allExpanded quando seções individuais mudarem
   useEffect(() => {
@@ -341,8 +457,6 @@ const BaseConhecimentoCliente = () => {
     );
   }
 
-  const { cliente, sistemas = [], contasBancarias = [], adquirentes = [], vinculacoes = [] } = dadosCliente;
-
   return (
     <Layout>
       <div className="container">
@@ -388,20 +502,36 @@ const BaseConhecimentoCliente = () => {
                 </div>
               </div>
 
-              {/* Botão Expandir/Recolher Tudo */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '8px', marginBottom: '24px' }}>
-                <span style={{ fontSize: '14px', color: '#64748b', fontWeight: 500 }}>Expandir/Recolher Tudo</span>
-                <button
-                  className="btn-icon btn-expand-all"
-                  onClick={toggleAllSections}
-                  title={allExpanded ? 'Recolher todas as seções' : 'Expandir todas as seções'}
-                >
-                  <i className={`fas ${allExpanded ? 'fa-compress-alt' : 'fa-expand-alt'}`}></i>
-                </button>
+              {/* Barra de Busca e Expandir/Recolher Tudo */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '16px',
+                marginBottom: '24px',
+                padding: '0 4px'
+              }}>
+                <div style={{ flex: 1, maxWidth: '500px' }}>
+                  <SearchInput
+                    value={searchTerm}
+                    onChange={setSearchTerm}
+                    placeholder="Filtrar nesta página (ex: Bradesco, VPN, Senha...)"
+                  />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '14px', color: '#64748b', fontWeight: 500 }}>Expandir/Recolher Tudo</span>
+                  <button
+                    className="btn-icon btn-expand-all"
+                    onClick={toggleAllSections}
+                    title={allExpanded ? 'Recolher todas as seções' : 'Expandir todas as seções'}
+                  >
+                    <i className={`fas ${allExpanded ? 'fa-compress-alt' : 'fa-expand-alt'}`}></i>
+                  </button>
+                </div>
               </div>
 
               {/* Dados Básicos do Cliente */}
-              <div className="knowledge-section">
+              <div id="section-dados-basicos" className="knowledge-section">
                 <div className="section-header">
                   <div className="section-icon" style={{ backgroundColor: '#3b82f615', color: '#3b82f6' }}>
                     <i className="fas fa-briefcase"></i>
@@ -459,7 +589,7 @@ const BaseConhecimentoCliente = () => {
               </div>
 
               {/* Acessos de Sistema */}
-              <div className="knowledge-section">
+              <div id="section-sistemas" className="knowledge-section">
                 <div
                   className="section-header section-header-collapsible"
                   style={{ cursor: 'pointer' }}
@@ -498,7 +628,7 @@ const BaseConhecimentoCliente = () => {
                 {sistemasExpanded && (
                   <div className="section-content">
                     <SistemasContent
-                      sistemas={sistemas}
+                      sistemas={filteredData.sistemas}
                       onClone={(sistema) => {
                         setSistemaToClone(sistema);
                         setShowModalSistemas(true);
@@ -509,7 +639,7 @@ const BaseConhecimentoCliente = () => {
               </div>
 
               {/* Contas Bancárias */}
-              <div className="knowledge-section">
+              <div id="section-contas" className="knowledge-section">
                 <div
                   className="section-header section-header-collapsible"
                   style={{ cursor: 'pointer' }}
@@ -548,7 +678,7 @@ const BaseConhecimentoCliente = () => {
                 {contasBancariasExpanded && (
                   <div className="section-content">
                     <ContasBancariasContent
-                      contasBancarias={contasBancarias}
+                      contasBancarias={filteredData.contasBancarias}
                       onClone={(conta) => {
                         setContaToClone(conta);
                         setShowModalContas(true);
@@ -559,7 +689,7 @@ const BaseConhecimentoCliente = () => {
               </div>
 
               {/* Adquirentes */}
-              <div className="knowledge-section">
+              <div id="section-adquirentes" className="knowledge-section">
                 <div
                   className="section-header section-header-collapsible"
                   style={{ cursor: 'pointer' }}
@@ -598,7 +728,7 @@ const BaseConhecimentoCliente = () => {
                 {adquirentesExpanded && (
                   <div className="section-content">
                     <AdquirentesContent
-                      adquirentes={adquirentes}
+                      adquirentes={filteredData.adquirentes}
                       onClone={(adquirente) => {
                         setAdquirenteToClone(adquirente);
                         setShowModalAdquirentes(true);
@@ -609,7 +739,7 @@ const BaseConhecimentoCliente = () => {
               </div>
 
               {/* Fluxo da Operação */}
-              <div className="knowledge-section">
+              <div id="section-fluxo" className="knowledge-section">
                 <div
                   className="section-header section-header-collapsible"
                   style={{ cursor: 'pointer' }}
@@ -660,7 +790,7 @@ const BaseConhecimentoCliente = () => {
                 {fluxoOperacaoExpanded && (
                   <div className="section-content">
                     <VinculacoesContent
-                      vinculacoes={vinculacoes}
+                      vinculacoes={filteredData.vinculacoes}
                       clienteId={clienteId}
                       onObservacaoUpdated={loadDadosCliente}
                       expandAll={vinculacoesExpandAll}
@@ -670,7 +800,7 @@ const BaseConhecimentoCliente = () => {
               </div>
 
               {/* Anotações */}
-              <div className="knowledge-section">
+              <div id="section-anotacoes" className="knowledge-section">
                 <div
                   className="section-header section-header-collapsible"
                   style={{ cursor: 'pointer' }}
@@ -704,6 +834,7 @@ const BaseConhecimentoCliente = () => {
                     <AnotacoesClienteContent
                       clienteId={clienteId}
                       onCountChange={setAnotacoesCount}
+                      filter={searchTerm}
                     />
                   </div>
                 )}
