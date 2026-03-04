@@ -528,6 +528,41 @@
     transform: translateX(20px);
 }
 
+/* Botão Exportar Excel */
+.rt-export-excel-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #0d9488;
+    background: #ccfbf1;
+    border: 1px solid #99f6e4;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: color 0.2s, background 0.2s, border-color 0.2s;
+}
+
+.rt-export-excel-btn:hover:not(:disabled) {
+    color: #0f766e;
+    background: #99f6e4;
+    border-color: #5eead4;
+}
+
+.rt-export-excel-btn.disabled,
+.rt-export-excel-btn:disabled {
+    color: #94a3b8;
+    background: #f1f5f9;
+    border-color: #e2e8f0;
+    cursor: not-allowed;
+    opacity: 0.85;
+}
+
+.rt-export-excel-btn i {
+    font-size: 1rem;
+}
+
 .toolbar-popover {
     position: absolute;
     top: calc(100% + 8px);

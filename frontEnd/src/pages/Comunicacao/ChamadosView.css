@@ -6,7 +6,30 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
+    margin-bottom: 25px;
+}
+
+.chamados-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 30px;
+    padding: 0 20px;
+}
+
+.status-filter-btn {
+    transition: all 0.2s ease;
+}
+
+.status-filter-btn:hover:not(.active) {
+    background-color: #f1f5f9;
+    border-color: #0e3b6f;
+    color: #0e3b6f;
+}
+
+.status-filter-btn.active {
+    box-shadow: 0 4px 6px rgba(14, 59, 111, 0.2);
 }
 
 .new-chamado-btn {
@@ -80,5 +103,176 @@
 }
 
 .badge.status {
-    /* Color injected inline */
+    min-width: 80px;
+    text-align: center;
+}
+
+/* New styles */
+.operator-hint {
+    display: block;
+    font-size: 0.85rem;
+    font-style: italic;
+    color: #004085;
+    /* Dark blue */
+    margin-top: 5px;
+}
+
+.description-group .textarea-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.textarea-wrapper textarea {
+    width: 100%;
+    resize: vertical;
+    padding-right: 40px;
+    /* Make space for icon */
+}
+
+.upload-icon {
+    display: none;
+    /* Hide old icon */
+}
+
+.attach-file-btn {
+    width: 100%;
+    padding: 14px;
+    border: none;
+    background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='8' ry='8' stroke='%230e3b6f' stroke-width='2.5' stroke-dasharray='1, 12' stroke-dashoffset='0' stroke-linecap='round'/%3e%3c/svg%3e");
+    background-color: #f8fafc;
+    color: #0e3b6f;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    transition: all 0.2s;
+}
+
+.attach-file-btn:hover {
+    background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='8' ry='8' stroke='%230e3b6f' stroke-width='2' stroke-dasharray='1, 12' stroke-dashoffset='0' stroke-linecap='round'/%3e%3c/svg%3e");
+    color: #0e3b6f;
+    background-color: #eff6ff;
+}
+
+.attach-file-btn i {
+    font-size: 1rem;
+}
+
+.chamado-category {
+    font-size: 12px;
+    color: #666;
+    margin-top: 4px;
+    font-weight: 500;
+}
+
+.file-preview {
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.9rem;
+    color: #495057;
+}
+
+.file-preview span {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.file-preview .remove-file {
+    color: #dc3545;
+    cursor: pointer;
+    transition: color 0.2s;
+    padding: 4px;
+}
+
+.file-preview .remove-file:hover {
+    color: #bd2130;
+}
+
+/* Estilos de Preview de Mídia */
+.file-preview-container {
+    margin-top: 10px;
+}
+
+.image-preview-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.image-preview {
+    max-width: 120px;
+    max-height: 120px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    display: block;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.image-preview:hover {
+    transform: scale(1.05);
+}
+
+.remove-image-btn {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: rgba(0, 0, 0, 0.4);
+    border: none;
+    border-radius: 50%;
+    color: white;
+    cursor: pointer;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: background 0.2s;
+}
+
+.remove-image-btn:hover {
+    background: rgba(239, 68, 68, 0.9);
+}
+
+/* Lightbox */
+.image-lightbox {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.9);
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.lightbox-close {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 40px;
+    cursor: pointer;
+}
+
+.expanded-image {
+    max-width: 90%;
+    max-height: 90%;
+    object-fit: contain;
+    border-radius: 4px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
 }
