@@ -522,7 +522,16 @@ const PlanilhaHoras = () => {
     return datas;
   };
 
-  // Agrupar registros por cliente/tarefa e por data
+  // Extrair data nominal do registro (YYYY-MM-DD) — mesma regra do histórico/relatório (card)
+  // Assim a planilha fica sincronizada: o que aparece no dia X no histórico aparece no dia X aqui
+  const dataNominalRegistro = (registro) => {
+    if (!registro || !registro.data_inicio) return null;
+    const s = String(registro.data_inicio).trim();
+    const idx = s.indexOf('T');
+    return idx >= 0 ? s.slice(0, idx) : (s.match(/^\d{4}-\d{2}-\d{2}/) ? s.slice(0, 10) : null);
+  };
+
+  // Agrupar registros por cliente/tarefa e por data (dia = data nominal do registro, igual ao histórico)
   const agruparRegistros = () => {
     const grupos = {};
     const datas = gerarDatasPeriodo();
@@ -532,45 +541,28 @@ const PlanilhaHoras = () => {
       const tarefaId = registro.tarefa_id || 'sem-tarefa';
       const chave = `${clienteId}-${tarefaId}`;
 
+      const chaveDataRegistro = dataNominalRegistro(registro);
+      if (!chaveDataRegistro) return;
+      // Só incluir no período exibido
+      if (chaveDataRegistro < dataInicio || chaveDataRegistro > dataFim) return;
+
       if (!grupos[chave]) {
         grupos[chave] = {
           clienteId,
           tarefaId,
           dias: {},
-          registrosPorDia: {} // Armazenar os registros originais por dia
+          registrosPorDia: {}
         };
       }
 
-      const inicioRegistro = new Date(registro.data_inicio);
-      const fimRegistro = new Date(registro.data_fim);
-
-      datas.forEach(data => {
-        const inicioDia = new Date(data);
-        inicioDia.setHours(0, 0, 0, 0);
-        const fimDia = new Date(data);
-        fimDia.setHours(23, 59, 59, 999);
-
-        if (inicioRegistro <= fimDia && fimRegistro >= inicioDia) {
-          // Usar formatação local segura
-          const chaveData = formatarDataLocalYMD(data);
-
-          if (!grupos[chave].dias[chaveData]) {
-            grupos[chave].dias[chaveData] = 0;
-            grupos[chave].registrosPorDia[chaveData] = [];
-          }
-
-          const inicioSobreposicao = inicioRegistro > inicioDia ? inicioRegistro : inicioDia;
-          const fimSobreposicao = fimRegistro < fimDia ? fimRegistro : fimDia;
-          const tempoSobreposicao = fimSobreposicao.getTime() - inicioSobreposicao.getTime();
-
-          grupos[chave].dias[chaveData] += tempoSobreposicao;
-
-          // Adicionar o registro à lista deste dia se ele tiver tempo neste dia
-          if (tempoSobreposicao > 0) {
-            grupos[chave].registrosPorDia[chaveData].push(registro);
-          }
-        }
-      });
+      const tempoMs = Number(registro.tempo_realizado) ||
+        (registro.data_inicio && registro.data_fim ? (new Date(registro.data_fim).getTime() - new Date(registro.data_inicio).getTime()) : 0);
+      if (!grupos[chave].dias[chaveDataRegistro]) {
+        grupos[chave].dias[chaveDataRegistro] = 0;
+        grupos[chave].registrosPorDia[chaveDataRegistro] = [];
+      }
+      grupos[chave].dias[chaveDataRegistro] += tempoMs;
+      grupos[chave].registrosPorDia[chaveDataRegistro].push(registro);
     });
 
     return grupos;
@@ -739,9 +731,8 @@ const PlanilhaHoras = () => {
 
                           {/* Linhas Expandidas - Detalhes */}
                           {isExpanded && todosRegistros.map((reg, regIndex) => {
-                            // Workaround simples: usar a string da data para extrair o dia local
-                            const dataInicioObj = new Date(reg.data_inicio);
-                            const chaveDataRegistro = formatarDataLocalYMD(dataInicioObj);
+                            // Mesma regra do histórico: dia = data nominal (YYYY-MM-DD) de data_inicio
+                            const chaveDataRegistro = dataNominalRegistro(reg) || '';
 
                             const horaInicioStr = new Date(reg.data_inicio).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
                             const horaFimStr = new Date(reg.data_fim).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -801,7 +792,7 @@ const PlanilhaHoras = () => {
                         <strong>Total Geral</strong>
                       </td>
                       {datas.map((data, index) => {
-                        const chaveData = data.toISOString().split('T')[0];
+                        const chaveData = formatarDataLocalYMD(data);
                         const total = totaisPorDia[chaveData] || 0;
                         return (
                           <td key={index} className="planilha-horas-td planilha-horas-td-total">
