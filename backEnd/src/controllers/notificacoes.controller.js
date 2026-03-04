@@ -71,7 +71,7 @@ async function getNotificacoesStream(req, res) {
     try {
         res.write(`data: ${JSON.stringify({ type: 'connected' })}\n\n`);
         if (typeof res.flush === 'function') res.flush();
-    } catch (_) {}
+    } catch (_) { }
 }
 
 /**
@@ -234,7 +234,7 @@ async function marcarTodasComoVisualizadas(req, res) {
  * @param {Object} params.metadata - Metadados extras
  * @param {string|number} params.usuario_id - (Opcional) ID de um usuário alvo → notificação direta (CASO 1). Sem isso → distribuição por nível (CASO 2)
  */
-async function distribuirNotificacao({ tipo, titulo, mensagem, referencia_id, link, metadata, usuario_id }) {
+async function distribuirNotificacao({ tipo, titulo, mensagem, referencia_id, link, metadata, usuario_id, departamento_id }) {
     try {
         if (!tipo) throw new Error('Tipo de notificação é obrigatório');
 
@@ -254,7 +254,6 @@ async function distribuirNotificacao({ tipo, titulo, mensagem, referencia_id, li
                 visualizada: false
             };
             const { data: inserted, error: errInsert } = await supabase
-
                 .from('notificacoes')
                 .insert(row)
                 .select('id, criado_em')
@@ -285,54 +284,86 @@ async function distribuirNotificacao({ tipo, titulo, mensagem, referencia_id, li
             return;
         }
 
-        // CASO 2: Distribuição por Nível/Permissão
+        // CASO 2: Distribuição por Nível/Permissão ou Departamento
         console.log(`🔔 Distribuindo notificação [${tipo}]: ${titulo}`);
 
-        // 1. Identificar quais NÍVEIS permitem este tipo de notificação
-        // Administrador sempre recebe (Hardcoded super user concept)
-        const niveisPermitidos = ['administrador'];
+        const destinatariosIds = new Set();
 
-        // Buscar configurações customizadas no banco
-        const { data: configs } = await supabase
-            .from('permissoes_config')
-            .select('nivel, notificacoes');
-
-        if (configs) {
-            configs.forEach(config => {
-                let allowedTypes = [];
-                try {
-                    allowedTypes = typeof config.notificacoes === 'string'
-                        ? JSON.parse(config.notificacoes)
-                        : config.notificacoes;
-                } catch (e) { allowedTypes = []; }
-
-                if (Array.isArray(allowedTypes) && allowedTypes.includes(tipo)) {
-                    if (!niveisPermitidos.includes(config.nivel)) {
-                        niveisPermitidos.push(config.nivel);
-                    }
-                }
-            });
-        }
-
-        console.log(`   -> Níveis autorizados: ${niveisPermitidos.join(', ')}`);
-
-        // 2. Buscar usuários que possuem esses níveis
-        const { data: destinatarios, error: errDest } = await supabase
-
+        // 1. Administradores sempre recebem (Hardcoded super user concept)
+        const { data: admins } = await supabase
             .from('usuarios')
             .select('id')
-            .in('permissoes', niveisPermitidos);
+            .eq('permissoes', 'administrador');
 
-        if (errDest || !destinatarios || destinatarios.length === 0) {
+        if (admins) admins.forEach(u => destinatariosIds.add(u.id));
+
+        // 2. Se houver departamento_id, buscar membros do departamento
+        if (departamento_id) {
+            console.log(`   -> Buscando membros do departamento: ${departamento_id}`);
+            const { data: membrosDept, error: errMembros } = await supabase
+                .from('departamento_membros')
+                .select(`
+                    membro:membro_id (
+                        usuario_id
+                    )
+                `)
+                .eq('departamento_id', departamento_id);
+
+            if (!errMembros && membrosDept) {
+                membrosDept.forEach(record => {
+                    if (record.membro?.usuario_id) {
+                        destinatariosIds.add(record.membro.usuario_id);
+                    }
+                });
+            } else if (errMembros) {
+                console.error('Erro ao buscar membros do departamento para notificação:', errMembros);
+            }
+        } else {
+            // 3. Identificar NÍVEIS adicionais permitidos por configuração (permissoes_config)
+            // Apenas se NÃO for uma notificação restrita a um departamento
+            const { data: configs } = await supabase
+                .from('permissoes_config')
+                .select('nivel, notificacoes');
+
+            if (configs) {
+                const niveisAdicionais = [];
+                configs.forEach(config => {
+                    let allowedTypes = [];
+                    try {
+                        allowedTypes = typeof config.notificacoes === 'string'
+                            ? JSON.parse(config.notificacoes)
+                            : config.notificacoes;
+                    } catch (e) { allowedTypes = []; }
+
+                    if (Array.isArray(allowedTypes) && allowedTypes.includes(tipo)) {
+                        if (config.nivel !== 'administrador') {
+                            niveisAdicionais.push(config.nivel);
+                        }
+                    }
+                });
+
+                if (niveisAdicionais.length > 0) {
+                    const { data: outrosDest } = await supabase
+                        .from('usuarios')
+                        .select('id')
+                        .in('permissoes', niveisAdicionais);
+
+                    if (outrosDest) outrosDest.forEach(u => destinatariosIds.add(u.id));
+                }
+            }
+        }
+
+        if (destinatariosIds.size === 0) {
             console.log('   -> Nenhum destinatário encontrado.');
             return;
         }
 
-        console.log(`   -> Enviando para ${destinatarios.length} usuários.`);
+        const idsArray = Array.from(destinatariosIds);
+        console.log(`   -> Enviando para ${idsArray.length} usuários.`);
 
-        // 3. Preparar Bulk Insert (mesma estrutura do chat: visualizada, campos seguros)
-        const notificacoes = destinatarios.map(u => ({
-            usuario_id: Number(u.id) || u.id,
+        // 3. Preparar Bulk Insert
+        const notificacoes = idsArray.map(id => ({
+            usuario_id: Number(id) || id,
             tipo,
             titulo: titulo || '',
             mensagem: mensagem || '',
@@ -344,15 +375,14 @@ async function distribuirNotificacao({ tipo, titulo, mensagem, referencia_id, li
 
         // 4. Inserir no banco
         const { error: errInsert } = await supabase
-
             .from('notificacoes')
             .insert(notificacoes);
 
         if (errInsert) {
             console.error('Erro ao inserir notificações em lote:', errInsert.message || errInsert);
         } else {
-            console.log('   -> Notificações enviadas com sucesso:', destinatarios.length);
-            destinatarios.forEach((u) => notificarClienteSSE(u.id, { type: 'notification' }));
+            console.log('   -> Notificações enviadas com sucesso:', idsArray.length);
+            idsArray.forEach((uid) => notificarClienteSSE(uid, { type: 'notification' }));
         }
 
     } catch (error) {

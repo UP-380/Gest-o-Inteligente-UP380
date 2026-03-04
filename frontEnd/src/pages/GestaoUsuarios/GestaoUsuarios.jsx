@@ -453,41 +453,79 @@ const GestaoUsuarios = () => {
                       Gerencie as permissões de acesso dos usuários do sistema
                     </p>
                   </div>
-                  <button
-                    onClick={() => navigate('/gestao/permissoes')}
-                    className="custo-colaborador-btn"
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      color: '#64748b',
-                      cursor: 'pointer',
-                      padding: '8px 12px',
-                      borderRadius: '6px',
-                      transition: 'all 0.2s',
-                      fontSize: '14px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      opacity: 0.7
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = '#f1f5f9';
-                      e.currentTarget.style.color = '#475569';
-                      e.currentTarget.style.opacity = '1';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'transparent';
-                      e.currentTarget.style.color = '#64748b';
-                      e.currentTarget.style.opacity = '0.7';
-                    }}
-                    title="Configurar Permissões"
-                  >
-                    <i className="fas fa-shield-alt" style={{
-                      fontSize: '16px'
-                    }}></i>
-                    <span>Configurar Permissões</span>
-                  </button>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-end' }}>
+                    <button
+                      onClick={() => navigate('/gestao/permissoes')}
+                      className="custo-colaborador-btn"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#64748b',
+                        cursor: 'pointer',
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        transition: 'all 0.2s',
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        opacity: 0.7
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = '#f1f5f9';
+                        e.currentTarget.style.color = '#475569';
+                        e.currentTarget.style.opacity = '1';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.color = '#64748b';
+                        e.currentTarget.style.opacity = '0.7';
+                      }}
+                      title="Configurar Permissões"
+                    >
+                      <i className="fas fa-shield-alt" style={{
+                        fontSize: '16px'
+                      }}></i>
+                      <span>Configurar Permissões</span>
+                    </button>
+
+                    <button
+                      onClick={() => navigate('/gestao/departamentos')}
+                      className="custo-colaborador-btn"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#64748b',
+                        cursor: 'pointer',
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        transition: 'all 0.2s',
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        opacity: 0.7
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = '#f1f5f9';
+                        e.currentTarget.style.color = '#475569';
+                        e.currentTarget.style.opacity = '1';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.color = '#64748b';
+                        e.currentTarget.style.opacity = '0.7';
+                      }}
+                      title="Configurar Departamentos"
+                    >
+                      <i className="fas fa-building" style={{
+                        fontSize: '16px'
+                      }}></i>
+                      <span>Configurar Departamentos</span>
+                    </button>
+                  </div>
                 </div>
+
               </div>
 
               {/* Filtro de busca e botão novo */}
@@ -548,87 +586,155 @@ const GestaoUsuarios = () => {
       </div>
 
       {/* Modal de Edição */}
-      {showEditModal && (
-        <div className="modal-overlay">
-          <div
-            className="modal-content"
-            style={{
-              maxWidth: '900px',
-              width: '95%',
-              maxHeight: '95vh',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
+      {
+        showEditModal && (
+          <div className="modal-overlay">
             <div
-              className="modal-header"
+              className="modal-content"
               style={{
+                maxWidth: '900px',
+                width: '95%',
+                maxHeight: '95vh',
                 display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '18px 24px',
-                borderBottom: '1px solid #eee',
-                flexShrink: 0
+                flexDirection: 'column',
+                overflow: 'hidden'
               }}
+              onClick={(e) => e.stopPropagation()}
             >
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <i className={`fas ${usuarioEditando ? 'fa-user-edit' : 'fa-user-plus'}`} style={{ marginRight: '8px', color: '#0e3b6f' }}></i>
-                <h3 style={{ fontSize: '18px', fontWeight: '600', margin: 0 }}>
-                  {usuarioEditando ? 'Editar Usuário' : 'Novo Usuário'}
-                </h3>
-              </div>
-              <button
-                className="btn-icon"
-                onClick={() => !salvando && setShowEditModal(false)}
-                title="Fechar (ESC)"
-                disabled={salvando}
-                style={{ fontSize: '18px' }}
+              <div
+                className="modal-header"
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '18px 24px',
+                  borderBottom: '1px solid #eee',
+                  flexShrink: 0
+                }}
               >
-                <i className="fas fa-times"></i>
-              </button>
-            </div>
-
-            <div
-              className="modal-body"
-              style={{
-                padding: '20px 24px',
-                overflowY: 'auto',
-                overflowX: 'hidden',
-                flex: 1,
-                minHeight: 0
-              }}
-            >
-              {/* Informações do Usuário */}
-              <div style={{ marginBottom: '20px', paddingBottom: '18px', borderBottom: '2px solid #e5e7eb' }}>
-                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '14px' }}>
-                  <div style={{
-                    width: '4px',
-                    height: '20px',
-                    backgroundColor: '#0e3b6f',
-                    borderRadius: '2px',
-                    marginRight: '12px'
-                  }}></div>
-                  <h4 style={{ fontSize: '15px', fontWeight: '600', margin: 0, color: '#1f2937' }}>
-                    <i className="fas fa-user" style={{ marginRight: '8px', color: '#0e3b6f' }}></i>
-                    Informações do Usuário
-                  </h4>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <i className={`fas ${usuarioEditando ? 'fa-user-edit' : 'fa-user-plus'}`} style={{ marginRight: '8px', color: '#0e3b6f' }}></i>
+                  <h3 style={{ fontSize: '18px', fontWeight: '600', margin: 0 }}>
+                    {usuarioEditando ? 'Editar Usuário' : 'Novo Usuário'}
+                  </h3>
                 </div>
+                <button
+                  className="btn-icon"
+                  onClick={() => !salvando && setShowEditModal(false)}
+                  title="Fechar (ESC)"
+                  disabled={salvando}
+                  style={{ fontSize: '18px' }}
+                >
+                  <i className="fas fa-times"></i>
+                </button>
+              </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                  <div>
+              <div
+                className="modal-body"
+                style={{
+                  padding: '20px 24px',
+                  overflowY: 'auto',
+                  overflowX: 'hidden',
+                  flex: 1,
+                  minHeight: 0
+                }}
+              >
+                {/* Informações do Usuário */}
+                <div style={{ marginBottom: '20px', paddingBottom: '18px', borderBottom: '2px solid #e5e7eb' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '14px' }}>
+                    <div style={{
+                      width: '4px',
+                      height: '20px',
+                      backgroundColor: '#0e3b6f',
+                      borderRadius: '2px',
+                      marginRight: '12px'
+                    }}></div>
+                    <h4 style={{ fontSize: '15px', fontWeight: '600', margin: 0, color: '#1f2937' }}>
+                      <i className="fas fa-user" style={{ marginRight: '8px', color: '#0e3b6f' }}></i>
+                      Informações do Usuário
+                    </h4>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                    <div>
+                      <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
+                        Nome do Usuário
+                        <span className="required" style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.nome_usuario}
+                        onChange={(e) => {
+                          setFormData({ ...formData, nome_usuario: e.target.value });
+                          if (formErrors.nome_usuario) {
+                            setFormErrors({ ...formErrors, nome_usuario: '' });
+                          }
+                        }}
+                        disabled={salvando}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          fontSize: '14px',
+                          border: formErrors.nome_usuario ? '2px solid #ef4444' : '1px solid #d1d5db',
+                          borderRadius: '6px',
+                          backgroundColor: salvando ? '#f3f4f6' : '#fff',
+                          transition: 'border-color 0.2s'
+                        }}
+                        placeholder="Digite o nome do usuário"
+                      />
+                      {formErrors.nome_usuario && (
+                        <span style={{ color: '#ef4444', fontSize: '11px', marginTop: '4px', display: 'block' }}>
+                          {formErrors.nome_usuario}
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
+                        Email
+                        <span className="required" style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>
+                      </label>
+                      <input
+                        type="email"
+                        value={formData.email_usuario}
+                        onChange={(e) => {
+                          setFormData({ ...formData, email_usuario: e.target.value });
+                          if (formErrors.email_usuario) {
+                            setFormErrors({ ...formErrors, email_usuario: '' });
+                          }
+                        }}
+                        disabled={salvando}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          fontSize: '14px',
+                          border: formErrors.email_usuario ? '2px solid #ef4444' : '1px solid #d1d5db',
+                          borderRadius: '6px',
+                          backgroundColor: salvando ? '#f3f4f6' : '#fff',
+                          transition: 'border-color 0.2s'
+                        }}
+                        placeholder="Digite o email"
+                      />
+                      {formErrors.email_usuario && (
+                        <span style={{ color: '#ef4444', fontSize: '11px', marginTop: '4px', display: 'block' }}>
+                          {formErrors.email_usuario}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: '14px' }}>
                     <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
-                      Nome do Usuário
-                      <span className="required" style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>
+                      Senha
+                      {!usuarioEditando && <span className="required" style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
+                      {usuarioEditando && <span style={{ fontSize: '11px', color: '#9ca3af', marginLeft: '4px', fontWeight: 'normal' }}>(Deixe em branco para não alterar)</span>}
                     </label>
                     <input
-                      type="text"
-                      value={formData.nome_usuario}
+                      type="password"
+                      value={formData.senha_login}
                       onChange={(e) => {
-                        setFormData({ ...formData, nome_usuario: e.target.value });
-                        if (formErrors.nome_usuario) {
-                          setFormErrors({ ...formErrors, nome_usuario: '' });
+                        setFormData({ ...formData, senha_login: e.target.value });
+                        if (formErrors.senha_login) {
+                          setFormErrors({ ...formErrors, senha_login: '' });
                         }
                       }}
                       disabled={salvando}
@@ -636,174 +742,45 @@ const GestaoUsuarios = () => {
                         width: '100%',
                         padding: '9px 12px',
                         fontSize: '14px',
-                        border: formErrors.nome_usuario ? '2px solid #ef4444' : '1px solid #d1d5db',
+                        border: formErrors.senha_login ? '2px solid #ef4444' : '1px solid #d1d5db',
                         borderRadius: '6px',
                         backgroundColor: salvando ? '#f3f4f6' : '#fff',
                         transition: 'border-color 0.2s'
                       }}
-                      placeholder="Digite o nome do usuário"
+                      placeholder={usuarioEditando ? "Deixe em branco para não alterar" : "Digite a senha"}
                     />
-                    {formErrors.nome_usuario && (
+                    {formErrors.senha_login && (
                       <span style={{ color: '#ef4444', fontSize: '11px', marginTop: '4px', display: 'block' }}>
-                        {formErrors.nome_usuario}
+                        {formErrors.senha_login}
                       </span>
                     )}
                   </div>
-                  <div>
-                    <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
-                      Email
-                      <span className="required" style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>
+                </div>
+
+                {/* Vincular Membro */}
+                <div style={{ marginTop: '18px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '14px' }}>
+                    <div style={{
+                      width: '4px',
+                      height: '20px',
+                      backgroundColor: '#0e3b6f',
+                      borderRadius: '2px',
+                      marginRight: '12px'
+                    }}></div>
+                    <h4 style={{ fontSize: '15px', fontWeight: '600', margin: 0, color: '#1f2937' }}>
+                      <i className="fas fa-user-tie" style={{ marginRight: '8px', color: '#0e3b6f' }}></i>
+                      Vincular Membro
+                    </h4>
+                  </div>
+
+                  <div style={{ marginBottom: '14px' }}>
+                    <label className="form-label" style={{ marginBottom: '8px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
+                      Selecione o membro (opcional)
                     </label>
-                    <input
-                      type="email"
-                      value={formData.email_usuario}
-                      onChange={(e) => {
-                        setFormData({ ...formData, email_usuario: e.target.value });
-                        if (formErrors.email_usuario) {
-                          setFormErrors({ ...formErrors, email_usuario: '' });
-                        }
-                      }}
-                      disabled={salvando}
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        fontSize: '14px',
-                        border: formErrors.email_usuario ? '2px solid #ef4444' : '1px solid #d1d5db',
-                        borderRadius: '6px',
-                        backgroundColor: salvando ? '#f3f4f6' : '#fff',
-                        transition: 'border-color 0.2s'
-                      }}
-                      placeholder="Digite o email"
-                    />
-                    {formErrors.email_usuario && (
-                      <span style={{ color: '#ef4444', fontSize: '11px', marginTop: '4px', display: 'block' }}>
-                        {formErrors.email_usuario}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div style={{ marginTop: '14px' }}>
-                  <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
-                    Senha
-                    {!usuarioEditando && <span className="required" style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
-                    {usuarioEditando && <span style={{ fontSize: '11px', color: '#9ca3af', marginLeft: '4px', fontWeight: 'normal' }}>(Deixe em branco para não alterar)</span>}
-                  </label>
-                  <input
-                    type="password"
-                    value={formData.senha_login}
-                    onChange={(e) => {
-                      setFormData({ ...formData, senha_login: e.target.value });
-                      if (formErrors.senha_login) {
-                        setFormErrors({ ...formErrors, senha_login: '' });
-                      }
-                    }}
-                    disabled={salvando}
-                    style={{
-                      width: '100%',
-                      padding: '9px 12px',
-                      fontSize: '14px',
-                      border: formErrors.senha_login ? '2px solid #ef4444' : '1px solid #d1d5db',
-                      borderRadius: '6px',
-                      backgroundColor: salvando ? '#f3f4f6' : '#fff',
-                      transition: 'border-color 0.2s'
-                    }}
-                    placeholder={usuarioEditando ? "Deixe em branco para não alterar" : "Digite a senha"}
-                  />
-                  {formErrors.senha_login && (
-                    <span style={{ color: '#ef4444', fontSize: '11px', marginTop: '4px', display: 'block' }}>
-                      {formErrors.senha_login}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Vincular Membro */}
-              <div style={{ marginTop: '18px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '14px' }}>
-                  <div style={{
-                    width: '4px',
-                    height: '20px',
-                    backgroundColor: '#0e3b6f',
-                    borderRadius: '2px',
-                    marginRight: '12px'
-                  }}></div>
-                  <h4 style={{ fontSize: '15px', fontWeight: '600', margin: 0, color: '#1f2937' }}>
-                    <i className="fas fa-user-tie" style={{ marginRight: '8px', color: '#0e3b6f' }}></i>
-                    Vincular Membro
-                  </h4>
-                </div>
-
-                <div style={{ marginBottom: '14px' }}>
-                  <label className="form-label" style={{ marginBottom: '8px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
-                    Selecione o membro (opcional)
-                  </label>
-                  <select
-                    value={formData.membro_id || ''}
-                    onChange={(e) => setFormData({ ...formData, membro_id: e.target.value })}
-                    disabled={salvando || loadingMembros}
-                    style={{
-                      width: '100%',
-                      padding: '9px 36px 9px 12px',
-                      fontSize: '14px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '6px',
-                      transition: 'border-color 0.2s',
-                      backgroundColor: salvando || loadingMembros ? '#f3f4f6' : '#fff',
-                      appearance: 'none',
-                      backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%236b7280\' d=\'M6 9L1 4h10z\'/%3E%3C/svg%3E")',
-                      backgroundRepeat: 'no-repeat',
-                      backgroundPosition: 'right 12px center',
-                      backgroundSize: '12px',
-                      cursor: salvando || loadingMembros ? 'not-allowed' : 'pointer',
-                      position: 'relative',
-                      zIndex: 10005
-                    }}
-                  >
-                    <option value="">Nenhum membro vinculado</option>
-                    {membros.map((membro) => (
-                      <option key={membro.id} value={membro.id}>
-                        {membro.nome}
-                      </option>
-                    ))}
-                  </select>
-                  <p style={{
-                    marginTop: '6px',
-                    fontSize: '12px',
-                    color: '#6b7280',
-                    fontStyle: 'italic'
-                  }}>
-                    Vincule um membro (colaborador) a este usuário para associar as informações
-                  </p>
-                </div>
-              </div>
-
-              {/* Nível de Permissão */}
-              <div style={{ marginTop: '18px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '14px' }}>
-                  <div style={{
-                    width: '4px',
-                    height: '20px',
-                    backgroundColor: '#fd7e14',
-                    borderRadius: '2px',
-                    marginRight: '12px'
-                  }}></div>
-                  <h4 style={{ fontSize: '15px', fontWeight: '600', margin: 0, color: '#1f2937' }}>
-                    <i className="fas fa-shield-alt" style={{ marginRight: '8px', color: '#fd7e14' }}></i>
-                    Nível de Permissão
-                  </h4>
-                </div>
-
-                <div style={{ marginBottom: '14px' }}>
-                  <label className="form-label" style={{ marginBottom: '8px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
-                    Selecione o nível de permissão
-                    <span className="required" style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>
-                  </label>
-                  <div style={{ position: 'relative', zIndex: 10005 }}>
                     <select
-                      value={formData.permissoes}
-                      onChange={(e) => setFormData({ ...formData, permissoes: e.target.value })}
-                      disabled={salvando}
+                      value={formData.membro_id || ''}
+                      onChange={(e) => setFormData({ ...formData, membro_id: e.target.value })}
+                      disabled={salvando || loadingMembros}
                       style={{
                         width: '100%',
                         padding: '9px 36px 9px 12px',
@@ -811,137 +788,200 @@ const GestaoUsuarios = () => {
                         border: '1px solid #d1d5db',
                         borderRadius: '6px',
                         transition: 'border-color 0.2s',
-                        backgroundColor: salvando ? '#f3f4f6' : '#fff',
+                        backgroundColor: salvando || loadingMembros ? '#f3f4f6' : '#fff',
                         appearance: 'none',
                         backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%236b7280\' d=\'M6 9L1 4h10z\'/%3E%3C/svg%3E")',
                         backgroundRepeat: 'no-repeat',
                         backgroundPosition: 'right 12px center',
                         backgroundSize: '12px',
-                        cursor: salvando ? 'not-allowed' : 'pointer',
+                        cursor: salvando || loadingMembros ? 'not-allowed' : 'pointer',
                         position: 'relative',
-                        zIndex: 10006
+                        zIndex: 10005
                       }}
                     >
-                      {niveisPermissao.map(nivel => (
-                        <option key={nivel} value={nivel}>
-                          {nivel.charAt(0).toUpperCase() + nivel.slice(1)}
-                          {nivel === 'administrador' ? ' (Acesso Total)' :
-                            nivel === 'gestor' ? ' (Acesso Completo)' :
-                              nivel === 'colaborador' ? ' (Acesso Restrito)' : ' (Customizado)'}
+                      <option value="">Nenhum membro vinculado</option>
+                      {membros.map((membro) => (
+                        <option key={membro.id} value={membro.id}>
+                          {membro.nome}
                         </option>
                       ))}
                     </select>
-                    {formData.permissoes && (
-                      <i className="fas fa-check-circle" style={{
-                        position: 'absolute',
-                        right: '32px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        color: '#0e3b6f',
-                        fontSize: '16px',
-                        pointerEvents: 'none',
-                        zIndex: 10007
-                      }}></i>
-                    )}
+                    <p style={{
+                      marginTop: '6px',
+                      fontSize: '12px',
+                      color: '#6b7280',
+                      fontStyle: 'italic'
+                    }}>
+                      Vincule um membro (colaborador) a este usuário para associar as informações
+                    </p>
+                  </div>
+                </div>
+
+                {/* Nível de Permissão */}
+                <div style={{ marginTop: '18px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '14px' }}>
+                    <div style={{
+                      width: '4px',
+                      height: '20px',
+                      backgroundColor: '#fd7e14',
+                      borderRadius: '2px',
+                      marginRight: '12px'
+                    }}></div>
+                    <h4 style={{ fontSize: '15px', fontWeight: '600', margin: 0, color: '#1f2937' }}>
+                      <i className="fas fa-shield-alt" style={{ marginRight: '8px', color: '#fd7e14' }}></i>
+                      Nível de Permissão
+                    </h4>
                   </div>
 
-                  {/* Descrição do nível selecionado */}
-                  <div style={{
-                    marginTop: '12px',
-                    padding: '12px',
-                    backgroundColor: formData.permissoes === 'administrador' ? '#e6f0ff' :
-                      formData.permissoes === 'gestor' ? '#fff4e6' : '#f1f5f9',
-                    border: `1px solid ${formData.permissoes === 'administrador' ? '#0e3b6f' :
-                      formData.permissoes === 'gestor' ? '#fd7e14' : '#64748b'}`,
-                    borderRadius: '6px',
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '10px'
-                  }}>
-                    <i className={`fas ${formData.permissoes === 'administrador' ? 'fa-crown' :
-                      formData.permissoes === 'gestor' ? 'fa-user-tie' : 'fa-user'
-                      }`} style={{
-                        color: formData.permissoes === 'administrador' ? '#0e3b6f' :
-                          formData.permissoes === 'gestor' ? '#fd7e14' : '#64748b',
-                        fontSize: '16px',
-                        marginTop: '2px',
-                        flexShrink: 0
-                      }}></i>
-                    <div style={{ flex: 1 }}>
-                      <div style={{
-                        fontWeight: '600',
-                        fontSize: '13px',
-                        color: '#1f2937',
-                        marginBottom: '4px'
-                      }}>
-                        {formData.permissoes === 'administrador' && 'Acesso Total'}
-                        {formData.permissoes === 'gestor' && 'Acesso Completo'}
-                        {formData.permissoes === 'colaborador' && 'Acesso Restrito'}
-                        {!['administrador', 'gestor', 'colaborador'].includes(formData.permissoes) && 'Acesso Customizado'}
-                      </div>
-                      <div style={{
-                        fontSize: '12px',
-                        color: '#6b7280',
-                        lineHeight: '1.5'
-                      }}>
-                        {formData.permissoes === 'administrador' && 'Acesso total a todas as funcionalidades do sistema, incluindo gestão de usuários e configurações.'}
-                        {formData.permissoes === 'gestor' && 'Acesso a todas as páginas do sistema, exceto gestão de usuários e configurações de permissões.'}
-                        {formData.permissoes === 'colaborador' && 'Acesso restrito conforme configuração definida nas permissões do sistema.'}
-                        {!['administrador', 'gestor', 'colaborador'].includes(formData.permissoes) && `Acesso customizado para o nível ${formData.permissoes}. Configure as páginas permitidas em Permissões.`}
+                  <div style={{ marginBottom: '14px' }}>
+                    <label className="form-label" style={{ marginBottom: '8px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
+                      Selecione o nível de permissão
+                      <span className="required" style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>
+                    </label>
+                    <div style={{ position: 'relative', zIndex: 10005 }}>
+                      <select
+                        value={formData.permissoes}
+                        onChange={(e) => setFormData({ ...formData, permissoes: e.target.value })}
+                        disabled={salvando}
+                        style={{
+                          width: '100%',
+                          padding: '9px 36px 9px 12px',
+                          fontSize: '14px',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '6px',
+                          transition: 'border-color 0.2s',
+                          backgroundColor: salvando ? '#f3f4f6' : '#fff',
+                          appearance: 'none',
+                          backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%236b7280\' d=\'M6 9L1 4h10z\'/%3E%3C/svg%3E")',
+                          backgroundRepeat: 'no-repeat',
+                          backgroundPosition: 'right 12px center',
+                          backgroundSize: '12px',
+                          cursor: salvando ? 'not-allowed' : 'pointer',
+                          position: 'relative',
+                          zIndex: 10006
+                        }}
+                      >
+                        {niveisPermissao.map(nivel => (
+                          <option key={nivel} value={nivel}>
+                            {nivel.charAt(0).toUpperCase() + nivel.slice(1)}
+                            {nivel === 'administrador' ? ' (Acesso Total)' :
+                              nivel === 'gestor' ? ' (Acesso Completo)' :
+                                nivel === 'colaborador' ? ' (Acesso Restrito)' : ' (Customizado)'}
+                          </option>
+                        ))}
+                      </select>
+                      {formData.permissoes && (
+                        <i className="fas fa-check-circle" style={{
+                          position: 'absolute',
+                          right: '32px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          color: '#0e3b6f',
+                          fontSize: '16px',
+                          pointerEvents: 'none',
+                          zIndex: 10007
+                        }}></i>
+                      )}
+                    </div>
+
+                    {/* Descrição do nível selecionado */}
+                    <div style={{
+                      marginTop: '12px',
+                      padding: '12px',
+                      backgroundColor: formData.permissoes === 'administrador' ? '#e6f0ff' :
+                        formData.permissoes === 'gestor' ? '#fff4e6' : '#f1f5f9',
+                      border: `1px solid ${formData.permissoes === 'administrador' ? '#0e3b6f' :
+                        formData.permissoes === 'gestor' ? '#fd7e14' : '#64748b'}`,
+                      borderRadius: '6px',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '10px'
+                    }}>
+                      <i className={`fas ${formData.permissoes === 'administrador' ? 'fa-crown' :
+                        formData.permissoes === 'gestor' ? 'fa-user-tie' : 'fa-user'
+                        }`} style={{
+                          color: formData.permissoes === 'administrador' ? '#0e3b6f' :
+                            formData.permissoes === 'gestor' ? '#fd7e14' : '#64748b',
+                          fontSize: '16px',
+                          marginTop: '2px',
+                          flexShrink: 0
+                        }}></i>
+                      <div style={{ flex: 1 }}>
+                        <div style={{
+                          fontWeight: '600',
+                          fontSize: '13px',
+                          color: '#1f2937',
+                          marginBottom: '4px'
+                        }}>
+                          {formData.permissoes === 'administrador' && 'Acesso Total'}
+                          {formData.permissoes === 'gestor' && 'Acesso Completo'}
+                          {formData.permissoes === 'colaborador' && 'Acesso Restrito'}
+                          {!['administrador', 'gestor', 'colaborador'].includes(formData.permissoes) && 'Acesso Customizado'}
+                        </div>
+                        <div style={{
+                          fontSize: '12px',
+                          color: '#6b7280',
+                          lineHeight: '1.5'
+                        }}>
+                          {formData.permissoes === 'administrador' && 'Acesso total a todas as funcionalidades do sistema, incluindo gestão de usuários e configurações.'}
+                          {formData.permissoes === 'gestor' && 'Acesso a todas as páginas do sistema, exceto gestão de usuários e configurações de permissões.'}
+                          {formData.permissoes === 'colaborador' && 'Acesso restrito conforme configuração definida nas permissões do sistema.'}
+                          {!['administrador', 'gestor', 'colaborador'].includes(formData.permissoes) && `Acesso customizado para o nível ${formData.permissoes}. Configure as páginas permitidas em Permissões.`}
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
+
+                <div
+                  className="modal-footer"
+                  style={{
+                    padding: '14px 24px',
+                    borderTop: '1px solid #eee',
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    gap: '12px',
+                    flexShrink: 0,
+                    marginTop: 'auto'
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setShowEditModal(false)}
+                    disabled={salvando}
+                    style={{
+                      padding: '10px 20px',
+                      fontSize: '14px'
+                    }}
+                  >
+                    <i className="fas fa-times" style={{ marginRight: '6px' }}></i>
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    className="add-client-btn active"
+                    onClick={handleSave}
+                    disabled={salvando}
+                  >
+                    {salvando ? (
+                      <>
+                        <i className="fas fa-spinner fa-spin"></i>
+                        Salvando...
+                      </>
+                    ) : (
+                      <>
+                        <i className={`fas ${usuarioEditando ? 'fa-save' : 'fa-user-plus'}`}></i>
+                        {usuarioEditando ? 'Salvar' : 'Criar'}
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
-
-            <div
-              className="modal-footer"
-              style={{
-                padding: '14px 24px',
-                borderTop: '1px solid #eee',
-                display: 'flex',
-                justifyContent: 'flex-end',
-                gap: '12px',
-                flexShrink: 0,
-                marginTop: 'auto'
-              }}
-            >
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => setShowEditModal(false)}
-                disabled={salvando}
-                style={{
-                  padding: '10px 20px',
-                  fontSize: '14px'
-                }}
-              >
-                <i className="fas fa-times" style={{ marginRight: '6px' }}></i>
-                Cancelar
-              </button>
-              <button
-                type="button"
-                className="add-client-btn active"
-                onClick={handleSave}
-                disabled={salvando}
-              >
-                {salvando ? (
-                  <>
-                    <i className="fas fa-spinner fa-spin"></i>
-                    Salvando...
-                  </>
-                ) : (
-                  <>
-                    <i className={`fas ${usuarioEditando ? 'fa-save' : 'fa-user-plus'}`}></i>
-                    {usuarioEditando ? 'Salvar' : 'Criar'}
-                  </>
-                )}
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Modal de confirmação de exclusão */}
       <ConfirmModal
@@ -967,7 +1007,7 @@ const GestaoUsuarios = () => {
         confirmText="Deletar"
         loading={deletando}
       />
-    </Layout>
+    </Layout >
   );
 };
 

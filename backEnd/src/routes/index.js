@@ -147,6 +147,22 @@ router.get('/api/tipos-contrato', requireAuth, colaboradoresController.getTiposC
 
 // Rotas de Colaboradores (CRUD e Gestão de Equipamentos)
 router.get('/api/colaboradores/equipamentos', requireAuth, colaboradoresController.getColaboradoresComEquipamentos);
+
+// Rotas de Departamentos (CRUD completo)
+const departamentosController = require('../controllers/departamentos.controller'); // Certifique-se de importar no topo se preferir, ou aqui
+router.get('/api/departamentos', requireAuth, departamentosController.getDepartamentos);
+router.get('/api/departamentos/:id', requireAuth, departamentosController.getDepartamentoPorId);
+router.post('/api/departamentos', requireAuth, departamentosController.criarDepartamento);
+router.put('/api/departamentos/:id', requireAuth, departamentosController.atualizarDepartamento);
+router.delete('/api/departamentos/:id', requireAuth, departamentosController.deletarDepartamento);
+
+// Rotas de Membros de Departamentos
+router.get('/api/departamentos/:id/membros', requireAuth, departamentosController.getMembrosDepartamento);
+router.post('/api/departamentos/:id/membros', requireAuth, departamentosController.addMembroDepartamento);
+router.put('/api/departamentos/:id/membros/:membroId', requireAuth, departamentosController.updateMembroDepartamento); // membroId pode ser o ID da associação
+router.delete('/api/departamentos/:id/membros/:membroId', requireAuth, departamentosController.removeMembroDepartamento);
+
+// Rotas de Colaboradores (CRUD completo)
 router.get('/api/colaboradores', requireAuth, colaboradoresController.getColaboradores);
 router.get('/api/colaboradores/:id', requireAuth, colaboradoresController.getColaboradorPorId);
 router.get('/api/colaboradores/:id/equipamentos', requireAuth, colaboradoresController.getPerfilColaboradorEquipamentos);
@@ -605,7 +621,12 @@ router.put('/api/comunicacao/chamados/:id/status', requireAuth, comunicacaoContr
 router.post('/api/comunicacao/mensagem/:id/ler', requireAuth, comunicacaoController.marcarMensagemLida);
 router.get('/api/comunicacao/comunicados/destaque', requireAuth, comunicacaoController.listarComunicadoDestaque);
 router.post('/api/comunicacao/comunicados/marcar-todos-lidos', requireAuth, comunicacaoController.marcarTodosComunicadosLidos);
+router.get('/api/comunicacao/categorias', requireAuth, comunicacaoController.listarCategorias);
+router.get('/api/comunicacao/templates', requireAuth, comunicacaoController.listarTemplates);
 router.put('/api/comunicacao/mensagem/:id', requireAuth, comunicacaoController.atualizarMensagem);
+router.put('/api/comunicacao/chamados/:id/confirmar-estimativa', requireAuth, comunicacaoController.confirmarEstimativaChamado);
+router.put('/api/comunicacao/chamados/:id/prioridade', requireAuth, comunicacaoController.atualizarPrioridadeChamado);
+router.put('/api/comunicacao/chamados/:id/assumir', requireAuth, comunicacaoController.assumirChamado);
 
 // Rotas de Upload
 router.post('/api/upload/chamado',
