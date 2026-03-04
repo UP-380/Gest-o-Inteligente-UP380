@@ -88,7 +88,15 @@ const request = async (url, options = {}) => {
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || errorData.message || `HTTP error! status: ${response.status}`);
+    const errorMessage = errorData.details
+      ? `${errorData.error || errorData.message}: ${errorData.details}`
+      : (errorData.error || errorData.message || `HTTP error! status: ${response.status}`);
+
+    const error = new Error(errorMessage);
+    error.details = errorData.details;
+    error.hint = errorData.hint;
+    error.fullError = errorData;
+    throw error;
   }
 
   return await response.json();
@@ -1091,6 +1099,14 @@ export const baseConhecimentoAPI = {
     criar: (payload) => api.post('/base-conhecimento/atualizacoes', payload),
     atualizar: (id, payload) => api.put(`/base-conhecimento/atualizacoes/${id}`, payload),
     excluir: (id) => api.delete(`/base-conhecimento/atualizacoes/${id}`)
+  },
+
+  // Anotações de Clientes
+  anotacoes: {
+    listar: (clienteId) => api.get(`/clientes/${clienteId}/anotacoes`),
+    criar: (payload) => api.post('/clientes/anotacoes', payload),
+    atualizar: (id, payload) => api.put(`/clientes/anotacoes/${id}`, payload),
+    excluir: (id) => api.delete(`/clientes/anotacoes/${id}`)
   }
 };
 

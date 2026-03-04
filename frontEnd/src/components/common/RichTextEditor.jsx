@@ -1,5 +1,6 @@
 
 import React, { useMemo, useRef, useCallback, useState, useEffect, forwardRef, useImperativeHandle } from 'react';
+import { createPortal } from 'react-dom';
 import ReactQuill, { Quill } from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import './RichTextEditor.css';
@@ -119,21 +120,90 @@ const RichTextEditor = forwardRef(({
   const toolbarId = useMemo(() => id ? `toolbar-${id}` : `toolbar-${Math.random().toString(36).substr(2, 9)}`, [id]);
   const [showFloatingToolbarState, setShowFloatingToolbarState] = useState(false);
   const [floatingToolbarPosition, setFloatingToolbarPosition] = useState({ top: 0, left: 0 });
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [currentRange, setCurrentRange] = useState(null);
   const floatingToolbarRef = useRef(null);
   const wrapperId = useMemo(() => id || `rich-editor-${Math.random().toString(36).substr(2, 9)}`, [id]);
   const editorWrapperRef = useRef(null);
 
-  // Refs para controle de foco e scroll (adicionados durante merge para suportar lógica da branch incoming)
+  // Refs para controle de foco e scroll
   const lastClickTargetRef = useRef(null);
   const allowFocusRef = useRef(false);
+
+  // Funções Utilitárias
+  const handleOpenLinkModal = useCallback(() => {
+    const quill = quillRef.current?.getEditor();
+    if (!quill) return;
+
+    const range = quill.getSelection(true);
+    if (!range || range.length === 0) return;
+
+    const format = quill.getFormat(range);
+    setLinkUrl(format.link || '');
+    setCurrentRange(range);
+    setShowLinkModal(true);
+  }, []);
+
+  const handleSaveLink = useCallback((e) => {
+    e.preventDefault();
+    const quill = quillRef.current?.getEditor();
+    if (quill && currentRange) {
+      let url = linkUrl.trim();
+      if (url) {
+        if (!url.match(/^https?:\/\//i) && !url.startsWith('mailto:') && !url.startsWith('tel:')) {
+          url = 'https://' + url;
+        }
+        quill.formatText(currentRange.index, currentRange.length, 'link', url, 'user');
+      } else {
+        quill.formatText(currentRange.index, currentRange.length, 'link', false, 'user');
+      }
+      setShowLinkModal(false);
+      setLinkUrl('');
+      quill.setSelection(currentRange, 'user');
+    }
+  }, [currentRange, linkUrl]);
+
+  const increaseFontSize = useCallback(() => {
+    const quill = quillRef.current?.getEditor();
+    if (!quill) return;
+    let range = quill.getSelection(true);
+    if (!range || range.length === 0) return;
+    const format = quill.getFormat(range);
+    let currentSize = format.size ? parseInt(format.size) : 14;
+    let currentIndex = fontSizeOptions.findIndex(size => parseInt(size) === currentSize);
+    if (currentIndex === -1) {
+      currentIndex = fontSizeOptions.findIndex(size => parseInt(size) > currentSize);
+      if (currentIndex === -1) currentIndex = fontSizeOptions.length - 1;
+      else if (currentIndex > 0) currentIndex = currentIndex - 1;
+    }
+    const nextIndex = currentIndex < fontSizeOptions.length - 1 ? currentIndex + 1 : currentIndex;
+    quill.format('size', fontSizeOptions[nextIndex], 'user');
+  }, []);
+
+  const decreaseFontSize = useCallback(() => {
+    const quill = quillRef.current?.getEditor();
+    if (!quill) return;
+    let range = quill.getSelection(true);
+    if (!range || range.length === 0) return;
+    const format = quill.getFormat(range);
+    let currentSize = format.size ? parseInt(format.size) : 14;
+    let currentIndex = fontSizeOptions.findIndex(size => parseInt(size) === currentSize);
+    if (currentIndex === -1) {
+      currentIndex = fontSizeOptions.findIndex(size => parseInt(size) > currentSize);
+      if (currentIndex === -1) currentIndex = 0;
+      else if (currentIndex > 0) currentIndex = currentIndex - 1;
+    }
+    const prevIndex = currentIndex > 0 ? currentIndex - 1 : 0;
+    quill.format('size', fontSizeOptions[prevIndex], 'user');
+  }, []);
 
   useImperativeHandle(ref, () => ({
     insertHtmlAtEnd(html) {
       const quill = quillRef.current?.getEditor();
       if (!quill || typeof html !== 'string' || !html.trim()) return;
       try {
-        const index = quill.getLength();
-        quill.clipboard.dangerouslyPasteHTML(index, html);
+        quill.clipboard.dangerouslyPasteHTML(quill.getLength(), html);
       } catch (e) {
         console.warn('RichTextEditor.insertHtmlAtEnd:', e);
       }
@@ -160,65 +230,6 @@ const RichTextEditor = forwardRef(({
     }
   }), []);
 
-  // Função para aumentar o tamanho da fonte
-  const increaseFontSize = useCallback(() => {
-    const quill = quillRef.current?.getEditor();
-    if (!quill) return;
-
-    let range = quill.getSelection(true);
-    if (!range || range.length === 0) return;
-
-    const format = quill.getFormat(range);
-    let currentSize = 14; // Tamanho padrão
-
-    if (format.size) {
-      currentSize = parseInt(format.size);
-    }
-
-    // Encontrar índice atual no array de opções
-    let currentIndex = fontSizeOptions.findIndex(size => parseInt(size) === currentSize);
-    if (currentIndex === -1) {
-      // Se não encontrou, procurar o tamanho mais próximo maior
-      currentIndex = fontSizeOptions.findIndex(size => parseInt(size) > currentSize);
-      if (currentIndex === -1) currentIndex = fontSizeOptions.length - 1;
-      else if (currentIndex > 0) currentIndex = currentIndex - 1;
-    }
-
-    const nextIndex = currentIndex < fontSizeOptions.length - 1 ? currentIndex + 1 : currentIndex;
-    const newSize = fontSizeOptions[nextIndex];
-    quill.format('size', newSize, 'user');
-  }, []);
-
-  // Função para diminuir o tamanho da fonte
-  const decreaseFontSize = useCallback(() => {
-    const quill = quillRef.current?.getEditor();
-    if (!quill) return;
-
-    let range = quill.getSelection(true);
-    if (!range || range.length === 0) return;
-
-    const format = quill.getFormat(range);
-    let currentSize = 14; // Tamanho padrão
-
-    if (format.size) {
-      currentSize = parseInt(format.size);
-    }
-
-    // Encontrar índice atual no array de opções
-    let currentIndex = fontSizeOptions.findIndex(size => parseInt(size) === currentSize);
-    if (currentIndex === -1) {
-      // Se não encontrou, procurar o tamanho mais próximo maior
-      currentIndex = fontSizeOptions.findIndex(size => parseInt(size) > currentSize);
-      if (currentIndex === -1) currentIndex = 0;
-      else if (currentIndex > 0) currentIndex = currentIndex - 1;
-    }
-
-    const prevIndex = currentIndex > 0 ? currentIndex - 1 : 0;
-    const newSize = fontSizeOptions[prevIndex];
-    quill.format('size', newSize, 'user');
-  }, []);
-
-  // Configuração dos módulos do editor
   const modules = useMemo(() => ({
     toolbar: {
       container: `#${toolbarId}`,
@@ -228,39 +239,38 @@ const RichTextEditor = forwardRef(({
       }
     },
     clipboard: {
-      // Toggle to add extra line breaks when pasting HTML:
       matchVisual: false,
+    },
+    keyboard: {
+      bindings: {
+        link: {
+          key: 'K',
+          shortKey: true,
+          handler: function (range, context) {
+            handleOpenLinkModal();
+            return false;
+          }
+        }
+      }
     }
-  }), [toolbarId, increaseFontSize, decreaseFontSize]);
+  }), [toolbarId, increaseFontSize, decreaseFontSize, handleOpenLinkModal]);
 
-  // Formatos permitidos (inclui image e video para exibir mídia anexada)
   const formats = [
-    'font', 'size',
-    'header',
-    'bold', 'italic', 'underline', 'strike',
-    'list', 'bullet',
-    'script',
-    'indent',
-    'color', 'background',
-    'align',
-    'link', 'blockquote', 'code-block',
-    'image', 'video'
+    'font', 'size', 'header', 'bold', 'italic', 'underline', 'strike',
+    'list', 'bullet', 'script', 'indent', 'color', 'background',
+    'align', 'link', 'blockquote', 'code-block', 'image', 'video'
   ];
 
   const handleChange = (content) => {
-    // React Quill retorna HTML vazio como '<p><br></p>' ou ''
-    // Converter para string vazia para manter consistência
     const cleanedContent = content === '<p><br></p>' || content === '<p></p>' ? '' : content;
     onChange(cleanedContent);
   };
 
-  // Efeito para garantir que o editor tenha tabindex correto
   useEffect(() => {
     const quill = quillRef.current?.getEditor();
     if (!quill) return;
 
     const editorRoot = quill.root;
-    // Definir editorElement e wrapperElement para uso nos handlers de foco
     const editorElement = editorRoot;
     const wrapperElement = document.getElementById(wrapperId);
 
@@ -580,7 +590,7 @@ const RichTextEditor = forwardRef(({
             <select className="ql-align"></select>
           </>
         )}
-        {!simple && <button className="ql-link"></button>}
+        {!simple && <button className="ql-link" type="button" onClick={(e) => { e.preventDefault(); handleOpenLinkModal(); }}></button>}
         <button className="ql-image"></button>
         {!simple && <button className="ql-video"></button>}
         {!simple && <button className="ql-blockquote"></button>}
@@ -627,17 +637,25 @@ const RichTextEditor = forwardRef(({
       </div>
 
       {/* Toolbar flutuante */}
-      {showFloatingToolbar && showFloatingToolbarState && !disabled && !simple && (
+      {showFloatingToolbar && showFloatingToolbarState && !disabled && !simple && createPortal(
         <div
           ref={floatingToolbarRef}
           className="rich-text-editor-floating-toolbar"
           style={{
             position: 'fixed',
-            top: `${floatingToolbarPosition.top} px`,
-            left: `${floatingToolbarPosition.left} px`,
-            zIndex: 10000
+            top: `${floatingToolbarPosition.top}px`,
+            left: `${floatingToolbarPosition.left}px`,
+            zIndex: 100000
           }}
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onMouseDown={(e) => {
+            // Impedir perda de foco do editor ao clicar na toolbar
+            e.preventDefault();
+            e.stopPropagation();
+          }}
         >
           <button
             className="floating-btn floating-increase-font"
@@ -705,44 +723,77 @@ const RichTextEditor = forwardRef(({
             <em>I</em>
           </button>
           <button
+            className="floating-btn floating-underline"
+            type="button"
+            title="Sublinhado"
+            onClick={() => {
+              const quill = quillRef.current?.getEditor();
+              if (quill) {
+                const range = quill.getSelection(true);
+                if (range) {
+                  const format = quill.getFormat(range);
+                  quill.format('underline', !format.underline, 'user');
+                }
+              }
+            }}
+          >
+            <u>U</u>
+          </button>
+          <button
             className="floating-btn floating-link"
             type="button"
             title="Link"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              const quill = quillRef.current?.getEditor();
-              if (quill) {
-                let range = quill.getSelection(true);
-                if (!range || range.length === 0) return;
-
-                // Manter a seleção ativa
-                quill.setSelection(range, 'user');
-                range = quill.getSelection(true);
-                if (!range) return;
-
-                const format = quill.getFormat(range);
-                let url = format.link || '';
-
-                url = prompt('Digite a URL do link:', url);
-                if (url !== null) {
-                  if (url.trim()) {
-                    // Garantir que a URL tenha protocolo
-                    if (!url.match(/^https?:\/\//i)) {
-                      url = 'https://' + url;
-                    }
-                    quill.format('link', url, 'user');
-                  } else {
-                    // Se URL vazia, remover link
-                    quill.format('link', false, 'user');
-                  }
-                }
-              }
+              handleOpenLinkModal();
             }}
           >
             <i className="fas fa-link" style={{ fontSize: '12px' }}></i>
           </button>
-        </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal de Link Estilizado */}
+      {showLinkModal && createPortal(
+        <div className="modal-overlay" onClick={() => setShowLinkModal(false)} style={{ zIndex: 100001 }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+            <div className="modal-header">
+              <h3>Inserir Link</h3>
+              <button className="btn-icon" onClick={() => setShowLinkModal(false)}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <form onSubmit={handleSaveLink}>
+              <div className="modal-body">
+                <div className="form-group" style={{ marginBottom: '15px' }}>
+                  <label className="form-label-small">Endereço da URL</label>
+                  <input
+                    type="text"
+                    className="form-input-small"
+                    value={linkUrl}
+                    onChange={(e) => setLinkUrl(e.target.value)}
+                    placeholder="https://exemplo.com"
+                    autoFocus
+                  />
+                  <p style={{ fontSize: '11px', color: '#64748b', marginTop: '5px' }}>
+                    Dica: Você também pode usar mailto: para e-mails ou tel: para telefones.
+                  </p>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn-secondary" onClick={() => setShowLinkModal(false)}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn-primary">
+                  {linkUrl.trim() ? 'Aplicar Link' : 'Remover Link'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

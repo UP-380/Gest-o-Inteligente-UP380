@@ -11,6 +11,7 @@ import VinculacoesContent from '../../components/clients/DetailContent/Vinculaco
 import ClienteContasBancariasList from '../../components/clientes-conta-bancaria/ClienteContasBancariasList';
 import ClienteSistemasList from '../../components/clientes-sistema/ClienteSistemasList';
 import ClienteAdquirentesList from '../../components/clientes-adquirente/ClienteAdquirentesList';
+import { AnotacoesClienteContent } from '../../components/clients/DetailContent';
 import EditButton from '../../components/common/EditButton';
 import Avatar from '../../components/user/Avatar';
 import { DEFAULT_AVATAR } from '../../utils/avatars';
@@ -92,6 +93,8 @@ const BaseConhecimentoCliente = () => {
   const [allExpanded, setAllExpanded] = useState(false);
   const [vinculacoesExpandAll, setVinculacoesExpandAll] = useState(undefined);
   const [vinculacoesSectionExpanded, setVinculacoesSectionExpanded] = useState(false);
+  const [anotacoesExpanded, setAnotacoesExpanded] = useState(false);
+  const [anotacoesCount, setAnotacoesCount] = useState(0);
 
   // Função para expandir/recolher todas as seções
   const toggleAllSections = () => {
@@ -103,6 +106,7 @@ const BaseConhecimentoCliente = () => {
     setFluxoOperacaoExpanded(newState);
     setVinculacoesExpandAll(newState);
     setVinculacoesSectionExpanded(newState);
+    setAnotacoesExpanded(newState);
   };
 
   // Sincronizar estado allExpanded quando seções individuais mudarem
@@ -110,9 +114,10 @@ const BaseConhecimentoCliente = () => {
     const allCurrentlyExpanded = sistemasExpanded &&
       contasBancariasExpanded &&
       adquirentesExpanded &&
-      fluxoOperacaoExpanded;
+      fluxoOperacaoExpanded &&
+      anotacoesExpanded;
     setAllExpanded(allCurrentlyExpanded);
-  }, [sistemasExpanded, contasBancariasExpanded, adquirentesExpanded, fluxoOperacaoExpanded]);
+  }, [sistemasExpanded, contasBancariasExpanded, adquirentesExpanded, fluxoOperacaoExpanded, anotacoesExpanded]);
 
   // Resetar estado da seção quando ela for fechada
   useEffect(() => {
@@ -659,6 +664,46 @@ const BaseConhecimentoCliente = () => {
                       clienteId={clienteId}
                       onObservacaoUpdated={loadDadosCliente}
                       expandAll={vinculacoesExpandAll}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Anotações */}
+              <div className="knowledge-section">
+                <div
+                  className="section-header section-header-collapsible"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setAnotacoesExpanded(!anotacoesExpanded)}
+                >
+                  <div className="section-icon" style={{ backgroundColor: '#ec489915', color: '#ec4899' }}>
+                    <i className="fas fa-sticky-note"></i>
+                  </div>
+                  <h2 className="section-title">Anotações</h2>
+                  <span className="section-badge">{anotacoesCount}</span>
+                  <div className="section-header-actions">
+                    <button
+                      type="button"
+                      className="section-expand-toggle"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setAnotacoesExpanded(!anotacoesExpanded);
+                      }}
+                      aria-label={anotacoesExpanded ? 'Recolher seção' : 'Expandir seção'}
+                      style={{
+                        transition: 'transform 0.2s ease, color 0.2s ease',
+                        transform: anotacoesExpanded ? 'rotate(180deg)' : 'rotate(0deg)'
+                      }}
+                    >
+                      <i className="fas fa-chevron-down" style={{ fontSize: '14px' }}></i>
+                    </button>
+                  </div>
+                </div>
+                {anotacoesExpanded && (
+                  <div className="section-content">
+                    <AnotacoesClienteContent
+                      clienteId={clienteId}
+                      onCountChange={setAnotacoesCount}
                     />
                   </div>
                 )}

@@ -1,0 +1,256 @@
+.anotacoes-cliente-content {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.anotacoes-header {
+    display: flex;
+    margin-bottom: 24px;
+    width: 100%;
+}
+
+.btn-add-anotacao {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px;
+    background: transparent;
+    border: 1px dashed #3b82f6;
+    color: #3b82f6;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-add-anotacao:hover {
+    background: #eff6ff;
+    border-color: #3b82f6;
+}
+
+.btn-add-anotacao i {
+    font-size: 13px;
+}
+
+.anotacao-form-card {
+    padding: 14px;
+    background: #f9fafb;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+    animation: slideDown 0.3s ease-out;
+}
+
+.form-header {
+    font-size: 11px;
+    color: #3b82f6;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.anotacoes-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.anotacao-card {
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    overflow: hidden;
+    transition: all 0.2s ease;
+    padding: 2px 0;
+}
+
+.anotacao-card.expanded {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.anotacao-card-header {
+    padding: 12px 14px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.anotacao-card.expanded .anotacao-card-header {
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.anotacao-card-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+}
+
+.anotacao-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-transform: uppercase;
+}
+
+.anotacao-title i {
+    color: #3b82f6;
+    font-size: 10px;
+}
+
+.anotacao-date {
+    font-size: 10px;
+    color: #64748b;
+    opacity: 0.8;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.anotacao-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.anotacao-card-actions button {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 11px;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.anotacao-card-actions button:hover {
+    background: #f1f5f9;
+    color: #3b82f6;
+}
+
+.anotacao-card-actions button.delete:hover {
+    color: #ef4444;
+}
+
+.expand-icon {
+    margin-left: 4px;
+    color: #64748b;
+    font-size: 10px;
+}
+
+.anotacao-card-body {
+    padding: 0 14px;
+    max-height: 0;
+    overflow: hidden;
+    transition: all 0.3s ease-in-out;
+}
+
+.anotacao-card.expanded .anotacao-card-body {
+    max-height: 2000px;
+    padding: 12px 14px 14px;
+}
+
+.anotacao-body-content {
+    font-size: 13px;
+    color: #4b5563;
+    line-height: 1.6;
+}
+
+.form-group label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #3b82f6;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    display: block;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.btn-save {
+    background: #3b82f6;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-save i {
+    margin-right: 8px;
+}
+
+.btn-save:hover {
+    background: #2563eb;
+}
+
+.btn-cancel {
+    background: white;
+    border: 1px solid #d1d5db;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-cancel i {
+    margin-right: 8px;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 40px;
+    color: #94a3b8;
+    background: #f8fafc;
+    border-radius: 8px;
+    border: 1px dashed #e2e8f0;
+}

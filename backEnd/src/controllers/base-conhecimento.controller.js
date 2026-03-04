@@ -913,6 +913,208 @@ module.exports = {
   criarPasta,
   atualizarPasta,
   excluirPasta,
-  getTutorialLogs
+  getTutorialLogs,
+  listarAnotacoesCliente,
+  criarAnotacaoCliente,
+  atualizarAnotacaoCliente,
+  deletarAnotacaoCliente
 };
+
+// =============================================================
+// === ANOTAÇÕES DE CLIENTES ===
+// =============================================================
+
+// GET - Listar anotações de um cliente específico
+async function listarAnotacoesCliente(req, res) {
+  try {
+    const { cliente_id } = req.params;
+
+    if (!cliente_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'ID do cliente é obrigatório'
+      });
+    }
+
+    const schema = process.env.SUPABASE_DB_SCHEMA || 'up_gestaointeligente_dev';
+    const { data, error } = await supabase
+      .schema(schema)
+      .from('anotacoes_clientes')
+      .select('*')
+      .eq('cliente_id', cliente_id)
+      .order('data_criacao', { ascending: false });
+
+    if (error) {
+      console.error('❌ Erro ao listar anotações do cliente:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar anotações do cliente',
+        details: error.message
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: data || []
+    });
+  } catch (error) {
+    console.error('❌ Erro inesperado ao listar anotações:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
+    });
+  }
+}
+
+// POST - Criar nova anotação para um cliente
+async function criarAnotacaoCliente(req, res) {
+  try {
+    const usuarioIdRaw = req.session?.usuario?.id;
+    const usuarioId = usuarioIdRaw ? parseInt(usuarioIdRaw, 10) : null;
+    const { cliente_id, titulo, descricao } = req.body;
+
+    if (!cliente_id || !titulo) {
+      return res.status(400).json({
+        success: false,
+        error: 'ID do cliente e título são obrigatórios'
+      });
+    }
+
+    console.log('📝 Sessão Usuário:', JSON.stringify(req.session?.usuario, null, 2));
+    console.log('📝 Tentando criar anotação para cliente:', cliente_id, 'usuário:', usuarioId, '(raw:', usuarioIdRaw, ')');
+
+    const schema = process.env.SUPABASE_DB_SCHEMA || 'up_gestaointeligente_dev';
+    const { data, error } = await supabase
+      .schema(schema)
+      .from('anotacoes_clientes')
+      .insert({
+        cliente_id,
+        titulo: titulo.trim(),
+        descricao: descricao || '',
+        usuario_criacao: usuarioId || null,
+        usuario_alteracao: usuarioId || null
+      })
+      .select('*')
+      .single();
+
+    if (error) {
+      console.error('❌ ERRO SUPABASE (CRIAR):', JSON.stringify(error, null, 2));
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao criar anotação no banco de dados',
+        details: error.message || 'Erro desconhecido no banco',
+        code: error.code,
+        hint: error.hint
+      });
+    }
+
+    return res.status(201).json({
+      success: true,
+      data
+    });
+  } catch (error) {
+    console.error('❌ Erro inesperado ao criar anotação:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
+    });
+  }
+}
+
+// PUT - Atualizar anotação existente
+async function atualizarAnotacaoCliente(req, res) {
+  try {
+    const usuarioIdRaw = req.session?.usuario?.id;
+    const usuarioId = usuarioIdRaw ? parseInt(usuarioIdRaw, 10) : null;
+    const { id } = req.params;
+    const { titulo, descricao } = req.body;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: 'ID da anotação é obrigatório'
+      });
+    }
+
+    const updateData = {
+      data_alteracao: new Date().toISOString(),
+      usuario_alteracao: usuarioId
+    };
+
+    if (titulo !== undefined) updateData.titulo = titulo.trim();
+    if (descricao !== undefined) updateData.descricao = descricao;
+
+    const schema = process.env.SUPABASE_DB_SCHEMA || 'up_gestaointeligente_dev';
+    const { data, error } = await supabase
+      .schema(schema)
+      .from('anotacoes_clientes')
+      .update(updateData)
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error) {
+      console.error('❌ ERRO SUPABASE (ATUALIZAR):', JSON.stringify(error, null, 2));
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao atualizar anotação no banco de dados',
+        details: error.message || 'Erro desconhecido no banco',
+        code: error.code,
+        hint: error.hint
+      });
+    }
+
+    return res.json({
+      success: true,
+      data
+    });
+  } catch (error) {
+    console.error('❌ Erro inesperado ao atualizar anotação:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
+    });
+  }
+}
+
+// DELETE - Excluir anotação
+async function deletarAnotacaoCliente(req, res) {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: 'ID da anotação é obrigatório'
+      });
+    }
+
+    const schema = process.env.SUPABASE_DB_SCHEMA || 'up_gestaointeligente_dev';
+    const { error } = await supabase
+      .schema(schema)
+      .from('anotacoes_clientes')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('❌ Erro ao deletar anotação:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao deletar anotação',
+        details: error.message
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: 'Anotação deletada com sucesso'
+    });
+  } catch (error) {
+    console.error('❌ Erro inesperado ao deletar anotação:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
+    });
+  }
+}
 

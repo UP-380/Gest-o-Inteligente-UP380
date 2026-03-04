@@ -379,8 +379,14 @@ router.delete('/api/clientes-adquirentes/:id', requireAuth, clienteAdquirenteCon
 router.get('/api/base-conhecimento/bulk-summary', requireAuth, baseConhecimentoController.getBaseConhecimentoBulkSummary);
 router.get('/api/base-conhecimento/cliente/:cliente_id', requireAuth, baseConhecimentoController.getBaseConhecimentoCliente);
 router.get('/api/base-conhecimento/anexos', requireAuth, baseConhecimentoController.listarAnexosPorPasta);
-router.post('/api/base-conhecimento/anexo', requireAuth, baseConhecimentoController.criarAnexo);
 router.put('/api/base-conhecimento/anexo/:id', requireAuth, baseConhecimentoController.atualizarAnexo);
+
+// Rotas de Anotações de Clientes (Base de Conhecimento Cliente)
+router.get('/api/clientes/:cliente_id/anotacoes', requireAuth, baseConhecimentoController.listarAnotacoesCliente);
+router.post('/api/clientes/anotacoes', requireAuth, baseConhecimentoController.criarAnotacaoCliente);
+router.put('/api/clientes/anotacoes/:id', requireAuth, baseConhecimentoController.atualizarAnotacaoCliente);
+router.delete('/api/clientes/anotacoes/:id', requireAuth, baseConhecimentoController.deletarAnotacaoCliente);
+
 
 // Rotas de Pastas da Base de Conhecimento
 router.get('/api/base-conhecimento/pastas', requireAuth, baseConhecimentoController.listarPastas);
