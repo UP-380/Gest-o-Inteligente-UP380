@@ -4,6 +4,8 @@
 
 const supabase = require('../config/database');
 
+const DB_SCHEMA = process.env.SUPABASE_DB_SCHEMA || 'up_gestaointeligente';
+
 // GET - Listar equipamentos com paginação e busca
 async function getEquipamentos(req, res) {
     try {
@@ -55,7 +57,7 @@ async function getEquipamentos(req, res) {
                 const colabIds = [...new Set(atribuicoes.map(a => a.colaborador_id))];
 
                 const { data: membros, error: mErr } = await supabase
-                    .schema('up_gestaointeligente_dev')
+                    .schema(DB_SCHEMA)
                     .from('membro')
                     .select('id, nome')
                     .in('id', colabIds);
@@ -685,7 +687,7 @@ async function getDashboardStats(req, res) {
 
         if (colabIds.length > 0) {
             const { data: membros, error: mErr } = await supabase
-                .schema('up_gestaointeligente_dev')
+                .schema(DB_SCHEMA)
                 .from('membro')
                 .select('id, nome')
                 .in('id', colabIds);

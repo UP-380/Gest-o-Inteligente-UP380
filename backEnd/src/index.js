@@ -137,6 +137,19 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Diagnóstico de ambiente (qual schema/URL o processo está usando) – útil para investigar TEST vs PROD
+app.get('/api/debug-env', (req, res) => {
+  const schema = process.env.SUPABASE_DB_SCHEMA || '(não definido, fallback: up_gestaointeligente)';
+  const url = process.env.SUPABASE_URL || '';
+  const supabaseUrlMasked = url ? `${url.slice(0, 30)}...${url.slice(-15)}` : '(não definido)';
+  res.json({
+    schema,
+    supabaseUrlMasked,
+    nodeEnv: process.env.NODE_ENV || '(não definido)',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Registrar rotas
 app.use('/', routes);
 
