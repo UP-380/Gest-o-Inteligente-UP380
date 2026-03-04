@@ -8,6 +8,7 @@ import './RelatorioTempo.css';
 import RelatorioTempoSpreadsheet from './RelatorioTempoSpreadsheet';
 import RelatorioTempoLive from './RelatorioTempoLive';
 import { hasPermissionSync } from '../../utils/permissions';
+import { exportRelatorioTempoExcel } from './exportRelatorioTempoExcel';
 
 const MAX_PLANILHA_RECORDS = 5000;
 const CHUNK_TAREFAS = 50;
@@ -293,48 +294,63 @@ const RelatorioTempo = () => {
                 ? selectedResponsaveis.filter(id => usuarios.some(u => u.id === id))
                 : usuarios.map(u => u.id).filter(Boolean);
 
-            let url = `/api/registro-tempo?data_inicio=${dataInicio}&data_fim=${dataFim}&limit=${MAX_PLANILHA_RECORDS}`;
-            if (targetUserIds.length > 0) {
-                url += `&usuario_id=${targetUserIds.join(',')}`;
+            // Quando há vários responsáveis, buscar registros por usuário e mesclar para evitar
+            // que o limit global (5000) deixe alguns usuários sem registros na planilha (0h por dia).
+            let confirmedRecords = [];
+            // ativo=false: backend retorna registro_tempo + registro_tempo_pendente (Plug Rápido),
+            // tudo com data_inicio por segmento, para contabilizar realizado por dia sem duplicar.
+            const queryAtivo = '&ativo=false';
+            if (targetUserIds.length <= 1) {
+                let url = `/api/registro-tempo?data_inicio=${dataInicio}&data_fim=${dataFim}&limit=${MAX_PLANILHA_RECORDS}${queryAtivo}`;
+                if (targetUserIds.length === 1) {
+                    url += `&usuario_id=${targetUserIds[0]}`;
+                }
+                const response = await fetch(url, { signal: ac.signal });
+                if (!response.ok) {
+                    if (response.status !== 499) setSpreadsheetRecords([]);
+                    return;
+                }
+                const json = await response.json();
+                confirmedRecords = (json && Array.isArray(json.data)) ? json.data : [];
+            } else {
+                // Lotes menores na VPS para não sobrecarregar; falha de um usuário não invalida os demais
+                const BATCH_SIZE = 3;
+                const seenIds = new Set();
+                let failedUsers = 0;
+                for (let i = 0; i < targetUserIds.length; i += BATCH_SIZE) {
+                    if (ac.signal.aborted) return;
+                    const chunk = targetUserIds.slice(i, i + BATCH_SIZE);
+                    const promises = chunk.map(uid =>
+                        fetch(`/api/registro-tempo?data_inicio=${dataInicio}&data_fim=${dataFim}&usuario_id=${uid}&limit=${MAX_PLANILHA_RECORDS}${queryAtivo}`, { signal: ac.signal })
+                            .then(r => (r.ok ? r.json() : { data: [] }))
+                            .then(j => (j && Array.isArray(j.data) ? j.data : []))
+                    );
+                    const settled = await Promise.allSettled(promises);
+                    settled.forEach((result, idx) => {
+                        if (result.status === 'rejected') {
+                            failedUsers += 1;
+                            return;
+                        }
+                        const arr = result.value;
+                        if (!Array.isArray(arr)) return;
+                        arr.forEach(reg => {
+                            if (reg != null && reg.id != null && !seenIds.has(reg.id)) {
+                                seenIds.add(reg.id);
+                                confirmedRecords.push(reg);
+                            }
+                        });
+                    });
+                }
+                if (failedUsers > 0 && !ac.signal.aborted) {
+                    showToast('info', `Alguns dados podem estar incompletos (${failedUsers} requisição(ões) falharam).`);
+                }
+                if (ac.signal.aborted) return;
             }
 
-            const [response, resPendentes] = await Promise.all([
-                fetch(url, { signal: ac.signal }),
-                fetch('/api/atribuicoes-pendentes/aprovacao', { signal: ac.signal })
-            ]);
-
-            if (!response.ok) {
-                if (response.status !== 499) setSpreadsheetRecords([]);
-                return;
-            }
-
-            const json = await response.json();
-            let confirmedRecords = json.data || [];
-
-            // Processar Pendentes
-            let pendentesRecords = [];
-            if (resPendentes.ok) {
-                const jsonP = await resPendentes.json();
-                const rawP = jsonP.data || [];
-                const startMs = new Date(dataInicio).getTime();
-                const endMs = new Date(dataFim).getTime() + (24 * 60 * 60 * 1000);
-
-                pendentesRecords = rawP.filter(p => {
-                    const d = new Date(p.data_inicio).getTime();
-                    // Filtro por data e também pelo usuário se tiver seleção
-                    const matchesUser = targetUserIds.includes(p.usuario_id);
-                    return d >= startMs && d < endMs && matchesUser;
-                }).map(p => ({
-                    ...p,
-                    id: `pendente_${p.id}`,
-                    is_pendente: true,
-                    tempo_realizado: Number(p.tempo_realizado) || Number(p.tempo_realizado_ms) || (p.data_inicio && p.data_fim ? (new Date(p.data_fim) - new Date(p.data_inicio)) : 0)
-                }));
-            }
-
-            let records = [...confirmedRecords, ...pendentesRecords];
-            const totalCount = json.count != null ? json.count : records.length;
-            const truncated = totalCount > MAX_PLANILHA_RECORDS;
+            // Pendentes (Plug Rápido) já vêm no GET /api/registro-tempo quando ativo=false;
+            // não buscar separado para não duplicar e garantir uma única fonte de verdade.
+            let records = confirmedRecords;
+            const truncated = targetUserIds.length <= 1 && records.length > MAX_PLANILHA_RECORDS;
 
             const taskIds = new Set();
             records.forEach(r => { if (r.tarefa_id) taskIds.add(r.tarefa_id); });
@@ -860,6 +876,36 @@ const RelatorioTempo = () => {
                                     <span>Planilha</span>
                                 </button>
                             </div>
+
+                            {/* Exportar Excel: só habilitado com filtros preenchidos e dados da planilha carregados */}
+                            {(() => {
+                                const canExport = dataInicio && dataFim && viewMode === 'spreadsheet' && !spreadsheetLoading && spreadsheetRecords.length > 0;
+                                return (
+                                    <button
+                                        type="button"
+                                        className={`rt-export-excel-btn ${canExport ? '' : 'disabled'}`}
+                                        onClick={() => {
+                                            if (!canExport) return;
+                                            exportRelatorioTempoExcel({
+                                                dataInicio,
+                                                dataFim,
+                                                registros: spreadsheetRecords,
+                                                groupBy,
+                                                nomesTarefas,
+                                                nomesClientes,
+                                                nomesProdutos,
+                                                usuarios
+                                            });
+                                            showToast('success', 'Planilha Excel gerada com sucesso.');
+                                        }}
+                                        disabled={!canExport}
+                                        title={canExport ? 'Exportar para Excel (mesmo layout da planilha)' : 'Preencha o período, alterne para Planilha e aguarde os dados para exportar'}
+                                    >
+                                        <i className="fas fa-file-excel"></i>
+                                        <span>Exportar</span>
+                                    </button>
+                                );
+                            })()}
 
                             {hasPermissionSync(usuario?.permissoes, 'action/relatorio/modo-live') && (
                                 <div className="rt-view-switcher" style={{ marginLeft: 'auto' }}>
