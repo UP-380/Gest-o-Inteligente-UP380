@@ -11,6 +11,8 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated, expan
 
   // Estado para controlar quais produtos estão expandidos
   const [expandedProducts, setExpandedProducts] = useState(new Set());
+  const [expandedTipoTarefas, setExpandedTipoTarefas] = useState(new Set());
+  const [expandedTarefas, setExpandedTarefas] = useState(new Set());
 
   // Agrupar vinculações por produto (ou sem produto)
   const vinculacoesAgrupadas = useMemo(() => {
@@ -83,10 +85,31 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated, expan
   // Efeito para sincronizar com o expandAll do pai
   React.useEffect(() => {
     if (expandAll === true) {
-      const allIds = vinculacoesAgrupadas.map((g, i) => g.produto?.id || `sem-produto-${i}`);
-      setExpandedProducts(new Set(allIds));
+      const allProductIds = new Set();
+      const allTipoIds = new Set();
+      const allTarefaIds = new Set();
+
+      vinculacoesAgrupadas.forEach((grupo, grupoIndex) => {
+        const grupoId = grupo.produto?.id || `sem-produto-${grupoIndex}`;
+        allProductIds.add(grupoId);
+
+        grupo.tiposTarefa.forEach((tipoTarefaGrupo, tipoIndex) => {
+          const tipoTarefaId = tipoTarefaGrupo.tipoTarefa?.id || `sem-tipo-${tipoIndex}`;
+          allTipoIds.add(tipoTarefaId);
+
+          tipoTarefaGrupo.tarefas.forEach((tarefaGrupo) => {
+            allTarefaIds.add(tarefaGrupo.tarefa.id);
+          });
+        });
+      });
+
+      setExpandedProducts(allProductIds);
+      setExpandedTipoTarefas(allTipoIds);
+      setExpandedTarefas(allTarefaIds);
     } else if (expandAll === false) {
       setExpandedProducts(new Set());
+      setExpandedTipoTarefas(new Set());
+      setExpandedTarefas(new Set());
     }
   }, [expandAll, vinculacoesAgrupadas]);
 
@@ -97,6 +120,30 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated, expan
         newSet.delete(productId);
       } else {
         newSet.add(productId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleTipoTarefa = (tipoId) => {
+    setExpandedTipoTarefas(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(tipoId)) {
+        newSet.delete(tipoId);
+      } else {
+        newSet.add(tipoId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleTarefa = (tarefaId) => {
+    setExpandedTarefas(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(tarefaId)) {
+        newSet.delete(tarefaId);
+      } else {
+        newSet.add(tarefaId);
       }
       return newSet;
     });
@@ -334,365 +381,381 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated, expan
                     return (
                       <section key={tipoTarefaId} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                         {/* Tipo de Tarefas */}
-                        <h3 style={{
-                          fontSize: '18px',
-                          fontWeight: 600,
-                          color: '#374151',
-                          margin: 0,
-                          paddingBottom: '8px',
-                          borderBottom: '1px solid #e5e7eb',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px'
-                        }}>
+                        <h3
+                          onClick={() => toggleTipoTarefa(tipoTarefaId)}
+                          style={{
+                            fontSize: '18px',
+                            fontWeight: 600,
+                            color: '#374151',
+                            margin: 0,
+                            paddingBottom: '8px',
+                            borderBottom: '1px solid #e5e7eb',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            cursor: 'pointer'
+                          }}>
                           <i className="fas fa-tags" style={{ color: '#10b981', fontSize: '16px' }}></i>
-                          {tipoTarefaGrupo.tipoTarefa?.nome || 'Sem Tipo de Tarefa'}
+                          <span style={{ flex: 1 }}>{tipoTarefaGrupo.tipoTarefa?.nome || 'Sem Tipo de Tarefa'}</span>
+                          <i className={`fas fa-chevron-${expandedTipoTarefas.has(tipoTarefaId) ? 'up' : 'down'}`} style={{ color: '#9ca3af', fontSize: '12px' }}></i>
                         </h3>
 
                         {/* Lista de Tarefas */}
-                        {tipoTarefaGrupo.tarefas.length > 0 ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingLeft: '16px' }}>
-                            {tipoTarefaGrupo.tarefas.map((tarefaGrupo) => {
-                              const tarefaId = tarefaGrupo.tarefa.id;
+                        {expandedTipoTarefas.has(tipoTarefaId) && (
+                          tipoTarefaGrupo.tarefas.length > 0 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingLeft: '16px' }}>
+                              {tipoTarefaGrupo.tarefas.map((tarefaGrupo) => {
+                                const tarefaId = tarefaGrupo.tarefa.id;
+                                const isTarefaExpanded = expandedTarefas.has(tarefaId);
 
-                              return (
-                                <div key={tarefaId} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                  {/* Tarefas */}
-                                  <h4 style={{
-                                    fontSize: '16px',
-                                    fontWeight: 600,
-                                    color: '#4b5563',
-                                    margin: 0,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '8px'
-                                  }}>
-                                    <i className="fas fa-list" style={{ color: '#8b5cf6', fontSize: '14px' }}></i>
-                                    {tarefaGrupo.tarefa.nome}
-                                  </h4>
-
-                                  {/* Descrição das Tarefas */}
-                                  {tarefaGrupo.tarefa.descricao && (
-                                    <div style={{
-                                      padding: '12px',
-                                      background: '#f9fafb',
-                                      borderRadius: '8px',
-                                      border: '1px solid #e5e7eb',
-                                      marginLeft: '24px'
-                                    }}>
-                                      <div style={{
-                                        fontSize: '12px',
-                                        color: '#6b7280',
-                                        fontWeight: 600,
-                                        marginBottom: '8px',
-                                        textTransform: 'uppercase',
-                                        letterSpacing: '0.5px'
-                                      }}>
-                                        Descrição das Tarefas
-                                      </div>
-                                      <div
-                                        style={{
-                                          fontSize: '14px',
-                                          color: '#374151',
-                                          lineHeight: '1.6',
-                                          wordBreak: 'break-word'
-                                        }}
-                                        dangerouslySetInnerHTML={{ __html: tarefaGrupo.tarefa.descricao }}
-                                      />
-                                    </div>
-                                  )}
-
-                                  {/* Subtarefas */}
-                                  {tarefaGrupo.subtarefas.length > 0 && (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginLeft: '24px' }}>
-                                      <div style={{
-                                        fontSize: '14px',
+                                return (
+                                  <div key={tarefaId} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    {/* Tarefas */}
+                                    <h4
+                                      onClick={() => toggleTarefa(tarefaId)}
+                                      style={{
+                                        fontSize: '16px',
                                         fontWeight: 600,
                                         color: '#4b5563',
-                                        marginBottom: '8px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '8px'
-                                      }}>
-                                        <i className="fas fa-tasks" style={{ color: '#f59e0b', fontSize: '14px' }}></i>
-                                        Subtarefas Checklist
-                                      </div>
-                                      <ul style={{
-                                        listStyle: 'none',
-                                        padding: 0,
                                         margin: 0,
                                         display: 'flex',
-                                        flexDirection: 'column',
-                                        gap: '12px'
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                        cursor: 'pointer'
                                       }}>
-                                        {tarefaGrupo.subtarefas.map((subtarefa) => (
-                                          <li key={subtarefa.id} style={{
+                                      <i className="fas fa-list" style={{ color: '#8b5cf6', fontSize: '14px' }}></i>
+                                      <span style={{ flex: 1 }}>{tarefaGrupo.tarefa.nome}</span>
+                                      <i className={`fas fa-chevron-${isTarefaExpanded ? 'up' : 'down'}`} style={{ color: '#9ca3af', fontSize: '11px' }}></i>
+                                    </h4>
+
+                                    {/* Conteúdo da Tarefa (Desc e Subtarefas) */}
+                                    {isTarefaExpanded && (
+                                      <>
+                                        {/* Descrição das Tarefas */}
+                                        {tarefaGrupo.tarefa.descricao && (
+                                          <div style={{
                                             padding: '12px',
-                                            background: '#fff',
+                                            background: '#f9fafb',
                                             borderRadius: '8px',
                                             border: '1px solid #e5e7eb',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            gap: '8px'
+                                            marginLeft: '24px'
                                           }}>
                                             <div style={{
+                                              fontSize: '12px',
+                                              color: '#6b7280',
+                                              fontWeight: 600,
+                                              marginBottom: '8px',
+                                              textTransform: 'uppercase',
+                                              letterSpacing: '0.5px'
+                                            }}>
+                                              Descrição das Tarefas
+                                            </div>
+                                            <div
+                                              style={{
+                                                fontSize: '14px',
+                                                color: '#374151',
+                                                lineHeight: '1.6',
+                                                wordBreak: 'break-word'
+                                              }}
+                                              dangerouslySetInnerHTML={{ __html: tarefaGrupo.tarefa.descricao }}
+                                            />
+                                          </div>
+                                        )}
+
+                                        {/* Subtarefas */}
+                                        {tarefaGrupo.subtarefas.length > 0 && (
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginLeft: '24px' }}>
+                                            <div style={{
+                                              fontSize: '14px',
                                               fontWeight: 600,
                                               color: '#4b5563',
-                                              fontSize: '14px',
+                                              marginBottom: '8px',
                                               display: 'flex',
                                               alignItems: 'center',
                                               gap: '8px'
                                             }}>
-                                              <i className="fas fa-check-square" style={{
-                                                fontSize: '12px',
-                                                color: '#f59e0b'
-                                              }}></i>
-                                              {subtarefa.nome}
+                                              <i className="fas fa-tasks" style={{ color: '#f59e0b', fontSize: '14px' }}></i>
+                                              Subtarefas Checklist
                                             </div>
-                                            {/* Descrição Subtarefas */}
-                                            {subtarefa.descricao && (
-                                              <div
-                                                className="subtarefa-descricao-exibicao"
-                                                style={{
-                                                  padding: '12px 12px 12px 14px',
-                                                  background: '#fafafa',
-                                                  borderRadius: '6px',
-                                                  marginLeft: '14px',
-                                                  fontSize: '13px',
-                                                  color: '#6b7280',
-                                                  lineHeight: '1.6',
-                                                  wordBreak: 'break-word'
-                                                }}
-                                                dangerouslySetInnerHTML={{ __html: subtarefa.descricao }}
-                                              />
-                                            )}
-                                            {/* Observação Particular do Cliente */}
-                                            {clienteId && (
-                                              <div style={{ marginLeft: '14px', marginTop: '12px' }}>
-                                                {subtarefa.observacaoParticular && !expandedObservacao && (
-                                                  <div
-                                                    style={{
-                                                      padding: '10px',
-                                                      background: '#fff7ed',
-                                                      borderRadius: '6px',
-                                                      border: '1px solid #fed7aa',
-                                                      position: 'relative'
-                                                    }}
-                                                  >
-                                                    <div style={{
-                                                      fontSize: '11px',
-                                                      color: '#f59e0b',
-                                                      fontWeight: 600,
-                                                      marginBottom: '6px',
-                                                      textTransform: 'uppercase',
-                                                      letterSpacing: '0.5px',
-                                                      display: 'flex',
-                                                      alignItems: 'center',
-                                                      justifyContent: 'space-between'
-                                                    }}>
-                                                      <span>
-                                                        <i className="fas fa-star" style={{ marginRight: '4px', fontSize: '10px' }}></i>
-                                                        Observação Particular do Cliente
-                                                      </span>
-                                                      <button
-                                                        type="button"
-                                                        onClick={(e) => toggleExpandedObservacao(e, subtarefa.id, subtarefa.observacaoParticular)}
-                                                        style={{
-                                                          background: 'transparent',
-                                                          border: 'none',
-                                                          color: '#f59e0b',
-                                                          cursor: 'pointer',
-                                                          padding: '2px 6px',
-                                                          fontSize: '11px',
-                                                          display: 'flex',
-                                                          alignItems: 'center',
-                                                          gap: '4px'
-                                                        }}
-                                                        title="Editar observação particular"
-                                                      >
-                                                        <i className="fas fa-edit" style={{ fontSize: '10px' }}></i>
-                                                        Editar
-                                                      </button>
-                                                    </div>
+                                            <ul style={{
+                                              listStyle: 'none',
+                                              padding: 0,
+                                              margin: 0,
+                                              display: 'flex',
+                                              flexDirection: 'column',
+                                              gap: '12px'
+                                            }}>
+                                              {tarefaGrupo.subtarefas.map((subtarefa) => (
+                                                <li key={subtarefa.id} style={{
+                                                  padding: '12px',
+                                                  background: '#fff',
+                                                  borderRadius: '8px',
+                                                  border: '1px solid #e5e7eb',
+                                                  display: 'flex',
+                                                  flexDirection: 'column',
+                                                  gap: '8px'
+                                                }}>
+                                                  <div style={{
+                                                    fontWeight: 600,
+                                                    color: '#4b5563',
+                                                    fontSize: '14px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '8px'
+                                                  }}>
+                                                    <i className="fas fa-check-square" style={{
+                                                      fontSize: '12px',
+                                                      color: '#f59e0b'
+                                                    }}></i>
+                                                    {subtarefa.nome}
+                                                  </div>
+                                                  {/* Descrição Subtarefas */}
+                                                  {subtarefa.descricao && (
                                                     <div
+                                                      className="subtarefa-descricao-exibicao"
                                                       style={{
+                                                        padding: '12px 12px 12px 14px',
+                                                        background: '#fafafa',
+                                                        borderRadius: '6px',
+                                                        marginLeft: '14px',
                                                         fontSize: '13px',
-                                                        color: '#4b5563',
+                                                        color: '#6b7280',
                                                         lineHeight: '1.6',
                                                         wordBreak: 'break-word'
                                                       }}
-                                                      dangerouslySetInnerHTML={{ __html: subtarefa.observacaoParticular }}
+                                                      dangerouslySetInnerHTML={{ __html: subtarefa.descricao }}
                                                     />
-                                                  </div>
-                                                )}
+                                                  )}
+                                                  {/* Observação Particular do Cliente */}
+                                                  {clienteId && (
+                                                    <div style={{ marginLeft: '14px', marginTop: '12px' }}>
+                                                      {subtarefa.observacaoParticular && !expandedObservacao && (
+                                                        <div
+                                                          style={{
+                                                            padding: '10px',
+                                                            background: '#fff7ed',
+                                                            borderRadius: '6px',
+                                                            border: '1px solid #fed7aa',
+                                                            position: 'relative'
+                                                          }}
+                                                        >
+                                                          <div style={{
+                                                            fontSize: '11px',
+                                                            color: '#f59e0b',
+                                                            fontWeight: 600,
+                                                            marginBottom: '6px',
+                                                            textTransform: 'uppercase',
+                                                            letterSpacing: '0.5px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'space-between'
+                                                          }}>
+                                                            <span>
+                                                              <i className="fas fa-star" style={{ marginRight: '4px', fontSize: '10px' }}></i>
+                                                              Observação Particular do Cliente
+                                                            </span>
+                                                            <button
+                                                              type="button"
+                                                              onClick={(e) => toggleExpandedObservacao(e, subtarefa.id, subtarefa.observacaoParticular)}
+                                                              style={{
+                                                                background: 'transparent',
+                                                                border: 'none',
+                                                                color: '#f59e0b',
+                                                                cursor: 'pointer',
+                                                                padding: '2px 6px',
+                                                                fontSize: '11px',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: '4px'
+                                                              }}
+                                                              title="Editar observação particular"
+                                                            >
+                                                              <i className="fas fa-edit" style={{ fontSize: '10px' }}></i>
+                                                              Editar
+                                                            </button>
+                                                          </div>
+                                                          <div
+                                                            style={{
+                                                              fontSize: '13px',
+                                                              color: '#4b5563',
+                                                              lineHeight: '1.6',
+                                                              wordBreak: 'break-word'
+                                                            }}
+                                                            dangerouslySetInnerHTML={{ __html: subtarefa.observacaoParticular }}
+                                                          />
+                                                        </div>
+                                                      )}
 
-                                                {/* Formulário inline expandido */}
-                                                {expandedObservacao === subtarefa.id && (
-                                                  <div style={{
-                                                    padding: '12px',
-                                                    background: '#f9fafb',
-                                                    borderRadius: '8px',
-                                                    border: '1px solid #d1d5db',
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    gap: '12px'
-                                                  }}>
-                                                    <div style={{
-                                                      fontSize: '12px',
-                                                      color: '#f59e0b',
-                                                      fontWeight: 600,
-                                                      textTransform: 'uppercase',
-                                                      letterSpacing: '0.5px',
-                                                      display: 'flex',
-                                                      alignItems: 'center',
-                                                      gap: '6px'
-                                                    }}>
-                                                      <i className="fas fa-star" style={{ fontSize: '10px' }}></i>
-                                                      Observação Particular do Cliente
-                                                    </div>
-                                                    <RichTextEditor
-                                                      value={observacoesEditando[subtarefa.id]?.observacao || ''}
-                                                      onChange={(value) => setObservacoesEditando(prev => ({
-                                                        ...prev,
-                                                        [subtarefa.id]: { ...prev[subtarefa.id], observacao: value }
-                                                      }))}
-                                                      placeholder="Digite a observação particular desta subtarefa para este cliente..."
-                                                      disabled={observacoesEditando[subtarefa.id]?.saving}
-                                                      minHeight={200}
-                                                      showFloatingToolbar={true}
-                                                    />
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                                                      {subtarefa.observacaoParticular && (
+                                                      {/* Formulário inline expandido */}
+                                                      {expandedObservacao === subtarefa.id && (
+                                                        <div style={{
+                                                          padding: '12px',
+                                                          background: '#f9fafb',
+                                                          borderRadius: '8px',
+                                                          border: '1px solid #d1d5db',
+                                                          display: 'flex',
+                                                          flexDirection: 'column',
+                                                          gap: '12px'
+                                                        }}>
+                                                          <div style={{
+                                                            fontSize: '12px',
+                                                            color: '#f59e0b',
+                                                            fontWeight: 600,
+                                                            textTransform: 'uppercase',
+                                                            letterSpacing: '0.5px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '6px'
+                                                          }}>
+                                                            <i className="fas fa-star" style={{ fontSize: '10px' }}></i>
+                                                            Observação Particular do Cliente
+                                                          </div>
+                                                          <RichTextEditor
+                                                            value={observacoesEditando[subtarefa.id]?.observacao || ''}
+                                                            onChange={(value) => setObservacoesEditando(prev => ({
+                                                              ...prev,
+                                                              [subtarefa.id]: { ...prev[subtarefa.id], observacao: value }
+                                                            }))}
+                                                            placeholder="Digite a observação particular desta subtarefa para este cliente..."
+                                                            disabled={observacoesEditando[subtarefa.id]?.saving}
+                                                            minHeight={200}
+                                                            showFloatingToolbar={true}
+                                                          />
+                                                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                                                            {subtarefa.observacaoParticular && (
+                                                              <button
+                                                                type="button"
+                                                                onClick={(e) => handleDeletarObservacao(e, subtarefa.id)}
+                                                                disabled={observacoesEditando[subtarefa.id]?.saving}
+                                                                style={{
+                                                                  background: 'transparent',
+                                                                  border: '1px solid #ef4444',
+                                                                  color: '#ef4444',
+                                                                  cursor: observacoesEditando[subtarefa.id]?.saving ? 'not-allowed' : 'pointer',
+                                                                  padding: '8px 16px',
+                                                                  borderRadius: '6px',
+                                                                  fontSize: '12px',
+                                                                  display: 'flex',
+                                                                  alignItems: 'center',
+                                                                  gap: '6px',
+                                                                  opacity: observacoesEditando[subtarefa.id]?.saving ? 0.5 : 1
+                                                                }}
+                                                              >
+                                                                <i className="fas fa-trash" style={{ fontSize: '11px' }}></i>
+                                                                Remover
+                                                              </button>
+                                                            )}
+                                                            <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+                                                              <button
+                                                                type="button"
+                                                                onClick={(e) => toggleExpandedObservacao(e, subtarefa.id, subtarefa.observacaoParticular)}
+                                                                disabled={observacoesEditando[subtarefa.id]?.saving}
+                                                                style={{
+                                                                  background: '#fff',
+                                                                  border: '1px solid #d1d5db',
+                                                                  color: '#374151',
+                                                                  cursor: observacoesEditando[subtarefa.id]?.saving ? 'not-allowed' : 'pointer',
+                                                                  padding: '8px 16px',
+                                                                  borderRadius: '6px',
+                                                                  fontSize: '12px',
+                                                                  opacity: observacoesEditando[subtarefa.id]?.saving ? 0.5 : 1
+                                                                }}
+                                                              >
+                                                                Cancelar
+                                                              </button>
+                                                              <button
+                                                                type="button"
+                                                                onClick={(e) => handleSalvarObservacao(e, subtarefa.id, subtarefa.nome)}
+                                                                disabled={observacoesEditando[subtarefa.id]?.saving}
+                                                                style={{
+                                                                  background: '#f59e0b',
+                                                                  border: 'none',
+                                                                  color: '#fff',
+                                                                  cursor: observacoesEditando[subtarefa.id]?.saving ? 'not-allowed' : 'pointer',
+                                                                  padding: '8px 16px',
+                                                                  borderRadius: '6px',
+                                                                  fontSize: '12px',
+                                                                  display: 'flex',
+                                                                  alignItems: 'center',
+                                                                  gap: '6px',
+                                                                  opacity: observacoesEditando[subtarefa.id]?.saving ? 0.5 : 1
+                                                                }}
+                                                              >
+                                                                {observacoesEditando[subtarefa.id]?.saving ? (
+                                                                  <>
+                                                                    <i className="fas fa-spinner fa-spin" style={{ fontSize: '11px' }}></i>
+                                                                    Salvando...
+                                                                  </>
+                                                                ) : (
+                                                                  <>
+                                                                    <i className="fas fa-save" style={{ fontSize: '11px' }}></i>
+                                                                    Salvar
+                                                                  </>
+                                                                )}
+                                                              </button>
+                                                            </div>
+                                                          </div>
+                                                        </div>
+                                                      )}
+
+                                                      {/* Botão para adicionar observação particular (quando não está expandido e não tem observação) */}
+                                                      {!subtarefa.observacaoParticular && expandedObservacao !== subtarefa.id && (
                                                         <button
                                                           type="button"
-                                                          onClick={(e) => handleDeletarObservacao(e, subtarefa.id)}
-                                                          disabled={observacoesEditando[subtarefa.id]?.saving}
+                                                          onClick={(e) => toggleExpandedObservacao(e, subtarefa.id, null)}
                                                           style={{
                                                             background: 'transparent',
-                                                            border: '1px solid #ef4444',
-                                                            color: '#ef4444',
-                                                            cursor: observacoesEditando[subtarefa.id]?.saving ? 'not-allowed' : 'pointer',
-                                                            padding: '8px 16px',
+                                                            border: '1px dashed #fed7aa',
+                                                            color: '#f59e0b',
+                                                            cursor: 'pointer',
+                                                            padding: '8px 12px',
                                                             borderRadius: '6px',
                                                             fontSize: '12px',
                                                             display: 'flex',
                                                             alignItems: 'center',
                                                             gap: '6px',
-                                                            opacity: observacoesEditando[subtarefa.id]?.saving ? 0.5 : 1
+                                                            width: '100%',
+                                                            justifyContent: 'center',
+                                                            transition: 'all 0.2s'
                                                           }}
+                                                          onMouseEnter={(e) => {
+                                                            e.target.style.background = '#fff7ed';
+                                                            e.target.style.borderColor = '#f59e0b';
+                                                          }}
+                                                          onMouseLeave={(e) => {
+                                                            e.target.style.background = 'transparent';
+                                                            e.target.style.borderColor = '#fed7aa';
+                                                          }}
+                                                          title="Adicionar observação particular"
                                                         >
-                                                          <i className="fas fa-trash" style={{ fontSize: '11px' }}></i>
-                                                          Remover
+                                                          <i className="fas fa-plus-circle" style={{ fontSize: '11px' }}></i>
+                                                          Adicionar Observação Particular
                                                         </button>
                                                       )}
-                                                      <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
-                                                        <button
-                                                          type="button"
-                                                          onClick={(e) => toggleExpandedObservacao(e, subtarefa.id, subtarefa.observacaoParticular)}
-                                                          disabled={observacoesEditando[subtarefa.id]?.saving}
-                                                          style={{
-                                                            background: '#fff',
-                                                            border: '1px solid #d1d5db',
-                                                            color: '#374151',
-                                                            cursor: observacoesEditando[subtarefa.id]?.saving ? 'not-allowed' : 'pointer',
-                                                            padding: '8px 16px',
-                                                            borderRadius: '6px',
-                                                            fontSize: '12px',
-                                                            opacity: observacoesEditando[subtarefa.id]?.saving ? 0.5 : 1
-                                                          }}
-                                                        >
-                                                          Cancelar
-                                                        </button>
-                                                        <button
-                                                          type="button"
-                                                          onClick={(e) => handleSalvarObservacao(e, subtarefa.id, subtarefa.nome)}
-                                                          disabled={observacoesEditando[subtarefa.id]?.saving}
-                                                          style={{
-                                                            background: '#f59e0b',
-                                                            border: 'none',
-                                                            color: '#fff',
-                                                            cursor: observacoesEditando[subtarefa.id]?.saving ? 'not-allowed' : 'pointer',
-                                                            padding: '8px 16px',
-                                                            borderRadius: '6px',
-                                                            fontSize: '12px',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: '6px',
-                                                            opacity: observacoesEditando[subtarefa.id]?.saving ? 0.5 : 1
-                                                          }}
-                                                        >
-                                                          {observacoesEditando[subtarefa.id]?.saving ? (
-                                                            <>
-                                                              <i className="fas fa-spinner fa-spin" style={{ fontSize: '11px' }}></i>
-                                                              Salvando...
-                                                            </>
-                                                          ) : (
-                                                            <>
-                                                              <i className="fas fa-save" style={{ fontSize: '11px' }}></i>
-                                                              Salvar
-                                                            </>
-                                                          )}
-                                                        </button>
-                                                      </div>
                                                     </div>
-                                                  </div>
-                                                )}
-
-                                                {/* Botão para adicionar observação particular (quando não está expandido e não tem observação) */}
-                                                {!subtarefa.observacaoParticular && expandedObservacao !== subtarefa.id && (
-                                                  <button
-                                                    type="button"
-                                                    onClick={(e) => toggleExpandedObservacao(e, subtarefa.id, null)}
-                                                    style={{
-                                                      background: 'transparent',
-                                                      border: '1px dashed #fed7aa',
-                                                      color: '#f59e0b',
-                                                      cursor: 'pointer',
-                                                      padding: '8px 12px',
-                                                      borderRadius: '6px',
-                                                      fontSize: '12px',
-                                                      display: 'flex',
-                                                      alignItems: 'center',
-                                                      gap: '6px',
-                                                      width: '100%',
-                                                      justifyContent: 'center',
-                                                      transition: 'all 0.2s'
-                                                    }}
-                                                    onMouseEnter={(e) => {
-                                                      e.target.style.background = '#fff7ed';
-                                                      e.target.style.borderColor = '#f59e0b';
-                                                    }}
-                                                    onMouseLeave={(e) => {
-                                                      e.target.style.background = 'transparent';
-                                                      e.target.style.borderColor = '#fed7aa';
-                                                    }}
-                                                    title="Adicionar observação particular"
-                                                  >
-                                                    <i className="fas fa-plus-circle" style={{ fontSize: '11px' }}></i>
-                                                    Adicionar Observação Particular
-                                                  </button>
-                                                )}
-                                              </div>
-                                            )}
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <div style={{
-                            fontSize: '14px',
-                            color: '#9ca3af',
-                            fontStyle: 'italic',
-                            padding: '12px',
-                            textAlign: 'center'
-                          }}>
-                            Nenhuma tarefa vinculada
-                          </div>
+                                                  )}
+                                                </li>
+                                              ))}
+                                            </ul>
+                                          </div>
+                                        )}
+                                      </>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div style={{
+                              fontSize: '14px',
+                              color: '#9ca3af',
+                              fontStyle: 'italic',
+                              padding: '12px',
+                              textAlign: 'center'
+                            }}>
+                              Nenhuma tarefa vinculada
+                            </div>
+                          )
                         )}
                       </section>
                     );
