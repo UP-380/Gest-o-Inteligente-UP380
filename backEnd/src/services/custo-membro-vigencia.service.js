@@ -18,8 +18,9 @@ if (!supabaseUrl || !supabaseServiceKey) {
   process.exit(1);
 }
 
+const dbSchema = process.env.SUPABASE_DB_SCHEMA || 'up_gestaointeligente';
 const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  db: { schema: 'up_gestaointeligente' },
+  db: { schema: dbSchema },
   global: {
     headers: {
       'Cache-Control': 'no-cache'
@@ -31,7 +32,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
 async function buscarVigencias(filters = {}, page = 1, limit = 50) {
   try {
     let query = supabase
-      .schema('up_gestaointeligente')
+      .schema(dbSchema)
       .from('custo_membro_vigencia')
       .select(`
         *,
@@ -71,7 +72,7 @@ async function buscarVigencias(filters = {}, page = 1, limit = 50) {
     if (filters.status && filters.status !== 'todos') {
       // Primeiro buscar membros com o status
       const { data: membros, error: membrosError } = await supabase
-        .schema('up_gestaointeligente')
+        .schema(dbSchema)
         .from('membro')
         .select('id')
         .eq('status', filters.status);
@@ -114,7 +115,7 @@ async function buscarVigencias(filters = {}, page = 1, limit = 50) {
 async function buscarVigenciaPorId(id) {
   try {
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      .schema(dbSchema)
       .from('custo_membro_vigencia')
       .select(`
         *,
@@ -141,7 +142,7 @@ async function buscarVigenciaPorId(id) {
 async function buscarVigenciasPorMembro(membroId) {
   try {
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      .schema(dbSchema)
       .from('custo_membro_vigencia')
       .select(`
         *,
@@ -168,7 +169,7 @@ async function buscarVigenciasPorMembro(membroId) {
 async function verificarMembroExiste(membroId) {
   try {
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      .schema(dbSchema)
       .from('membro')
       .select('id')
       .eq('id', membroId)
@@ -188,7 +189,7 @@ async function verificarMembroExiste(membroId) {
 async function verificarVigenciaExiste(id) {
   try {
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      .schema(dbSchema)
       .from('custo_membro_vigencia')
       .select('*')
       .eq('id', id)
@@ -209,7 +210,7 @@ async function verificarVigenciaExiste(id) {
 async function verificarVigenciaUnica(membroId, dtVigencia, excludeId = null) {
   try {
     let query = supabase
-      .schema('up_gestaointeligente')
+      .schema(dbSchema)
       .from('custo_membro_vigencia')
       .select('id')
       .eq('membro_id', membroId)
@@ -237,7 +238,7 @@ async function verificarVigenciaUnica(membroId, dtVigencia, excludeId = null) {
 async function buscarHorasContratadasPorMembroEPeriodo(membroId, dataInicio, dataFim) {
   try {
     let query = supabase
-      .schema('up_gestaointeligente')
+      .schema(dbSchema)
       .from('custo_membro_vigencia')
       .select('horascontratadasdia, dt_vigencia, tipo_contrato')
       .eq('membro_id', membroId);
@@ -267,7 +268,7 @@ async function buscarHorasContratadasPorMembroEPeriodo(membroId, dataInicio, dat
 async function buscarHorasContratadasLote(membroIds, dataFim) {
   try {
     let query = supabase
-      .schema('up_gestaointeligente')
+      .schema(dbSchema)
       .from('custo_membro_vigencia')
       .select('membro_id, horascontratadasdia, dt_vigencia, tipo_contrato')
       .in('membro_id', membroIds);
@@ -302,7 +303,7 @@ async function buscarHorasContratadasLote(membroIds, dataFim) {
 async function buscarCustoMaisRecentePorMembroEPeriodo(membroId, dataInicio, dataFim) {
   try {
     let query = supabase
-      .schema('up_gestaointeligente')
+      .schema(dbSchema)
       .from('custo_membro_vigencia')
       .select('*')
       .eq('membro_id', membroId);
@@ -329,7 +330,7 @@ async function buscarCustoMaisRecentePorMembroEPeriodo(membroId, dataInicio, dat
 async function buscarCustoMaisRecenteLote(membroIds, dataFim) {
   try {
     let query = supabase
-      .schema('up_gestaointeligente')
+      .schema(dbSchema)
       .from('custo_membro_vigencia')
       .select('*')
       .in('membro_id', membroIds);
@@ -367,7 +368,7 @@ async function criarVigencia(dados) {
     }
 
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      .schema(dbSchema)
       .from('custo_membro_vigencia')
       .insert([dados])
       .select(`
@@ -405,7 +406,7 @@ async function atualizarVigencia(id, dados) {
     }
 
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      .schema(dbSchema)
       .from('custo_membro_vigencia')
       .update(dados)
       .eq('id', id)
@@ -435,7 +436,7 @@ async function atualizarVigencia(id, dados) {
 async function deletarVigencia(id) {
   try {
     const { error } = await supabase
-      .schema('up_gestaointeligente')
+      .schema(dbSchema)
       .from('custo_membro_vigencia')
       .delete()
       .eq('id', id);
@@ -466,7 +467,7 @@ async function buscarDiasUteisConfig(dataVigencia, tipoContrato) {
     if (!dataVigencia) return 22; // Valor padrão
 
     let query = supabase
-      .schema('up_gestaointeligente')
+      .schema(dbSchema)
       .from('config_custo_membro')
       .select('dias_uteis')
       .lte('vigencia', dataVigencia);
@@ -562,7 +563,7 @@ async function buscarColaboradoresComUltimaVigencia() {
   try {
     // Buscar todos os colaboradores (ativos e inativos)
     const { data: colaboradores, error: errorColaboradores } = await supabase
-      .schema('up_gestaointeligente')
+      .schema(dbSchema)
       .from('membro')
       .select('id, nome, cpf, status')
       .order('nome', { ascending: true });
@@ -580,7 +581,7 @@ async function buscarColaboradoresComUltimaVigencia() {
       colaboradores.map(async (colaborador) => {
         // Buscar a vigência mais recente deste colaborador
         const { data: vigencia, error: errorVigencia } = await supabase
-          .schema('up_gestaointeligente')
+          .schema(dbSchema)
           .from('custo_membro_vigencia')
           .select('*')
           .eq('membro_id', colaborador.id)

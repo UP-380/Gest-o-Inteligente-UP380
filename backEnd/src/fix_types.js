@@ -2,7 +2,7 @@ const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-const schema = process.env.SUPABASE_DB_SCHEMA || 'up_gestaointeligente_dev';
+const schema = process.env.SUPABASE_DB_SCHEMA || 'up_gestaointeligente';
 
 async function fixTables() {
     console.log(`--- Ajustando tabelas no schema: ${schema} ---`);

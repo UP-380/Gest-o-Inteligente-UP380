@@ -6,6 +6,8 @@ const apiClientes = require('../services/api-clientes');
 const { supabase } = apiClientes;
 const { sendSuccess, sendError, sendCreated, sendUpdated, sendDeleted, sendValidationError, sendNotFound } = require('../utils/responseHelper');
 
+const DB_SCHEMA = process.env.SUPABASE_DB_SCHEMA || 'up_gestaointeligente';
+
 // === DEPARTAMENTOS ===
 
 // GET - Listar todos os departamentos
@@ -286,7 +288,7 @@ async function updateMembroDepartamento(req, res) {
         if (!data || data.length === 0) {
             // Tentar como membro_id dentro do departamento
             const { data: data2, error: error2 } = await supabase
-                .schema('up_gestaointeligente_dev')
+                .schema(DB_SCHEMA)
                 .from('departamento_membros')
                 .update({
                     updated_at: new Date().toISOString()
@@ -332,7 +334,7 @@ async function removeMembroDepartamento(req, res) {
         if (count === 0) {
             // Tentar como membro_id dentro do departamento
             const { error: error2 } = await supabase
-                .schema('up_gestaointeligente_dev')
+                .schema(DB_SCHEMA)
                 .from('departamento_membros')
                 .delete()
                 .eq('departamento_id', id)
