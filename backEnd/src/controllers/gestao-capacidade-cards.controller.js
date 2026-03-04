@@ -206,6 +206,72 @@ async function getRealizadoPorResponsavel(supabaseClient, opts) {
     }
   });
 
+  // Incluir registro_tempo_pendente (Plug Rápido finalizado) no realizado e no breakdown
+  if (withBreakdown) {
+    const criarQueryPendentes = () => supabaseClient
+      .from('registro_tempo_pendente')
+      .select('id, usuario_id, atribuicao_pendente_id, data_inicio, data_fim')
+      .in('usuario_id', usuarioIds)
+      .not('data_fim', 'is', null)
+      .or(orConditions);
+
+    let pendentes;
+    try {
+      pendentes = await buscarTodosComPaginacao(criarQueryPendentes, { limit: PAGINATION_LIMIT, logProgress: false });
+    } catch (e) {
+      // não falha o fluxo; segue sem pendentes no breakdown
+    }
+
+    if (pendentes && pendentes.length > 0) {
+      const idsAttr = [...new Set(pendentes.map(p => p.atribuicao_pendente_id).filter(Boolean))];
+      const { data: attrs } = await supabaseClient
+        .from('atribuicoes_pendentes')
+        .select('id, cliente_id, tarefa_id, produto_id')
+        .in('id', idsAttr);
+      const attrMap = new Map((attrs || []).map(a => [a.id, a]));
+
+      pendentes.forEach(p => {
+        const membroId = usuarioParaMembro[p.usuario_id];
+        if (!membroId) return;
+        const attr = attrMap.get(p.atribuicao_pendente_id);
+        const cliente_id = attr?.cliente_id;
+        const tarefa_id = attr?.tarefa_id;
+        const produto_id = attr?.produto_id ?? null;
+        if (cliente_id == null && produto_id == null) return;
+        const d1 = new Date(p.data_inicio).getTime();
+        const d2 = p.data_fim ? new Date(p.data_fim).getTime() : Date.now();
+        const tempo = Math.max(0, d2 - d1);
+        if (tempo <= 0) return;
+
+        const key = String(membroId);
+        if (!porMembro[key]) porMembro[key] = 0;
+        porMembro[key] += tempo;
+
+        const mid = key;
+        const tid = tarefa_id != null ? String(tarefa_id) : null;
+        if (tid) {
+          const tk = `${mid}_${tid}`;
+          breakdown.tarefas[tk] = (breakdown.tarefas[tk] || 0) + tempo;
+        }
+        const clienteIds = String(cliente_id || '').split(',').map(s => s.trim()).filter(Boolean);
+        const nClientes = clienteIds.length || 1;
+        const tempoPorCliente = tempo / nClientes;
+        clienteIds.forEach(cid => {
+          const ck = `${mid}_${cid}`;
+          breakdown.clientes[ck] = (breakdown.clientes[ck] || 0) + tempoPorCliente;
+          if (tid) {
+            const tck = `${mid}_${tid}_${cid}`;
+            breakdown.tarefaClientes[tck] = (breakdown.tarefaClientes[tck] || 0) + tempoPorCliente;
+          }
+        });
+        if (produto_id != null) {
+          const pk = `${mid}_${produto_id}`;
+          breakdown.produtos[pk] = (breakdown.produtos[pk] || 0) + tempo;
+        }
+      });
+    }
+  }
+
   return { porMembro, breakdown };
 }
 
@@ -2273,6 +2339,54 @@ async function detalhesResponsavel(req, res) {
         });
       }
     });
+
+    // Incluir clientes/tarefas/produtos que têm apenas realizado (sem estimativa) para paridade com a planilha
+    const prefix = `${idStr}_`;
+    Object.entries(realizadoResult.breakdown?.clientes || {}).forEach(([key, rMs]) => {
+      if (!key.startsWith(prefix) || rMs <= 0) return;
+      const cid = key.slice(prefix.length);
+      if (seenClientes.has(cid)) return;
+      seenClientes.add(cid);
+      detalhesClientes.push({
+        id: String(cid),
+        nome: nomeCliente[String(cid)] || `Cliente #${cid}`,
+        total_estimado_ms: 0,
+        total_realizado_ms: rMs,
+        custo_estimado: 0
+      });
+    });
+    Object.entries(realizadoResult.breakdown?.tarefas || {}).forEach(([key, rMs]) => {
+      if (!key.startsWith(prefix) || rMs <= 0) return;
+      const tid = key.slice(prefix.length);
+      if (seenTarefas.has(tid)) return;
+      seenTarefas.add(tid);
+      detalhesTarefas.push({
+        id: `t${tid}_c0_p0`,
+        original_id: String(tid),
+        nome: nomeTarefa[String(tid)] || `Tarefa #${tid}`,
+        total_estimado_ms: 0,
+        total_realizado_ms: rMs,
+        custo_estimado: 0
+      });
+    });
+    Object.entries(realizadoResult.breakdown?.produtos || {}).forEach(([key, rMs]) => {
+      if (!key.startsWith(prefix) || rMs <= 0) return;
+      const pid = key.slice(prefix.length);
+      if (seenProdutos.has(pid)) return;
+      seenProdutos.add(pid);
+      detalhesProdutos.push({
+        id: String(pid),
+        nome: nomeProduto[String(pid)] || `Produto #${pid}`,
+        total_estimado_ms: 0,
+        total_realizado_ms: rMs,
+        custo_estimado: 0
+      });
+    });
+
+    // Ordenar por realizado (desc) para consistência com a planilha
+    detalhesClientes.sort((a, b) => (b.total_realizado_ms || 0) - (a.total_realizado_ms || 0));
+    detalhesTarefas.sort((a, b) => (b.total_realizado_ms || 0) - (a.total_realizado_ms || 0));
+    detalhesProdutos.sort((a, b) => (b.total_realizado_ms || 0) - (a.total_realizado_ms || 0));
 
     // Adicionar clientes aninhados a cada tarefa (detalhesResponsavel tipo=tarefas): árvore Responsável > Tarefa > Cliente > Registros
     const tarefaClientesResp = realizadoResult.breakdown?.tarefaClientes || {};
