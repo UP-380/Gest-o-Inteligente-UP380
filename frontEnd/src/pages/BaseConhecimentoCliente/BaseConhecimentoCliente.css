@@ -148,7 +148,8 @@
   background: transparent;
   border-bottom: 1px solid #e5e7eb;
   margin-bottom: 24px;
-  min-height: 36px; /* Garantir altura mínima consistente */
+  min-height: 36px;
+  /* Garantir altura mínima consistente */
 }
 
 .section-header-actions {
@@ -157,7 +158,8 @@
   gap: 8px;
   margin-left: auto;
   flex-shrink: 0;
-  height: 36px; /* Mesma altura do section-icon para garantir alinhamento */
+  height: 36px;
+  /* Mesma altura do section-icon para garantir alinhamento */
 }
 
 /* Garantir que o EditButton dentro do header-actions tenha altura consistente */
@@ -246,6 +248,7 @@
     padding-top: 0;
     padding-bottom: 0;
   }
+
   to {
     opacity: 1;
     max-height: 10000px;
@@ -274,7 +277,7 @@
 }
 
 /* EditButton quando está logo após o título */
-.section-header > .btn-icon.btn-edit {
+.section-header>.btn-icon.btn-edit {
   width: 28px;
   height: 28px;
   padding: 0;
@@ -285,7 +288,7 @@
   margin-left: 8px;
 }
 
-.section-header > .btn-icon.btn-edit svg {
+.section-header>.btn-icon.btn-edit svg {
   width: 16px;
   height: 16px;
 }
@@ -610,3 +613,64 @@
   }
 }
 
+/* Estilos globais para a visualização de Rich Text (Apresentação, etc) */
+.rich-content-view {
+  font-family: Arial, Helvetica, sans-serif;
+  color: #333333;
+  line-height: 1.6;
+  font-size: 15px;
+}
+
+.rich-content-view p {
+  margin-bottom: 1rem;
+}
+
+.rich-content-view h1,
+.rich-content-view h2,
+.rich-content-view h3,
+.rich-content-view h4,
+.rich-content-view h5,
+.rich-content-view h6 {
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.rich-content-view ul,
+.rich-content-view ol {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  padding-left: 40px;
+  /* Alinhamento correto dos marcadores */
+}
+
+.rich-content-view ul {
+  list-style-type: disc;
+}
+
+.rich-content-view ol {
+  list-style-type: decimal;
+}
+
+.rich-content-view li {
+  margin-bottom: 0.5rem;
+  display: list-item;
+}
+
+.rich-content-view a {
+  color: #3b82f6;
+  text-decoration: underline;
+}
+
+.rich-content-view a:hover {
+  text-decoration: none;
+}
+
+.rich-content-view blockquote {
+  border-left: 4px solid #e5e7eb;
+  padding-left: 1rem;
+  margin-left: 0;
+  color: #6b7280;
+  font-style: italic;
+}

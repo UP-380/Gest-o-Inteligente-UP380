@@ -12,6 +12,7 @@ import ButtonPrimary from '../../components/common/ButtonPrimary';
 import ImageCropModal from '../../components/user/ImageCropModal';
 import ClienteAvatarCard from '../../components/clients/ClienteAvatarCard';
 import Avatar from '../../components/user/Avatar';
+import RichTextEditor from '../../components/common/RichTextEditor';
 import { clientesAPI } from '../../services/api';
 import { useToast } from '../../hooks/useToast';
 import { DEFAULT_AVATAR, isCustomAvatar } from '../../utils/avatars';
@@ -44,7 +45,8 @@ const CadastroCliente = () => {
     kaminoId: '',
     clickupNome: '',
     foto_perfil: null,
-    uploadedFotoPath: null
+    uploadedFotoPath: null,
+    apresentacao: ''
   });
   const [formErrors, setFormErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -152,7 +154,8 @@ const CadastroCliente = () => {
         kaminoId: '',
         clickupNome: '',
         foto_perfil: DEFAULT_AVATAR,
-        uploadedFotoPath: null
+        uploadedFotoPath: null,
+        apresentacao: ''
       });
       return;
     }
@@ -216,6 +219,7 @@ const CadastroCliente = () => {
           kaminoId: clienteData.id_cli_kamino || clienteData.kaminoId || '',
           // Mapear nome -> clickupNome
           clickupNome: clienteData.nome || clienteData.clickupNome || clienteData.clickup_nome || '',
+          apresentacao: clienteData.apresentacao || '',
           foto_perfil: fotoPerfilValue,
           uploadedFotoPath: null
         }));
@@ -252,6 +256,25 @@ const CadastroCliente = () => {
       setVinculacoes([]);
     }
   }, [formData.id, loadVinculacoes]);
+
+  // Scrollar para a seção selecionada caso venha do state
+  useEffect(() => {
+    if (location.state?.focusSection && !loading) {
+      const section = document.getElementById(`section-${location.state.focusSection}`);
+      if (section) {
+        // Um pequeno delay para dar tempo do render ser efetivo
+        setTimeout(() => {
+          section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          // Highlight temporary
+          section.style.transition = 'background-color 0.5s ease';
+          section.style.backgroundColor = '#f8fafc';
+          setTimeout(() => {
+            section.style.backgroundColor = '';
+          }, 2000);
+        }, 300);
+      }
+    }
+  }, [location.state, loading]);
 
   // Função para upload de foto (chamada pelo card)
   const handleFotoUpload = (file) => {
@@ -458,6 +481,7 @@ const CadastroCliente = () => {
         nome_cli_kamino: sanitize(formData.kaminoNome),
         id_cli_kamino: sanitize(formData.kaminoId),
         foto_perfil: fotoPerfilValue,
+        apresentacao: formData.apresentacao || null,
       };
 
       const isNovo = !formData.id;
@@ -528,6 +552,7 @@ const CadastroCliente = () => {
             kaminoNome: result.cliente.nome_cli_kamino || prev.kaminoNome,
             kaminoId: result.cliente.id_cli_kamino || prev.kaminoId,
             clickupNome: result.cliente.clickup_nome || prev.clickupNome,
+            apresentacao: result.cliente.apresentacao || prev.apresentacao,
             foto_perfil: result.cliente.foto_perfil || prev.foto_perfil
           }));
         }
@@ -647,6 +672,25 @@ const CadastroCliente = () => {
                       />
                     </div>
                   </div>
+
+                  {/* Seção de Apresentação do Cliente */}
+                  <div className="editar-cliente-form-section">
+                    <div className="section-header">
+                      <div className="section-icon" style={{ backgroundColor: '#8b5cf615', color: '#8b5cf6' }}>
+                        <i className="fas fa-file-alt"></i>
+                      </div>
+                      <h2 className="section-title">Apresentação do Cliente</h2>
+                    </div>
+                    <div className="section-content">
+                      <RichTextEditor
+                        value={formData.apresentacao || ''}
+                        onChange={(content) => setFormData(prev => ({ ...prev, apresentacao: content }))}
+                        placeholder="Digite a apresentação do cliente..."
+                        disabled={submitting}
+                        minHeight="250px"
+                      />
+                    </div>
+                  </div>
                 </form>
               </div>
             </CardContainer>
@@ -752,7 +796,27 @@ const CadastroCliente = () => {
                   </div>
                 </div>
 
+                {/* Seção de Apresentação do Cliente */}
+                <div id="section-apresentacao" className="editar-cliente-form-section">
+                  <div className="section-header">
+                    <div className="section-icon" style={{ backgroundColor: '#8b5cf615', color: '#8b5cf6' }}>
+                      <i className="fas fa-file-alt"></i>
+                    </div>
+                    <h2 className="section-title">Apresentação do Cliente</h2>
+                  </div>
+                  <div className="section-content">
+                    <RichTextEditor
+                      value={formData.apresentacao || ''}
+                      onChange={(content) => setFormData(prev => ({ ...prev, apresentacao: content }))}
+                      placeholder="Digite a apresentação do cliente..."
+                      disabled={submitting}
+                      minHeight="250px"
+                    />
+                  </div>
+                </div>
+
                 {/* Seção de Fluxo da Operação */}
+
                 {formData.id && (
                   <div className="editar-cliente-form-section">
                     <div className="section-header">

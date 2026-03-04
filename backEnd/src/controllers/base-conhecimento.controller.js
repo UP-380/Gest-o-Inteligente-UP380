@@ -21,7 +21,7 @@ async function getBaseConhecimentoCliente(req, res) {
     const { data: cliente, error: errorCliente } = await supabase
 
       .from('cp_cliente')
-      .select('id, razao_social, nome_fantasia, nome_amigavel, cpf_cnpj, status, nome_cli_kamino, id_cli_kamino, nome, foto_perfil')
+      .select('id, razao_social, nome_fantasia, nome_amigavel, cpf_cnpj, status, nome_cli_kamino, id_cli_kamino, nome, foto_perfil, apresentacao')
       .eq('id', cliente_id)
       .maybeSingle();
 
@@ -42,7 +42,7 @@ async function getBaseConhecimentoCliente(req, res) {
     }
 
     // Buscar todos os dados relacionados em paralelo para melhor performance
-    const [sistemasResult, contasResult, adquirentesResult, vinculadosResult] = await Promise.all([
+    const [sistemasResult, contasResult, adquirentesResult, vinculadosResult, anotacoesResult] = await Promise.all([
       // Buscar sistemas do cliente
       supabase
 
@@ -124,6 +124,13 @@ async function getBaseConhecimentoCliente(req, res) {
           subtarefa_id,
           cliente_id
         `)
+        .eq('cliente_id', cliente_id),
+
+      // Buscar contagem de anotações do cliente
+      supabase
+        .schema(process.env.SUPABASE_DB_SCHEMA || 'up_gestaointeligente_dev')
+        .from('anotacoes_clientes')
+        .select('*', { count: 'exact', head: true })
         .eq('cliente_id', cliente_id)
     ]);
 
@@ -150,7 +157,8 @@ async function getBaseConhecimentoCliente(req, res) {
       kaminoNome: cliente.nome_cli_kamino,
       nome_cli_kamino: cliente.nome_cli_kamino,
       nome: cliente.nome,
-      foto_perfil: fotoPerfilUrl // URL resolvida usando metadados
+      foto_perfil: fotoPerfilUrl, // URL resolvida usando metadados
+      apresentacao: cliente.apresentacao
     };
 
     // Extrair dados e tratar erros
@@ -158,6 +166,7 @@ async function getBaseConhecimentoCliente(req, res) {
     const contasBancarias = contasResult.error ? [] : (contasResult.data || []);
     const adquirentes = adquirentesResult.error ? [] : (adquirentesResult.data || []);
     const vinculados = vinculadosResult.error ? [] : (vinculadosResult.data || []);
+    const totalAnotacoes = anotacoesResult.error ? 0 : (anotacoesResult.count || 0);
 
     // Log de erros se houver
     if (sistemasResult.error) {
@@ -261,7 +270,8 @@ async function getBaseConhecimentoCliente(req, res) {
       sistemas: sistemas,
       contasBancarias: contasBancarias,
       adquirentes: adquirentes,
-      vinculacoes: vinculacoesDetalhadas
+      vinculacoes: vinculacoesDetalhadas,
+      totalAnotacoes: totalAnotacoes
     };
 
     return res.json({

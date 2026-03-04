@@ -95,6 +95,7 @@ const BaseConhecimentoCliente = () => {
   const [vinculacoesExpandAll, setVinculacoesExpandAll] = useState(undefined);
   const [vinculacoesSectionExpanded, setVinculacoesSectionExpanded] = useState(false);
   const [anotacoesExpanded, setAnotacoesExpanded] = useState(false);
+  const [apresentacaoExpanded, setApresentacaoExpanded] = useState(false);
   const [anotacoesCount, setAnotacoesCount] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -115,9 +116,10 @@ const BaseConhecimentoCliente = () => {
     setContasBancariasExpanded(newState);
     setAdquirentesExpanded(newState);
     setFluxoOperacaoExpanded(newState);
-    setVinculacoesExpandAll(newState);
     setVinculacoesSectionExpanded(newState);
     setAnotacoesExpanded(newState);
+    setApresentacaoExpanded(newState);
+    setVinculacoesExpandAll(newState ? true : false);
   };
 
   // Filtrar dados baseado no termo de busca
@@ -173,13 +175,23 @@ const BaseConhecimentoCliente = () => {
       safeStr(cliente.nome_amigavel).toLowerCase().includes(t) ||
       safeStr(cliente.cnpj || cliente.cpf_cnpj).toLowerCase().includes(t);
 
+    const matchesApresentacao = safeStr(cliente.apresentacao).toLowerCase().includes(t);
+
+    const hasMatches = filteredSistemas.length > 0 ||
+      filteredContas.length > 0 ||
+      filteredAdquirentes.length > 0 ||
+      filteredVinculacoes.length > 0 ||
+      matchesDadosBasicos ||
+      matchesApresentacao;
+
     return {
       sistemas: filteredSistemas,
       contasBancarias: filteredContas,
       adquirentes: filteredAdquirentes,
       vinculacoes: filteredVinculacoes,
       matchesDadosBasicos,
-      hasMatches: true
+      matchesApresentacao,
+      hasMatches
     };
   }, [searchTerm, dadosCliente]);
 
@@ -190,6 +202,11 @@ const BaseConhecimentoCliente = () => {
 
       if (filteredData.matchesDadosBasicos) {
         if (!firstSectionId) firstSectionId = 'section-dados-basicos';
+      }
+      // New section for Apresentacao
+      if (filteredData.matchesApresentacao) {
+        setApresentacaoExpanded(true);
+        if (!firstSectionId) firstSectionId = 'section-apresentacao';
       }
       if (filteredData.sistemas.length > 0) {
         setSistemasExpanded(true);
@@ -338,6 +355,13 @@ const BaseConhecimentoCliente = () => {
       setLoading(false);
     }
   }, [clienteId, showToast]);
+
+  // Sincronizar contagem de anotações do backend
+  useEffect(() => {
+    if (dadosCliente?.totalAnotacoes !== undefined) {
+      setAnotacoesCount(dadosCliente.totalAnotacoes);
+    }
+  }, [dadosCliente]);
 
   const getNomeArquivoExport = useCallback(() => {
     if (!dadosCliente?.cliente) return 'base-conhecimento';
@@ -586,6 +610,73 @@ const BaseConhecimentoCliente = () => {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Apresentação do Cliente */}
+              <div id="section-apresentacao" className="knowledge-section">
+                <div
+                  className="section-header section-header-collapsible"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setApresentacaoExpanded(!apresentacaoExpanded)}
+                >
+                  <div className="section-icon" style={{ backgroundColor: '#8b5cf615', color: '#8b5cf6' }}>
+                    <i className="fas fa-file-alt"></i>
+                  </div>
+                  <h2 className="section-title">Apresentação do Cliente</h2>
+                  <EditButton
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/cadastro/cliente?id=${clienteId}`, {
+                        state: {
+                          focusSection: 'apresentacao'
+                        }
+                      });
+                    }}
+                    title="Editar apresentação"
+                  />
+                  <span className="section-badge">{cliente.apresentacao ? 1 : 0}</span>
+                  <div className="section-header-actions">
+                    <button
+                      type="button"
+                      className="section-expand-toggle"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setApresentacaoExpanded(!apresentacaoExpanded);
+                      }}
+                      aria-label={apresentacaoExpanded ? 'Recolher seção' : 'Expandir seção'}
+                      style={{
+                        transition: 'transform 0.2s ease, color 0.2s ease',
+                        transform: apresentacaoExpanded ? 'rotate(180deg)' : 'rotate(0deg)'
+                      }}
+                    >
+                      <i className="fas fa-chevron-down" style={{ fontSize: '14px' }}></i>
+                    </button>
+                  </div>
+                </div>
+                {apresentacaoExpanded && (
+                  <div className="section-content">
+                    {cliente.apresentacao ? (
+                      <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '12px',
+                        border: '1px solid #eef2f7',
+                        borderRadius: '12px',
+                        padding: '16px',
+                        background: '#fff'
+                      }}>
+                        <div
+                          className="rich-content-view"
+                          dangerouslySetInnerHTML={{ __html: cliente.apresentacao }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="empty-state">
+                        <p>Nenhuma apresentação cadastrada para este cliente.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Acessos de Sistema */}

@@ -440,7 +440,8 @@ async function criarCliente(req, res) {
       status,
       nome_cli_kamino,
       id_cli_kamino,
-      foto_perfil
+      foto_perfil,
+      apresentacao
     } = req.body;
 
     if (!razao_social || !String(razao_social).trim()) {
@@ -473,7 +474,8 @@ async function criarCliente(req, res) {
       status: trim(status) || 'ativo',
       nome_cli_kamino: trim(nome_cli_kamino),
       id_cli_kamino: trim(id_cli_kamino),
-      foto_perfil: fotoPerfilVal
+      foto_perfil: fotoPerfilVal,
+      apresentacao: apresentacao
     };
 
     let result = await supabase
@@ -545,7 +547,8 @@ async function atualizarClientePorId(req, res) {
       status,
       nome_cli_kamino,
       id_cli_kamino,
-      foto_perfil
+      foto_perfil,
+      apresentacao
     } = req.body;
 
     const idError = validarId(id);
@@ -629,6 +632,9 @@ async function atualizarClientePorId(req, res) {
 
     if (foto_perfil !== undefined && foto_perfil !== null) {
       dadosUpdate.foto_perfil = foto_perfil.trim() || null;
+    }
+    if (apresentacao !== undefined) {
+      dadosUpdate.apresentacao = apresentacao;
     }
 
     // Atualizar cliente
