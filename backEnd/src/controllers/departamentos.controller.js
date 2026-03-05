@@ -20,10 +20,7 @@ async function getDepartamentos(req, res) {
 
         let query = supabase
             .from('departamentos')
-            .select(`
-        *,
-        membros_count:departamento_membros(count)
-      `, { count: 'exact' });
+            .select('*', { count: 'exact' });
 
         if (search && search.trim()) {
             query = query.ilike('nome', `%${search.trim()}%`);
@@ -42,11 +39,19 @@ async function getDepartamentos(req, res) {
             return sendError(res, 500, 'Erro ao buscar departamentos', error.message);
         }
 
-        // Format count (supabase returns array of objects with count property)
-        const formattedData = data.map(dept => ({
-            ...dept,
-            colaboradores: dept.membros_count && dept.membros_count[0] ? dept.membros_count[0].count : 0
-        }));
+        // Buscar contagem de membros separadamente para evitar erro de Join (FK missing)
+        const deptoIds = (data || []).map(d => d.id);
+        const { data: membrosCountData } = await supabase
+            .from('departamento_membros')
+            .select('departamento_id');
+
+        const formattedData = data.map(dept => {
+            const numMembros = (membrosCountData || []).filter(m => m.departamento_id === dept.id).length;
+            return {
+                ...dept,
+                colaboradores: numMembros
+            };
+        });
 
         return sendSuccess(res, 200, formattedData, null, {
             page: pageNum,

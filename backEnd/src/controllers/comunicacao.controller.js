@@ -462,19 +462,35 @@ async function listarComunicados(req, res) {
         // TODO: Filtrar por visibilidade (tabela leituras) ou global se for admin.
         // Por simplificação MVP: buscar todos os comunicados.
 
+        // Query simplificada para evitar erro 500 por falha de join/FK
         const { data, error } = await supabase
-
             .from('comunicacao_mensagens')
-            .select(`
-                *,
-                criador:criador_id(nome_usuario, foto_perfil)
-            `)
+            .select('*')
             .eq('tipo', 'COMUNICADO')
             .order('created_at', { ascending: false });
 
-        if (error) throw error;
+        if (error) {
+            console.error('❌ Erro Supabase (listarComunicados):', error);
+            throw error;
+        }
 
-        return sendSuccess(res, 200, data);
+        if (!data || data.length === 0) {
+            return sendSuccess(res, 200, []);
+        }
+
+        // Buscar criadores separadamente
+        const criadorIds = [...new Set(data.map(m => m.criador_id).filter(Boolean))];
+        const { data: criadores } = await supabase
+            .from('usuarios')
+            .select('id, nome_usuario, foto_perfil')
+            .in('id', criadorIds);
+
+        const dataEnriquecida = data.map(msg => ({
+            ...msg,
+            criador: criadores?.find(c => c.id === msg.criador_id) || null
+        }));
+
+        return sendSuccess(res, 200, dataEnriquecida);
     } catch (error) {
         console.error('Erro ao listar comunicados:', error);
         return sendError(res, 500, 'Erro ao listar comunicados.', error.message);
@@ -526,17 +542,10 @@ async function listarChamados(req, res) {
             meusDeptos = [...new Set([...idsMembros, ...idsHead])];
         }
 
+        // Query simplificada para evitar erro 500 por falha de join/FK
         let query = supabase
             .from('comunicacao_mensagens')
-            .select(`
-                *,
-                criador:criador_id(nome_usuario, foto_perfil),
-                categoria:categoria_id(
-                    id,
-                    nome,
-                    departamento:departamento_id(id, nome)
-                )
-            `)
+            .select('*', { count: 'exact' })
             .eq('tipo', 'CHAMADO')
             .is('mensagem_pai_id', null)
             .order('created_at', { ascending: false });
@@ -573,8 +582,45 @@ async function listarChamados(req, res) {
             query = query.or(orConditions);
         }
 
-        const { data, error } = await query;
+        const { data, error, count } = await query;
         if (error) throw error;
+
+        if (!data || data.length === 0) {
+            return sendSuccess(res, 200, []);
+        }
+
+        // --- ENRIQUECIMENTO MANUAL ---
+        const criadorIds = [...new Set(data.map(m => m.criador_id).filter(Boolean))];
+        const catIds = [...new Set(data.map(m => m.categoria_id).filter(Boolean))];
+
+        // Buscar criadores
+        const { data: criadores } = await supabase
+            .from('usuarios')
+            .select('id, nome_usuario, foto_perfil')
+            .in('id', criadorIds);
+
+        // Buscar categorias e departamentos
+        const { data: categorias } = await supabase
+            .from('cp_chamados_categorias')
+            .select('*')
+            .in('id', catIds);
+
+        const deptoIdsFromCats = [...new Set(categorias?.map(c => c.departamento_id).filter(Boolean))];
+        const { data: departamentos } = await supabase
+            .from('departamentos')
+            .select('id, nome')
+            .in('id', deptoIdsFromCats);
+
+        const categoriasComDepto = (categorias || []).map(cat => ({
+            ...cat,
+            departamento: departamentos?.find(d => d.id === cat.departamento_id) || null
+        }));
+
+        const chamadosBase = data.map(ch => ({
+            ...ch,
+            criador: criadores?.find(c => c.id === ch.criador_id) || null,
+            categoria: categoriasComDepto?.find(c => c.id === ch.categoria_id) || null
+        }));
 
         // --- ENRIQUECIMENTO: Buscar quem respondeu por último ---
         const chamadosIds = data.map(c => c.id);
@@ -602,8 +648,7 @@ async function listarChamados(req, res) {
             }
         }
 
-        // Adicionar flag pode_gerenciar e respondido_por
-        const enrichedData = data.map(cham => {
+        const enrichedData = chamadosBase.map(cham => {
             const deptoId = cham.categoria?.departamento?.id || (cham.metadata?.departamento_id ? parseInt(cham.metadata.departamento_id, 10) : null);
             return {
                 ...cham,
@@ -612,7 +657,7 @@ async function listarChamados(req, res) {
             };
         });
 
-        return sendSuccess(res, 200, enrichedData);
+        return sendSuccess(res, 200, enrichedData, null, { total: count || enrichedData.length });
     } catch (error) {
         console.error('Erro ao listar chamados:', error);
         return sendError(res, 500, 'Erro ao listar chamados.', error.message);
