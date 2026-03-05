@@ -249,7 +249,8 @@
 .btn-inativar .icon-ban {
   width: 18px;
   height: 18px;
-  color: #ffffff; /* Branco para combinar com o texto do botão */
+  color: #ffffff;
+  /* Branco para combinar com o texto do botão */
   transition: transform 0.6s ease;
   z-index: 2;
 }
@@ -293,7 +294,8 @@
 .btn-ativar .icon-check {
   width: 18px;
   height: 18px;
-  color: #ffffff; /* Branco para combinar com o texto do botão */
+  color: #ffffff;
+  /* Branco para combinar com o texto do botão */
   transition: transform 0.3s ease;
   z-index: 2;
 }
@@ -364,7 +366,8 @@
 /* ícone */
 .edit-anim-icon {
   height: 17px;
-  fill: currentColor; /* usa a cor azul do sistema */
+  fill: currentColor;
+  /* usa a cor azul do sistema */
   position: relative;
   z-index: 3;
   transition: all 0.2s;
@@ -430,9 +433,19 @@
 
 /* balanço das folhas */
 @keyframes wiggle-sheet {
-  0%, 100% { transform: rotate(0deg); }
-  25% { transform: rotate(-2deg); }
-  50% { transform: rotate(2deg); }
+
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+
+  25% {
+    transform: rotate(-2deg);
+  }
+
+  50% {
+    transform: rotate(2deg);
+  }
 }
 
 /* ================================
@@ -659,7 +672,7 @@
   .form-row {
     grid-template-columns: 1fr;
   }
-  
+
   .form-row-vigencia {
     grid-template-columns: 1fr;
   }
@@ -681,17 +694,17 @@
   row-gap: 6px;
 }
 
-.form-row-vigencia .form-group > label {
+.form-row-vigencia .form-group>label {
   grid-row: 1;
   margin: 0;
   padding: 0;
   height: auto;
 }
 
-.form-row-vigencia .form-group > .form-input-small,
-.form-row-vigencia .form-group > input,
-.form-row-vigencia .form-group > select,
-.form-row-vigencia .form-group > .periodo-filter-container {
+.form-row-vigencia .form-group>.form-input-small,
+.form-row-vigencia .form-group>input,
+.form-row-vigencia .form-group>select,
+.form-row-vigencia .form-group>.periodo-filter-container {
   grid-row: 2;
   align-self: start;
   margin-top: 0;
@@ -748,7 +761,8 @@
   font-size: 13px;
   transition: all 0.2s;
   box-sizing: border-box;
-  height: 37px; /* Altura fixa para todos os campos */
+  height: 37px;
+  /* Altura fixa para todos os campos */
   min-height: 37px;
   max-height: 37px;
   line-height: 1.4;
@@ -799,7 +813,8 @@ input[type="number"].form-input-small::-webkit-inner-spin-button {
 select.form-input-small {
   width: 100%;
   padding: 8px 12px;
-  padding-right: 32px; /* Espaço para o ícone da seta */
+  padding-right: 32px;
+  /* Espaço para o ícone da seta */
   border: 1px solid #e0e7ff !important;
   border-radius: 6px;
   font-size: 13px;
@@ -811,7 +826,8 @@ select.form-input-small {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
-  height: 37px; /* Altura fixa igual aos outros campos */
+  height: 37px;
+  /* Altura fixa igual aos outros campos */
   min-height: 37px;
   max-height: 37px;
   box-sizing: border-box;
@@ -902,9 +918,11 @@ select.form-input-small.error {
     opacity: 0;
     transform: translateY(30px) scale(0.98);
   }
+
   50% {
     opacity: 0.7;
   }
+
   100% {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -1035,10 +1053,10 @@ select.form-input-small.error {
 
 .listing-table-draggable th {
   position: relative;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
-              background-color 0.2s ease,
-              opacity 0.2s ease,
-              border-color 0.2s ease;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    background-color 0.2s ease,
+    opacity 0.2s ease,
+    border-color 0.2s ease;
   will-change: transform;
   background-color: #f8fafc;
   border-right: none !important;
@@ -1127,13 +1145,14 @@ select.form-input-small.error {
   from {
     transform: translateX(0);
   }
+
   to {
     transform: translateX(0);
   }
 }
 
 /* Melhorar a visualização durante o drag */
-.listing-table-draggable th.dragging + th,
+.listing-table-draggable th.dragging+th,
 .listing-table-draggable th.drag-over {
   transition: transform 0.2s ease;
 }
@@ -1148,13 +1167,14 @@ select.form-input-small.error {
 
 .actions-column {
   width: auto;
-  min-width: 240px; /* 4 botões: Editar, Ativar/Inativar, Ver Vigências, Nova Vigência */
+  min-width: 240px;
+  /* 4 botões: Editar, Ativar/Inativar, Ver Vigências, Nova Vigência */
   text-align: center;
   white-space: nowrap;
   vertical-align: middle;
 }
 
-.actions-column > button {
+.actions-column>button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1268,6 +1288,7 @@ select.form-input-small.error {
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -1287,6 +1308,7 @@ select.form-input-small.error {
     transform: translateY(20px);
     opacity: 0;
   }
+
   to {
     transform: translateY(0);
     opacity: 1;
@@ -1297,6 +1319,7 @@ select.form-input-small.error {
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(120deg);
   }
@@ -1387,6 +1410,7 @@ select.form-input-small.error {
     transform: translateX(100%);
     opacity: 0;
   }
+
   to {
     transform: translateX(0);
     opacity: 1;
@@ -1398,6 +1422,7 @@ select.form-input-small.error {
     transform: translateX(0);
     opacity: 1;
   }
+
   to {
     transform: translateX(100%);
     opacity: 0;
@@ -1463,11 +1488,11 @@ select.form-input-small.error {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
-.toggle-input-minimal:checked + .toggle-slider-minimal {
+.toggle-input-minimal:checked+.toggle-slider-minimal {
   background: #0e3b6f;
 }
 
-.toggle-input-minimal:checked + .toggle-slider-minimal:before {
+.toggle-input-minimal:checked+.toggle-slider-minimal:before {
   transform: translateX(16px);
 }
 
@@ -1540,4 +1565,3 @@ select.form-input-small.error {
   display: flex;
   align-items: center;
 }
-
