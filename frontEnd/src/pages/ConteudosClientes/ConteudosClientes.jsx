@@ -275,13 +275,18 @@ const ConteudosClientes = () => {
       const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
       const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
 
-      // Posição no documento (considerando scroll)
-      const documentLeft = rect.left + scrollLeft;
-      const documentTop = rect.top + scrollTop;
+      const cardWidth = 500; // Largura do DetailSideCard
+      const gap = 20;
+      let left = rect.right + gap + scrollLeft;
+
+      // Se não houver espaço à direita, posiciona à esquerda
+      if (rect.right + cardWidth + gap > window.innerWidth) {
+        left = rect.left - cardWidth - gap + scrollLeft;
+      }
 
       setDetailCardPosition({
-        left: documentLeft + rect.width + 20,
-        top: documentTop
+        left: Math.max(gap + scrollLeft, left),
+        top: rect.top + scrollTop
       });
     }
 
@@ -302,13 +307,18 @@ const ConteudosClientes = () => {
       const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
       const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
 
-      // Posição no documento (considerando scroll)
-      const documentLeft = rect.left + scrollLeft;
-      const documentTop = rect.top + scrollTop;
+      const cardWidth = 500; // Largura do DetailSideCard
+      const gap = 20;
+      let left = rect.right + gap + scrollLeft;
+
+      // Se não houver espaço à direita, posiciona à esquerda
+      if (rect.right + cardWidth + gap > window.innerWidth) {
+        left = rect.left - cardWidth - gap + scrollLeft;
+      }
 
       setDetailCardPosition({
-        left: documentLeft + rect.width + 20,
-        top: documentTop
+        left: Math.max(gap + scrollLeft, left),
+        top: rect.top + scrollTop
       });
     }
 
@@ -329,13 +339,18 @@ const ConteudosClientes = () => {
       const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
       const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
 
-      // Posição no documento (considerando scroll)
-      const documentLeft = rect.left + scrollLeft;
-      const documentTop = rect.top + scrollTop;
+      const cardWidth = 500; // Largura do DetailSideCard
+      const gap = 20;
+      let left = rect.right + gap + scrollLeft;
+
+      // Se não houver espaço à direita, posiciona à esquerda
+      if (rect.right + cardWidth + gap > window.innerWidth) {
+        left = rect.left - cardWidth - gap + scrollLeft;
+      }
 
       setDetailCardPosition({
-        left: documentLeft + rect.width + 20,
-        top: documentTop
+        left: Math.max(gap + scrollLeft, left),
+        top: rect.top + scrollTop
       });
     }
 
