@@ -2,8 +2,8 @@ import { api } from './api';
 
 export const equipamentosAPI = {
     // Listar com paginação e busca
-    getEquipamentos: (page = 1, limit = 5, search = '') =>
-        api.get(`/equipamentos?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`),
+    getEquipamentos: (page = 1, limit = 5, search = '', status = '', tipo = '') =>
+        api.get(`/equipamentos?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}&status=${encodeURIComponent(status)}&tipo=${encodeURIComponent(tipo)}`),
 
     // Buscar por ID
     getEquipamentoPorId: (id) => api.get(`/equipamentos/${id}`),

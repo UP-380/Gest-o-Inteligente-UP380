@@ -42,7 +42,7 @@ const InventarioGestao = () => {
     const fetchEquipamentos = async () => {
         setLoading(true);
         try {
-            const response = await equipamentosAPI.getEquipamentos(page, itemsPerPage, searchTerm);
+            const response = await equipamentosAPI.getEquipamentos(page, itemsPerPage, searchTerm, statusFilter, tipoFilter);
             if (response.success) {
                 const list = response.data.equipamentos || response.data; // Handle potential API structure variations
                 setEquipamentos(list);
@@ -146,17 +146,13 @@ const InventarioGestao = () => {
     const applyFilters = () => {
         let result = [...equipamentos];
 
-        if (statusFilter !== 'todos') {
-            if (statusFilter === 'ativo') {
-                result = result.filter(e => checkAvailability(e).isAvailable);
-            } else {
-                result = result.filter(e => e.status === statusFilter);
-            }
+        // Only apply the 'ativo' (availability) filter in frontend since it's time-dependent
+        if (statusFilter === 'ativo') {
+            result = result.filter(e => checkAvailability(e).isAvailable);
         }
 
-        if (tipoFilter !== 'todos') {
-            result = result.filter(e => (e.tipo || '') === tipoFilter);
-        }
+        // Note: Global search, and status/type filters (other than 'ativo')
+        // are now handled by the backend to ensure correct pagination.
 
         setFilteredEquipamentos(result);
     };
@@ -218,7 +214,7 @@ const InventarioGestao = () => {
 
     useEffect(() => {
         fetchEquipamentos();
-    }, [page, searchTerm, itemsPerPage]);
+    }, [page, searchTerm, statusFilter, tipoFilter, itemsPerPage]);
 
     useEffect(() => {
         fetchResponsaveis();
@@ -227,6 +223,11 @@ const InventarioGestao = () => {
     useEffect(() => {
         applyFilters();
     }, [equipamentos, statusFilter, tipoFilter]);
+
+    // Reset pagination when filters change
+    useEffect(() => {
+        setPage(1);
+    }, [searchTerm, statusFilter, tipoFilter]);
 
     return (
         <div className="inventario-gestao">

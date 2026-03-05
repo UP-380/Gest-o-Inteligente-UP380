@@ -7,7 +7,7 @@ const supabase = require('../config/database');
 // GET - Listar equipamentos com paginação e busca
 async function getEquipamentos(req, res) {
     try {
-        const { page = 1, limit = 5, search = '' } = req.query;
+        const { page = 1, limit = 5, search = '', status = '', tipo = '' } = req.query;
         const pageNum = parseInt(page, 10);
         const limitNum = parseInt(limit, 10);
         const offset = (pageNum - 1) * limitNum;
@@ -21,6 +21,21 @@ async function getEquipamentos(req, res) {
         if (search) {
             // Busca em nome, marca ou modelo
             query = query.or(`nome.ilike.%${search}%,marca.ilike.%${search}%,modelo.ilike.%${search}%`);
+        }
+
+        // Aplicar filtros de Status e Tipo
+        if (status && status !== 'todos') {
+            // Se o status for 'ativo' (Disponíveis), buscamos 'ativo' e 'em uso'
+            // pois equipamentos 'em uso' podem estar disponíveis fora do horário de trabalho (lógica do frontend)
+            if (status === 'ativo') {
+                query = query.in('status', ['ativo', 'em uso']);
+            } else {
+                query = query.eq('status', status);
+            }
+        }
+
+        if (tipo && tipo !== 'todos') {
+            query = query.eq('tipo', tipo);
         }
 
         // Aplicar paginação
