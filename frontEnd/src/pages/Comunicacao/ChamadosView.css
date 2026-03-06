@@ -276,3 +276,189 @@
     border-radius: 4px;
     box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
 }
+
+/* Layout Elements for modal */
+.modal-overlay {
+    backdrop-filter: blur(4px);
+    background-color: rgba(15, 23, 42, 0.7);
+    z-index: 1000;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 12px;
+    padding: 30px;
+    max-width: 700px;
+    width: 95%;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.modal-content h3 {
+    margin-bottom: 25px;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1e293b;
+    border-bottom: 2px solid #f1f5f9;
+    padding-bottom: 12px;
+    margin-top: 0;
+}
+
+.form-row {
+    display: flex;
+    gap: 15px;
+    width: 100%;
+}
+
+.form-group {
+    flex: 1;
+    margin-bottom: 18px;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    /* Prevents overflow from long labels */
+}
+
+.form-group label {
+    display: flex;
+    align-items: center;
+    height: 22px;
+    /* Fixed height to ensure alignment */
+    margin-bottom: 6px;
+    font-weight: 600;
+    font-size: 0.825rem;
+    color: #475569;
+}
+
+/* Base style for inputs and CustomSelect override */
+.modal-content input[type="text"],
+.modal-content .custom-select-display {
+    width: 100%;
+    padding: 6px 12px !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 6px !important;
+    font-size: 0.85rem !important;
+    color: #1e293b !important;
+    background-color: #fff !important;
+    transition: all 0.2s ease !important;
+    outline: none !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+}
+
+.modal-content .custom-select-text {
+    font-size: 0.85rem !important;
+}
+
+.modal-content input[type="text"]:focus,
+.modal-content .custom-select-display.active {
+    border-color: #0e3b6f !important;
+    box-shadow: 0 0 0 3px rgba(14, 59, 111, 0.1) !important;
+}
+
+.modal-content input:disabled,
+.modal-content .custom-select-display.disabled {
+    background-color: #f8fafc !important;
+    cursor: not-allowed !important;
+    opacity: 0.7 !important;
+}
+
+.required-asterisk {
+    color: #ef4444;
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-left: 4px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+}
+
+.optional-flag {
+    color: #94a3b8;
+    font-size: 0.75rem;
+    font-weight: normal;
+    margin-left: 6px;
+    display: inline-flex;
+    align-items: center;
+}
+
+/* Small Filter Date overrides */
+.small-filter-date {
+    width: 100%;
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+
+.small-filter-date .date-select-display {
+    padding: 6px 12px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    border-radius: 6px !important;
+    border: 1px solid #e2e8f0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    background-color: #fff !important;
+    display: flex !important;
+    align-items: center !important;
+    box-shadow: none !important;
+}
+
+.small-filter-date .date-select-text {
+    font-size: 0.85rem !important;
+    font-weight: 400 !important;
+}
+
+.small-filter-date .date-select-arrow {
+    font-size: 11px;
+}
+
+.small-filter-date .date-dropdown {
+    width: 260px;
+    min-width: 260px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #f1f5f9;
+}
+
+.modal-actions button {
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.modal-actions button[type="button"] {
+    background: white;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+}
+
+.modal-actions button[type="button"]:hover {
+    background: #f8fafc;
+    color: #1e293b;
+    border-color: #cbd5e1;
+}
+
+.modal-actions .confirm-btn {
+    background: #0e3b6f;
+    color: white;
+    border: none;
+    box-shadow: 0 4px 12px rgba(14, 59, 111, 0.2);
+}
+
+.modal-actions .confirm-btn:hover {
+    background: #144577;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 15px rgba(14, 59, 111, 0.3);
+}

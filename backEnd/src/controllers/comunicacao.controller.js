@@ -1,7 +1,7 @@
 const supabase = require('../config/database');
 const { distribuirNotificacao, notificarClienteSSE } = require('./notificacoes.controller');
 const { resolveAvatarUrl } = require('../utils/storage');
-const { sendSuccess, sendError, sendCreated, sendValidationError, sendNotFound } = require('../utils/responseHelper');
+const { sendSuccess, sendError, sendCreated, sendDeleted, sendValidationError, sendNotFound } = require('../utils/responseHelper');
 
 async function getChamadoRoot(sb, messageId) {
     const { data: m } = await sb.from('comunicacao_mensagens').select('id, mensagem_pai_id').eq('id', messageId).single();
@@ -80,8 +80,8 @@ async function enviarMensagem(req, res) {
                 }
 
                 let deptoId = rootTicket.metadata?.departamento_id ? Number(rootTicket.metadata.departamento_id) : null;
-                if (!deptoId && rootTicket.categoria_id) {
-                    const { data: cat } = await supabase.from('cp_chamados_categorias').select('departamento_id').eq('id', rootTicket.categoria_id).single();
+                if (!deptoId && rootTicket.assunto_id) {
+                    const { data: cat } = await supabase.from('cp_chamados_assuntos').select('departamento_id').eq('id', rootTicket.assunto_id).single();
                     deptoId = cat?.departamento_id;
                 }
 
@@ -93,23 +93,61 @@ async function enviarMensagem(req, res) {
             }
         }
 
-        // 2. Inserir Mensagem
-        const { data: mensagem, error } = await supabase
+        // 2. Gerar Número do Ticket se for um novo Chamado
+        let ticket_numero = null;
+        if (tipoNormalizado === 'CHAMADO' && !mensagem_pai_id) {
+            try {
+                const { data: lastTicket, error: errLast } = await supabase
+                    .from('comunicacao_mensagens')
+                    .select('ticket_numero')
+                    .eq('tipo', 'CHAMADO')
+                    .is('mensagem_pai_id', null)
+                    .order('ticket_numero', { ascending: false })
+                    .limit(1);
 
+                if (!errLast) {
+                    const lastNum = (lastTicket && lastTicket.length > 0) ? (lastTicket[0].ticket_numero || 0) : 0;
+                    ticket_numero = lastNum + 1;
+                } else {
+                    console.error('[COMUNICACAO] Erro ao buscar último ticket_numero:', errLast);
+                }
+            } catch (errT) {
+                console.error('[COMUNICACAO] Exceção ao buscar ticket_numero:', errT);
+            }
+        }
+
+        // 3. Inserir Mensagem
+        const messageData = {
+            tipo,
+            criador_id,
+            destinatario_id: destinatario_id || null,
+            mensagem_pai_id: mensagem_pai_id || null,
+            titulo: titulo || null,
+            conteudo,
+            status_chamado: status_chamado || (tipo === 'CHAMADO' && !mensagem_pai_id ? 'ABERTO' : null),
+            metadata: metadata || {},
+            prazo_desejado: prazo_desejado || null,
+            ticket_numero: ticket_numero
+        };
+
+        let { data: mensagem, error } = await supabase
             .from('comunicacao_mensagens')
-            .insert({
-                tipo,
-                criador_id,
-                destinatario_id: destinatario_id || null,
-                mensagem_pai_id: mensagem_pai_id || null,
-                titulo: titulo || null,
-                conteudo,
-                status_chamado: status_chamado || (tipo === 'CHAMADO' && !mensagem_pai_id ? 'ABERTO' : null),
-                metadata: metadata || {},
-                prazo_desejado: prazo_desejado || null
-            })
+            .insert(messageData)
             .select()
             .single();
+
+        // Fallback se a coluna ticket_numero não existir no banco
+        if (error && (error.message?.includes('ticket_numero') || error.code === '42703')) {
+            console.warn('[COMUNICACAO] Coluna ticket_numero não encontrada. Tentando inserir sem ela.');
+            delete messageData.ticket_numero;
+            const retry = await supabase
+                .from('comunicacao_mensagens')
+                .insert(messageData)
+                .select()
+                .single();
+            mensagem = retry.data;
+            error = retry.error;
+        }
 
         if (error) throw error;
 
@@ -172,17 +210,18 @@ async function enviarMensagem(req, res) {
             const isNovoChamado = !mensagem_pai_id;
 
             if (isNovoChamado) {
-                // Lógica de SLA e Categoria / Departamento
+                // Lógica de SLA e Assunto / Departamento
                 const { categoria_id, departamento_id } = metadata || {};
+                const assunto_id = categoria_id || null;
                 let prazo_sla = null;
                 let finalDepartamentoId = departamento_id || null;
 
-                if (categoria_id) {
-                    // Buscar SLA da categoria
+                if (assunto_id) {
+                    // Buscar SLA do assunto
                     const { data: catData } = await supabase
-                        .from('cp_chamados_categorias')
+                        .from('cp_chamados_assuntos')
                         .select('sla_horas, departamento_id')
-                        .eq('id', categoria_id)
+                        .eq('id', assunto_id)
                         .single();
 
                     if (catData) {
@@ -191,11 +230,11 @@ async function enviarMensagem(req, res) {
                         prazo_sla.setHours(prazo_sla.getHours() + horasSla);
                         finalDepartamentoId = catData.departamento_id || finalDepartamentoId;
 
-                        // Atualizar a mensagem com categoria_id e prazo_sla
+                        // Atualizar a mensagem com assunto_id e prazo_sla
                         await supabase
                             .from('comunicacao_mensagens')
                             .update({
-                                categoria_id,
+                                assunto_id,
                                 prazo_sla: prazo_sla.toISOString()
                             })
                             .eq('id', mensagem.id);
@@ -266,11 +305,11 @@ async function enviarMensagem(req, res) {
 
                 // Notificar gestores do departamento relacionado
                 let deptoId = null;
-                if (rootTicket?.categoria_id) {
+                if (rootTicket?.assunto_id) {
                     const { data: cat } = await supabase
-                        .from('cp_chamados_categorias')
+                        .from('cp_chamados_assuntos')
                         .select('departamento_id')
-                        .eq('id', rootTicket.categoria_id)
+                        .eq('id', rootTicket.assunto_id)
                         .single();
                     deptoId = cat?.departamento_id;
                 }
@@ -289,8 +328,8 @@ async function enviarMensagem(req, res) {
         return sendCreated(res, mensagem, 'Mensagem enviada com sucesso.');
 
     } catch (error) {
-        console.error('Erro ao enviar mensagem:', error);
-        return sendError(res, 500, 'Erro ao enviar mensagem.', error.message);
+        console.error('❌ [COMUNICACAO] Erro crítico ao enviar mensagem:', error);
+        return sendError(res, 500, error.message || 'Erro ao enviar mensagem.', error.details || error);
     }
 }
 
@@ -559,15 +598,15 @@ async function listarChamados(req, res) {
 
             // Se o usuário faz parte de departamentos, ele também vê chamados vinculados a esses departamentos
             if (meusDeptos.length > 0) {
-                // 1. Chamados com categorias que pertencem aos departamentos dele
+                // 1. Chamados com assuntos que pertencem aos departamentos dele
                 const { data: catIds } = await supabase
-                    .from('cp_chamados_categorias')
+                    .from('cp_chamados_assuntos')
                     .select('id')
                     .in('departamento_id', meusDeptos);
 
                 const ids = (catIds || []).map(c => c.id);
                 if (ids.length > 0) {
-                    orConditions += `,categoria_id.in.(${ids.join(',')})`;
+                    orConditions += `,assunto_id.in.(${ids.join(',')})`;
                 }
 
                 // 2. Chamados que foram direcionados a esses departamentos via metadata (novo fluxo)
@@ -599,9 +638,9 @@ async function listarChamados(req, res) {
             .select('id, nome_usuario, foto_perfil')
             .in('id', criadorIds);
 
-        // Buscar categorias e departamentos
+        // Buscar assuntos e departamentos
         const { data: categorias } = await supabase
-            .from('cp_chamados_categorias')
+            .from('cp_chamados_assuntos')
             .select('*')
             .in('id', catIds);
 
@@ -665,12 +704,12 @@ async function listarChamados(req, res) {
 }
 
 /**
- * Lista Categorias de Chamados (Tópicos de Ajuda)
+ * Lista Assuntos de Chamados (Tópicos de Ajuda)
  */
 async function listarCategorias(req, res) {
     try {
         const { data, error } = await supabase
-            .from('cp_chamados_categorias')
+            .from('cp_chamados_assuntos')
             .select('*, departamento:departamento_id(id, nome)')
             .eq('status', 'Ativo')
             .order('nome', { ascending: true });
@@ -678,8 +717,8 @@ async function listarCategorias(req, res) {
         if (error) throw error;
         return sendSuccess(res, 200, data);
     } catch (error) {
-        console.error('Erro ao listar categorias:', error);
-        return sendError(res, 500, 'Erro ao listar tópicos de ajuda.', error.message);
+        console.error('Erro ao listar assuntos:', error);
+        return sendError(res, 500, 'Erro ao listar assuntos.', error.message);
     }
 }
 
@@ -1278,6 +1317,160 @@ async function marcarTodosComunicadosLidos(req, res) {
     }
 }
 
+/**
+ * Lista Tópicos de Ajuda (Categorias de Chamados) de forma paginada para o cadastro
+ */
+async function getAssuntosCompleto(req, res) {
+    try {
+        const { page = 1, limit = 20, search = '' } = req.query;
+        const pageNum = parseInt(page, 10);
+        const limitNum = parseInt(limit, 10);
+        const offset = (pageNum - 1) * limitNum;
+
+        let query = supabase
+            .from('cp_chamados_assuntos')
+            .select('*, departamento:departamento_id(id, nome)', { count: 'exact' });
+
+        if (search && search.trim()) {
+            query = query.ilike('nome', `%${search.trim()}%`);
+        }
+
+        query = query.order('nome', { ascending: true });
+
+        if (limitNum > 0) {
+            query = query.range(offset, offset + limitNum - 1);
+        }
+
+        const { data, error, count } = await query;
+
+        if (error) throw error;
+
+        return sendSuccess(res, 200, data, null, {
+            page: pageNum,
+            limit: limitNum,
+            total: count || 0,
+            count: data.length
+        });
+    } catch (error) {
+        console.error('Erro ao buscar assuntos completo:', error);
+        return sendError(res, 500, 'Erro ao buscar assuntos.', error.message);
+    }
+}
+
+/**
+ * Busca um assunto por ID
+ */
+async function getAssuntoPorId(req, res) {
+    try {
+        const { id } = req.params;
+        const { data, error } = await supabase
+            .from('cp_chamados_assuntos')
+            .select('*, departamento:departamento_id(id, nome)')
+            .eq('id', id)
+            .maybeSingle();
+
+        if (error) throw error;
+        if (!data) return sendNotFound(res, 'Assunto');
+
+        return sendSuccess(res, 200, data);
+    } catch (error) {
+        console.error('Erro ao buscar assunto por ID:', error);
+        return sendError(res, 500, 'Erro ao buscar assunto.', error.message);
+    }
+}
+
+/**
+ * Cria um novo assunto
+ */
+async function criarAssunto(req, res) {
+    try {
+        const { nome, departamento_id, sla_horas, status, descricao } = req.body;
+
+        if (!nome) return sendValidationError(res, 'Nome é obrigatório.');
+
+        const { data, error } = await supabase
+            .from('cp_chamados_assuntos')
+            .insert({
+                nome,
+                departamento_id: departamento_id || null,
+                sla_horas: sla_horas || 24,
+                status: status || 'Ativo',
+                descricao: descricao || ''
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        return sendCreated(res, data, 'Assunto criado com sucesso.');
+    } catch (error) {
+        console.error('Erro ao criar assunto:', error);
+        return sendError(res, 500, 'Erro ao criar assunto.', error.message);
+    }
+}
+
+/**
+ * Atualiza um assunto existente
+ */
+async function atualizarAssunto(req, res) {
+    try {
+        const { id } = req.params;
+        const { nome, departamento_id, sla_horas, status, descricao } = req.body;
+
+        const updates = {};
+        if (nome !== undefined) updates.nome = nome;
+        if (departamento_id !== undefined) updates.departamento_id = departamento_id;
+        if (sla_horas !== undefined) updates.sla_horas = sla_horas;
+        if (status !== undefined) updates.status = status;
+        if (descricao !== undefined) updates.descricao = descricao;
+
+        const { data, error } = await supabase
+            .from('cp_chamados_assuntos')
+            .update(updates)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        return sendSuccess(res, 200, data, 'Assunto atualizado com sucesso.');
+    } catch (error) {
+        console.error('Erro ao atualizar assunto:', error);
+        return sendError(res, 500, 'Erro ao atualizar assunto.', error.message);
+    }
+}
+
+/**
+ * Deleta um assunto
+ */
+async function deletarAssunto(req, res) {
+    try {
+        const { id } = req.params;
+
+        // Verificar se há mensagens usando este assunto
+        const { count, error: errCheck } = await supabase
+            .from('comunicacao_mensagens')
+            .select('id', { count: 'exact', head: true })
+            .eq('assunto_id', id);
+
+        if (!errCheck && count > 0) {
+            return sendError(res, 400, 'Não é possível excluir este assunto pois há chamados vinculados a ele. Tente desativá-lo.');
+        }
+
+        const { error } = await supabase
+            .from('cp_chamados_assuntos')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+
+        return sendDeleted(res, { id }, 'Assunto excluído com sucesso.');
+    } catch (error) {
+        console.error('Erro ao excluir assunto:', error);
+        return sendError(res, 500, 'Erro ao excluir assunto.', error.message);
+    }
+}
+
 module.exports = {
     enviarMensagem,
     listarMensagensChat,
@@ -1294,5 +1487,10 @@ module.exports = {
     listarCategorias,
     listarTemplates,
     confirmarEstimativaChamado,
-    assumirChamado
+    assumirChamado,
+    getAssuntosCompleto,
+    getAssuntoPorId,
+    criarAssunto,
+    atualizarAssunto,
+    deletarAssunto
 };

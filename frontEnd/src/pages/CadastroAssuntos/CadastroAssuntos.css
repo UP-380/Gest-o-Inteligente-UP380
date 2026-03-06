@@ -1,0 +1,90 @@
+.assuntos-listing-section {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 24px;
+}
+
+.listing-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 8px;
+}
+
+.listing-controls-right {
+    display: flex;
+    gap: 12px;
+}
+
+.listing-table-container {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    overflow: hidden;
+    min-height: 200px;
+}
+
+/* Header patterns used similarly across listing pages */
+.cadastro-listing-page-header {
+    margin-bottom: 8px;
+}
+
+.cadastro-listing-header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.cadastro-listing-header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.cadastro-listing-header-icon {
+    width: 60px;
+    height: 60px;
+    background: #f1f5f9;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cadastro-listing-page-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #0e3b6f;
+    margin: 0;
+}
+
+.cadastro-listing-page-subtitle {
+    font-size: 14px;
+    color: #64748b;
+    margin: 4px 0 0 0;
+}
+
+.badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.badge-success {
+    background-color: #dcfce7;
+    color: #166534;
+}
+
+.badge-danger {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+.warning-text {
+    color: #ef4444;
+    font-size: 13px;
+    margin-top: 8px;
+}

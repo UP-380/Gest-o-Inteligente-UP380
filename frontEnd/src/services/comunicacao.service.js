@@ -24,7 +24,12 @@ export const comunicacaoAPI = {
     // New methods
     uploadMedia: (formData) => api.post('/upload/chamado', formData),
     atualizarMensagem: (id, payload) => api.put(`/comunicacao/mensagem/${id}`, payload),
-    listarCategorias: () => api.get('/comunicacao/categorias'),
+    listarAssuntosCompleto: (params) => api.get('/comunicacao/assuntos/completo', { params }),
+    buscarAssuntoPorId: (id) => api.get(`/comunicacao/assuntos/${id}`),
+    criarAssunto: (data) => api.post('/comunicacao/assuntos', data),
+    atualizarAssunto: (id, data) => api.put(`/comunicacao/assuntos/${id}`, data),
+    deletarAssunto: (id) => api.delete(`/comunicacao/assuntos/${id}`),
+    listarAssuntos: () => api.get('/comunicacao/assuntos'),
     listarTemplates: () => api.get('/comunicacao/templates'),
     confirmarEstimativaChamado: (id, data) => api.put(`/comunicacao/chamados/${id}/confirmar-estimativa`, data),
     atualizarPrioridadeChamado: (id, prioridade) => api.put(`/comunicacao/chamados/${id}/prioridade`, { prioridade }),

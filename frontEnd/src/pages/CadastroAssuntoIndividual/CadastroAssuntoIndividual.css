@@ -1,0 +1,98 @@
+.cadastro-assunto-individual-container {
+    padding: 24px;
+}
+
+.cadastro-assunto-page-header {
+    margin-bottom: 24px;
+}
+
+.cadastro-assunto-header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.cadastro-assunto-header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.cadastro-assunto-header-icon {
+    width: 60px;
+    height: 60px;
+    background: #f1f5f9;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cadastro-assunto-page-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #0e3b6f;
+    margin: 0;
+}
+
+.cadastro-assunto-page-subtitle {
+    font-size: 14px;
+    color: #64748b;
+    margin: 4px 0 0 0;
+}
+
+.cadastro-assunto-back-btn {
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.cadastro-assunto-back-btn:hover {
+    background: #e2e8f0;
+    color: #1e293b;
+}
+
+.cadastro-assunto-form-section {
+    margin-top: 24px;
+    max-width: 800px;
+}
+
+.form-label {
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 8px;
+}
+
+.form-control {
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    padding: 10px 12px;
+    transition: all 0.2s ease;
+}
+
+.form-control:focus {
+    border-color: #0e3b6f;
+    box-shadow: 0 0 0 3px rgba(14, 59, 111, 0.1);
+}
+
+.invalid-feedback {
+    font-size: 12px;
+    color: #ef4444;
+}
+
+.info-note {
+    transition: transform 0.2s ease;
+}
+
+.info-note:hover {
+    transform: translateX(4px);
+}

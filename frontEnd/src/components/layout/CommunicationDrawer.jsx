@@ -8,6 +8,8 @@ import ConfirmModal from '../common/ConfirmModal';
 import ButtonPrimary from '../common/ButtonPrimary';
 import FilterColaborador from '../filters/FilterColaborador';
 import FilterDate from '../filters/FilterDate';
+import CustomSelect from '../vinculacoes/CustomSelect';
+import { formatDateTime } from '../../utils/dateUtils';
 import './CommunicationDrawer.css';
 
 // ==============================================================================
@@ -199,6 +201,20 @@ const getDateLabel = (dateString) => {
         return '';
     }
 };
+
+const SISTEMAS_OPTIONS = [
+    { value: 'Upmap', label: 'Upmap' },
+    { value: 'MongoHub', label: 'MongoHub' },
+    { value: 'ClickUp', label: 'ClickUp' },
+    { value: 'Teams', label: 'Teams' },
+    { value: 'Sistema de Pendências', label: 'Sistema de Pendências' },
+    { value: 'Whatsapp', label: 'Whatsapp' },
+    { value: 'Omie', label: 'Omie' },
+    { value: 'Kamino', label: 'Kamino' },
+    { value: 'Conciliadora', label: 'Conciliadora' },
+    { value: 'Outros', label: 'Outros' },
+    { value: 'Não é sistema', label: 'Não é sistema' }
+];
 
 // ==============================================================================
 // === COMPONENT: Rich Editor (Teams-like) ===
@@ -482,6 +498,8 @@ const CommunicationDrawer = ({ user }) => {
     const [chamadoSearchText, setChamadoSearchText] = useState('');
     const [deptMembers, setDeptMembers] = useState([]);
     const [loadingDeptMembers, setLoadingDeptMembers] = useState(false);
+    const [assuntos, setAssuntos] = useState([]);
+    const [loadingAssuntos, setLoadingAssuntos] = useState(false);
 
     const filteredChamados = chamados
         .filter(c => {
@@ -495,7 +513,9 @@ const CommunicationDrawer = ({ user }) => {
                 (c.titulo?.toLowerCase().includes(searchLower)) ||
                 (c.conteudo?.toLowerCase().includes(searchLower)) ||
                 (c.criador?.nome_usuario?.toLowerCase().includes(searchLower)) ||
-                (c.metadata?.responsavel?.toLowerCase().includes(searchLower));
+                (c.metadata?.responsavel?.toLowerCase().includes(searchLower)) ||
+                (c.ticket_numero && String(c.ticket_numero).includes(searchLower)) ||
+                (c.ticket_numero && `ticket ${String(c.ticket_numero).padStart(2, '0')}`.toLowerCase().includes(searchLower));
 
             return matchesStatus && matchesSearch;
         })
@@ -525,7 +545,7 @@ const CommunicationDrawer = ({ user }) => {
     // Form States para Novos Itens
     const [showNewAvisoForm, setShowNewAvisoForm] = useState(false);
     const [showNewChamadoForm, setShowNewChamadoForm] = useState(false);
-    const [formData, setFormData] = useState({ titulo: '', conteudo: '', destacado: false, departamento_id: '', prazo_desejado: '', responsavel_id: '', responsavel: '', sistema: '' });
+    const [formData, setFormData] = useState({ titulo: '', conteudo: '', destacado: false, departamento_id: '', prazo_desejado: '', responsavel_id: '', responsavel: '', sistema: '', categoria_id: '', prioridade: 'baixa' });
     const [departamentos, setDepartamentos] = useState([]);
     const [templates, setTemplates] = useState([]);
     const [dynamicFields, setDynamicFields] = useState({});
@@ -668,6 +688,20 @@ const CommunicationDrawer = ({ user }) => {
         }
     };
 
+    const loadAssuntos = async () => {
+        setLoadingAssuntos(true);
+        try {
+            const response = await comunicacaoAPI.listarAssuntos();
+            if (response.success) {
+                setAssuntos(response.data || []);
+            }
+        } catch (error) {
+            console.error('Erro ao listar asuntos:', error);
+        } finally {
+            setLoadingAssuntos(false);
+        }
+    };
+
 
 
     const loadDepartamentos = async () => {
@@ -712,6 +746,7 @@ const CommunicationDrawer = ({ user }) => {
                 if (!selectedChamado) loadChamados();
                 if (departamentos.length === 0) loadDepartamentos();
                 if (templates.length === 0) loadTemplates();
+                if (assuntos.length === 0) loadAssuntos();
             }
         }
     }, [isOpen, activeTab, selectedChat, selectedChamado]);
@@ -1015,14 +1050,16 @@ const CommunicationDrawer = ({ user }) => {
                     departamento_id: formData.departamento_id,
                     responsavel_id: formData.responsavel_id,
                     responsavel: formData.responsavel,
-                    sistema: formData.sistema
+                    sistema: formData.sistema,
+                    categoria_id: formData.categoria_id,
+                    prioridade: formData.prioridade
                 } : {})
             };
 
             const response = await comunicacaoAPI.enviarMensagem(payload);
 
             if (response.success) {
-                setFormData({ titulo: '', conteudo: '', destacado: false, departamento_id: '', prazo_desejado: '', responsavel_id: '', responsavel: '', sistema: '' });
+                setFormData({ titulo: '', conteudo: '', destacado: false, departamento_id: '', prazo_desejado: '', responsavel_id: '', responsavel: '', sistema: '', categoria_id: '', prioridade: 'baixa' });
                 setDynamicFields({});
                 setShowNewAvisoForm(false);
                 setShowNewChamadoForm(false);
@@ -1404,11 +1441,26 @@ const CommunicationDrawer = ({ user }) => {
                                                 cham.metadata?.prioridade === 'NORMAL' ? '#22c55e' : '#3b82f6'
                                     }}></i>
                             </div>
-                            <h4 className="comm-card-title">{cham.titulo}</h4>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                                <h4 className="comm-card-title" style={{ margin: 0 }}>{cham.titulo}</h4>
+                                {cham.ticket_numero && (
+                                    <span style={{
+                                        background: '#e2e8f0',
+                                        padding: '1px 6px',
+                                        borderRadius: '4px',
+                                        fontSize: '0.7rem',
+                                        fontWeight: '800',
+                                        color: '#475569',
+                                        whiteSpace: 'nowrap'
+                                    }}>
+                                        #{String(cham.ticket_numero).padStart(2, '0')}
+                                    </span>
+                                )}
+                            </div>
                             <p className="comm-card-content">{getPreviewText(cham.conteudo)}</p>
                             <div className="comm-card-footer">
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                    <span>Aberto por: <strong>{cham.criador?.nome_usuario || 'Usuário'}</strong></span>
+                                    <span>Aberto por: <strong>{cham.criador?.nome_usuario || 'Usuário'}</strong> — Aberto em: <strong>{formatDateTime(cham.created_at)}</strong></span>
                                     <span>Responsável: <strong>{cham.metadata?.responsavel || cham.respondido_por || 'Não assumido'}</strong></span>
                                     <span className="chamado-preview-dept">
                                         <i className="fas fa-building" style={{ marginRight: '10px' }}></i>
@@ -1442,9 +1494,24 @@ const CommunicationDrawer = ({ user }) => {
                         <button className="back-btn" onClick={() => setSelectedChamado(null)} style={{ flexShrink: 0 }}>
                             <i className="fas fa-arrow-left"></i>
                         </button>
-                        <span className="chat-target-name" style={{ flex: 1, margin: 0, fontWeight: 700 }}>
-                            {selectedChamado.titulo}
-                        </span>
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span className="chat-target-name" style={{ margin: 0, fontWeight: 700 }}>
+                                {selectedChamado.titulo}
+                            </span>
+                            {selectedChamado.ticket_numero && (
+                                <span style={{
+                                    background: '#e2e8f0',
+                                    padding: '2px 8px',
+                                    borderRadius: '4px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '800',
+                                    color: '#475569',
+                                    whiteSpace: 'nowrap'
+                                }}>
+                                    #{String(selectedChamado.ticket_numero).padStart(2, '0')}
+                                </span>
+                            )}
+                        </div>
 
                         {isSupport && (
                             <div style={{ marginLeft: 'auto', flexShrink: 0, minWidth: '220px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
@@ -1473,7 +1540,9 @@ const CommunicationDrawer = ({ user }) => {
                         )}
                     </div>
                     <div style={{ paddingLeft: '44px', marginTop: '-4px', marginBottom: '4px' }}>
-                        <span className="chat-detail-created" style={{ fontSize: '0.7rem', opacity: 0.6 }}>Aberto em {formatDate(selectedChamado.created_at)}</span>
+                        <span className="chat-detail-created" style={{ fontSize: '0.7rem', opacity: 0.8 }}>
+                            Aberto por: <strong>{selectedChamado.criador?.nome_usuario || 'Usuário'}</strong> — Aberto em: <strong>{formatDateTime(selectedChamado.created_at)}</strong>
+                        </span>
                     </div>
                 </div>
 
@@ -1492,30 +1561,30 @@ const CommunicationDrawer = ({ user }) => {
 
                 {selectedChamado.pode_gerenciar && !selectedChamado.prazo_confirmado && (
                     <div style={{ padding: '12px 15px', backgroundColor: '#f0f9ff', borderBottom: '1px solid #bae6fd' }}>
-                        <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#0369a1', marginBottom: '8px' }}>CONFIRMAR ESTIMATIVA</div>
+                        <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#0369a1', marginBottom: '8px' }}>
+                            {selectedChamado.prazo_desejado ? 'CONFIRMAR ESTIMATIVA' : 'DEFINIR ESTIMATIVA'}
+                        </div>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                            <ButtonPrimary
-                                style={{ flex: 1, padding: '8px', fontSize: '11px', justifyContent: 'center' }}
-                                icon="fas fa-check-double"
-                                onClick={() => {
-                                    if (!selectedChamado.prazo_desejado) {
-                                        alert('O usuário não definiu um prazo desejado. Por favor, proponha uma data.');
-                                        return;
-                                    }
-                                    if (window.confirm(`Confirmar prazo para ${formatDate(selectedChamado.prazo_desejado)}?`)) {
-                                        comunicacaoAPI.confirmarEstimativaChamado(selectedChamado.id, { prazo_confirmado: selectedChamado.prazo_desejado })
-                                            .then(res => {
-                                                if (res.success) {
-                                                    setSelectedChamado({ ...selectedChamado, prazo_confirmado: selectedChamado.prazo_desejado });
-                                                    // Recarregar mensagens para ver a mensagem de sistema
-                                                    comunicacaoAPI.listarRespostasChamado(selectedChamado.id).then(r => r.success && setChamadoMessages(r.data));
-                                                }
-                                            });
-                                    }
-                                }}
-                            >
-                                Aceitar Prazo Desejado
-                            </ButtonPrimary>
+                            {selectedChamado.prazo_desejado && (
+                                <ButtonPrimary
+                                    style={{ flex: 1, padding: '8px', fontSize: '11px', justifyContent: 'center' }}
+                                    icon="fas fa-check-double"
+                                    onClick={() => {
+                                        if (window.confirm(`Confirmar prazo para ${formatDate(selectedChamado.prazo_desejado)}?`)) {
+                                            comunicacaoAPI.confirmarEstimativaChamado(selectedChamado.id, { prazo_confirmado: selectedChamado.prazo_desejado })
+                                                .then(res => {
+                                                    if (res.success) {
+                                                        setSelectedChamado({ ...selectedChamado, prazo_confirmado: selectedChamado.prazo_desejado });
+                                                        // Recarregar mensagens para ver a mensagem de sistema
+                                                        comunicacaoAPI.listarRespostasChamado(selectedChamado.id).then(r => r.success && setChamadoMessages(r.data));
+                                                    }
+                                                });
+                                        }
+                                    }}
+                                >
+                                    Aceitar Prazo Desejado
+                                </ButtonPrimary>
+                            )}
                             <div style={{ flex: 1 }}>
                                 <FilterDate
                                     label=""
@@ -1542,7 +1611,7 @@ const CommunicationDrawer = ({ user }) => {
                                     }
                                 }}
                             >
-                                Propor Outro
+                                {selectedChamado.prazo_desejado ? 'Propor Outro' : 'Definir Prazo'}
                             </ButtonPrimary>
                         </div>
                     </div>
@@ -1798,44 +1867,41 @@ const CommunicationDrawer = ({ user }) => {
                     <i className="fas fa-info-circle"></i> Todos os campos marcados com * são obrigatórios.
                 </div>
 
-                {tipo === 'CHAMADO' && (
-                    <div className="comm-drawer-form-group">
-                        <label className="comm-drawer-form-label">Selecione o departamento desejado *</label>
-                        <select
-                            value={formData.departamento_id}
-                            onChange={(e) => {
-                                const deptId = e.target.value;
-                                setFormData({ ...formData, departamento_id: deptId, responsavel_id: '', responsavel: '' });
-                                setDynamicFields({});
-                                if (deptId) {
-                                    setLoadingDeptMembers(true);
-                                    departamentosAPI.getMembros(deptId).then(res => {
-                                        if (res.success) {
-                                            setDeptMembers(res.data || []);
-                                        }
-                                    }).finally(() => setLoadingDeptMembers(false));
-                                } else {
-                                    setDeptMembers([]);
-                                }
-                            }}
-                            className="comm-drawer-form-select"
-                        >
-                            <option value="">Selecione o departamento</option>
-                            {departamentos.map(dept => (
-                                <option key={dept.id} value={dept.id}>
-                                    {dept.nome}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                )}
-
-                {(tipo === 'COMUNICADO' || formData.departamento_id) && (
+                {tipo === 'CHAMADO' ? (
                     <>
-                        {tipo === 'CHAMADO' && (
+                        <div className="form-row">
                             <div className="comm-drawer-form-group">
-                                <label className="comm-drawer-form-label">Selecione o responsável (Opcional)</label>
-                                <select
+                                <label className="comm-drawer-form-label">Departamento <span className="required-asterisk">*</span></label>
+                                <CustomSelect
+                                    value={formData.departamento_id}
+                                    onChange={(e) => {
+                                        const deptId = e.target.value;
+                                        setFormData({ ...formData, departamento_id: deptId, responsavel_id: '', responsavel: '' });
+                                        setDynamicFields({});
+                                        if (deptId) {
+                                            setLoadingDeptMembers(true);
+                                            departamentosAPI.getMembros(deptId).then(res => {
+                                                if (res.success) {
+                                                    setDeptMembers(res.data || []);
+                                                }
+                                            }).finally(() => setLoadingDeptMembers(false));
+                                        } else {
+                                            setDeptMembers([]);
+                                        }
+                                    }}
+                                    options={departamentos.map(dept => ({
+                                        value: dept.id,
+                                        label: dept.nome
+                                    }))}
+                                    placeholder="Selecione o departamento"
+                                    enableSearch={true}
+                                    hideCheckboxes={true}
+                                />
+                            </div>
+
+                            <div className="comm-drawer-form-group" style={{ opacity: formData.departamento_id ? 1 : 0.6, pointerEvents: formData.departamento_id ? 'auto' : 'none' }}>
+                                <label className="comm-drawer-form-label">Responsável <span className="optional-flag">(Opcional)</span></label>
+                                <CustomSelect
                                     value={formData.responsavel_id}
                                     onChange={(e) => {
                                         const val = e.target.value;
@@ -1846,45 +1912,124 @@ const CommunicationDrawer = ({ user }) => {
                                             responsavel: member ? member.name : ''
                                         });
                                     }}
-                                    className="comm-drawer-form-select"
+                                    options={deptMembers.map(m => ({
+                                        value: m.usuario_id || m.membro_id || m.id,
+                                        label: m.name
+                                    }))}
+                                    placeholder={loadingDeptMembers ? 'Carregando membros...' : 'Qualquer pessoa do departamento'}
                                     disabled={loadingDeptMembers}
-                                >
-                                    <option value="">{loadingDeptMembers ? 'Carregando membros...' : 'Qualquer pessoa do departamento'}</option>
-                                    {deptMembers.map(m => (
-                                        <option key={m.usuario_id || m.membro_id || m.id} value={m.usuario_id || m.membro_id || m.id}>
-                                            {m.name}
-                                        </option>
-                                    ))}
-                                </select>
+                                    enableSearch={true}
+                                    hideCheckboxes={true}
+                                />
                             </div>
-                        )}
+                        </div>
 
-                        {tipo === 'CHAMADO' && (
+                        <div className="form-row" style={{ opacity: formData.departamento_id ? 1 : 0.6, pointerEvents: formData.departamento_id ? 'auto' : 'none' }}>
                             <div className="comm-drawer-form-group">
-                                <label className="comm-drawer-form-label">Sistema relacionado</label>
-                                <select
+                                <label className="comm-drawer-form-label">Assunto / Tópico <span className="required-asterisk">*</span></label>
+                                <CustomSelect
+                                    value={formData.categoria_id}
+                                    onChange={(e) => {
+                                        const catId = e.target.value;
+                                        const categoria = assuntos.find(a => String(a.id) === String(catId));
+
+                                        // Se a categoria tem um departamento padrão e o usuário ainda não escolheu um, ou se ele mudar a categoria
+                                        const updates = { categoria_id: catId };
+
+                                        if (categoria && categoria.departamento_id) {
+                                            updates.departamento_id = categoria.departamento_id;
+
+                                            // Carregar membros do depto automaticamente
+                                            setLoadingDeptMembers(true);
+                                            departamentosAPI.getMembros(categoria.departamento_id).then(res => {
+                                                if (res.success) {
+                                                    setDeptMembers(res.data || []);
+                                                }
+                                            }).finally(() => setLoadingDeptMembers(false));
+                                        }
+
+                                        setFormData({ ...formData, ...updates });
+                                    }}
+                                    options={assuntos.map(a => ({
+                                        value: a.id,
+                                        label: a.nome
+                                    }))}
+                                    placeholder={loadingAssuntos ? 'Carregando assuntos...' : 'Selecione o assunto'}
+                                    enableSearch={true}
+                                    hideCheckboxes={true}
+                                />
+                            </div>
+
+                            <div className="comm-drawer-form-group">
+                                <label className="comm-drawer-form-label">Sistema <span className="optional-flag">(Opcional)</span></label>
+                                <CustomSelect
                                     value={formData.sistema}
                                     onChange={(e) => setFormData({ ...formData, sistema: e.target.value })}
-                                    className="comm-drawer-form-select"
-                                >
-                                    <option value="">---</option>
-                                    <option value="Upmap">Upmap</option>
-                                    <option value="MongoHub">MongoHub</option>
-                                    <option value="ClickUp">ClickUp</option>
-                                    <option value="Teams">Teams</option>
-                                    <option value="Sistema de Pendências">Sistema de Pendências</option>
-                                    <option value="Whatsapp">Whatsapp</option>
-                                    <option value="Omie">Omie</option>
-                                    <option value="Kamino">Kamino</option>
-                                    <option value="Conciliadora">Conciliadora</option>
-                                    <option value="Outros">Outros</option>
-                                    <option value="Não é sistema">Não é sistema</option>
-                                </select>
+                                    options={SISTEMAS_OPTIONS}
+                                    placeholder="---"
+                                    enableSearch={true}
+                                    hideCheckboxes={true}
+                                />
                             </div>
-                        )}
+                        </div>
 
+                        <div className="comm-drawer-form-group" style={{ opacity: formData.departamento_id ? 1 : 0.6, pointerEvents: formData.departamento_id ? 'auto' : 'none' }}>
+                            <label className="comm-drawer-form-label">Título <span className="required-asterisk">*</span></label>
+                            <input
+                                type="text"
+                                placeholder="Digite o título..."
+                                value={formData.titulo}
+                                onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
+                                className="comm-drawer-form-input"
+                            />
+                        </div>
+                        <div className="comm-drawer-form-group !mb-5" style={{ opacity: formData.departamento_id ? 1 : 0.6, pointerEvents: formData.departamento_id ? 'auto' : 'none' }}>
+                            <label className="comm-drawer-form-label">Descrição <span className="required-asterisk">*</span></label>
+                            <RichEditor
+                                initialValue={formData.conteudo}
+                                onContentChange={(val) => setFormData({ ...formData, conteudo: val })}
+                                placeholder="Descreva o chamado..."
+                                minHeight="150px"
+                                showUploadIcon={false}
+                                onImageClick={setExpandedImage}
+                            />
+                            <button
+                                type="button"
+                                className="comm-drawer-attach-btn"
+                                onClick={() => triggerUpload('NEW_CHAMADO')}
+                            >
+                                <i className="fas fa-paperclip"></i> Anexar Arquivos ou Mídias
+                            </button>
+                            <div className="form-row">
+                                <div className="comm-drawer-form-group">
+                                    <label className="comm-drawer-form-label">Prioridade <span className="required-asterisk">*</span></label>
+                                    <CustomSelect
+                                        value={formData.prioridade}
+                                        onChange={(e) => setFormData({ ...formData, prioridade: e.target.value })}
+                                        options={[
+                                            { value: 'baixa', label: 'Baixa' },
+                                            { value: 'media', label: 'Média' },
+                                            { value: 'alta', label: 'Alta' }
+                                        ]}
+                                        hideCheckboxes={true}
+                                    />
+                                </div>
+                                <div className="comm-drawer-form-group">
+                                    <label className="comm-drawer-form-label">Estimativa desejada <span className="optional-flag">(Opcional)</span></label>
+                                    <FilterDate
+                                        label=""
+                                        value={formData.prazo_desejado}
+                                        onChange={(e) => setFormData({ ...formData, prazo_desejado: e.target.value })}
+                                        className="small-filter-date"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </>
+                ) : (
+                    <>
                         <div className="comm-drawer-form-group">
-                            <label className="comm-drawer-form-label">Título *</label>
+                            <label className="comm-drawer-form-label">Título <span className="required-asterisk">*</span></label>
                             <input
                                 type="text"
                                 placeholder="Digite o título..."
@@ -1894,34 +2039,15 @@ const CommunicationDrawer = ({ user }) => {
                             />
                         </div>
                         <div className="comm-drawer-form-group !mb-5">
-                            <label className="comm-drawer-form-label">Descrição *</label>
+                            <label className="comm-drawer-form-label">Descrição <span className="required-asterisk">*</span></label>
                             <RichEditor
                                 initialValue={formData.conteudo}
                                 onContentChange={(val) => setFormData({ ...formData, conteudo: val })}
-                                placeholder={tipo === 'COMUNICADO' ? "Digite o aviso..." : "Descreva o chamado..."}
+                                placeholder="Digite o aviso..."
                                 minHeight="150px"
                                 showUploadIcon={false}
                                 onImageClick={setExpandedImage}
                             />
-                            {tipo === 'CHAMADO' && (
-                                <button
-                                    type="button"
-                                    className="comm-drawer-attach-btn"
-                                    onClick={() => triggerUpload('NEW_CHAMADO')}
-                                >
-                                    <i className="fas fa-paperclip"></i> Anexar Arquivos ou Mídias
-                                </button>
-                            )}
-                            {tipo === 'CHAMADO' && (
-                                <div className="comm-drawer-form-group" style={{ marginTop: '15px' }}>
-                                    <label className="comm-drawer-form-label">Data de Estimativa Desejada para Conclusão</label>
-                                    <FilterDate
-                                        label=""
-                                        value={formData.prazo_desejado}
-                                        onChange={(e) => setFormData({ ...formData, prazo_desejado: e.target.value })}
-                                    />
-                                </div>
-                            )}
                         </div>
                     </>
                 )}
@@ -1941,7 +2067,7 @@ const CommunicationDrawer = ({ user }) => {
                 )}
 
                 <button
-                    className={`btn-confirm w-full p-3 rounded-lg border-none font-bold transition-all ${(isSaving || !formData.titulo.trim() || !formData.conteudo.trim() || (tipo === 'CHAMADO' && !formData.departamento_id))
+                    className={`btn-confirm w-full p-3 rounded-lg border-none font-bold transition-all ${(isSaving || !formData.titulo.trim() || !formData.conteudo.trim() || (tipo === 'CHAMADO' && (!formData.departamento_id || !formData.categoria_id)))
                         ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
                         : 'bg-[#0e3b6f] text-white cursor-pointer hover:bg-[#0a2b53]'
                         }`}

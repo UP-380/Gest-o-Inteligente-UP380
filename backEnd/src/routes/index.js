@@ -245,9 +245,13 @@ router.put('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEsti
 router.delete('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.deletarTempoEstimadoPorAgrupador);
 router.get('/api/tempo-estimado', requireAuth, tempoEstimadoController.getTempoEstimado);
 router.post('/api/tempo-estimado/listar', requireAuth, tempoEstimadoController.getTempoEstimado); // POST com body para evitar 414 URI Too Long
+router.get('/api/tempo-estimado/historico-vigencias', requireAuth, tempoEstimadoController.getHistoricoVigenciasDaTarefa);
+router.post('/api/tempo-estimado/salvar-configuracao-cliente', requireAuth, tempoEstimadoController.salvarConfiguracaoCliente);
+router.put('/api/tempo-estimado/regra/:id', requireAuth, tempoEstimadoController.atualizarRegraTempoEstimado);
+router.delete('/api/tempo-estimado/regra/:id', requireAuth, tempoEstimadoController.deletarRegraTempoEstimado);
+router.put('/api/tempo-estimado/editar-vigencia', requireAuth, tempoEstimadoController.editarVigencia);
 router.get('/api/tempo-estimado/:id', requireAuth, tempoEstimadoController.getTempoEstimadoPorId);
 router.post('/api/tempo-estimado', requireAuth, tempoEstimadoController.criarTempoEstimado);
-router.post('/api/tempo-estimado/salvar-configuracao-cliente', requireAuth, tempoEstimadoController.salvarConfiguracaoCliente);
 router.put('/api/tempo-estimado/:id', requireAuth, tempoEstimadoController.atualizarTempoEstimado);
 router.delete('/api/tempo-estimado/:id', requireAuth, tempoEstimadoController.deletarTempoEstimado);
 
@@ -621,12 +625,18 @@ router.put('/api/comunicacao/chamados/:id/status', requireAuth, comunicacaoContr
 router.post('/api/comunicacao/mensagem/:id/ler', requireAuth, comunicacaoController.marcarMensagemLida);
 router.get('/api/comunicacao/comunicados/destaque', requireAuth, comunicacaoController.listarComunicadoDestaque);
 router.post('/api/comunicacao/comunicados/marcar-todos-lidos', requireAuth, comunicacaoController.marcarTodosComunicadosLidos);
-router.get('/api/comunicacao/categorias', requireAuth, comunicacaoController.listarCategorias);
+router.get('/api/comunicacao/assuntos', requireAuth, comunicacaoController.getAssuntosCompleto);
 router.get('/api/comunicacao/templates', requireAuth, comunicacaoController.listarTemplates);
 router.put('/api/comunicacao/mensagem/:id', requireAuth, comunicacaoController.atualizarMensagem);
 router.put('/api/comunicacao/chamados/:id/confirmar-estimativa', requireAuth, comunicacaoController.confirmarEstimativaChamado);
 router.put('/api/comunicacao/chamados/:id/prioridade', requireAuth, comunicacaoController.atualizarPrioridadeChamado);
-router.put('/api/comunicacao/chamados/:id/assumir', requireAuth, comunicacaoController.assumirChamado);
+router.get('/api/comunicacao/chamados/:id/assumir', requireAuth, comunicacaoController.assumirChamado);
+// Rotas de Tópicos de Ajuda (Assuntos de Chamados) — /completo ANTES de /:id
+router.get('/api/comunicacao/assuntos/completo', requireAuth, comunicacaoController.getAssuntosCompleto);
+router.post('/api/comunicacao/assuntos', requireAuth, comunicacaoController.criarAssunto);
+router.get('/api/comunicacao/assuntos/:id', requireAuth, comunicacaoController.getAssuntoPorId);
+router.put('/api/comunicacao/assuntos/:id', requireAuth, comunicacaoController.atualizarAssunto);
+router.delete('/api/comunicacao/assuntos/:id', requireAuth, comunicacaoController.deletarAssunto);
 
 // Rotas de Upload
 router.post('/api/upload/chamado',

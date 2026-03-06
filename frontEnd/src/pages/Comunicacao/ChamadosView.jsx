@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { comunicacaoAPI } from '../../services/comunicacao.service';
 import { departamentosAPI } from '../../services/api';
-import { formatDate } from '../../utils/dateUtils';
+import { formatDate, formatDateTime } from '../../utils/dateUtils';
 import SearchInput from '../../components/common/SearchInput';
 import FilterDate from '../../components/filters/FilterDate';
 import RichEditor from '../../components/common/RichEditor';
+import CustomSelect from '../../components/vinculacoes/CustomSelect';
 import './ChamadosView.css';
 
 const ChamadosView = () => {
@@ -15,8 +16,11 @@ const ChamadosView = () => {
         titulo: '',
         conteudo: '',
         departamento_id: '',
+        categoria_id: '',
         metadata: { prioridade: 'media', sistema: '', prazo_desejado: '' }
     });
+    const [assuntos, setAssuntos] = useState([]);
+    const [loadingAssuntos, setLoadingAssuntos] = useState(false);
     const [departamentos, setDepartamentos] = useState([]);
     const [dynamicFields, setDynamicFields] = useState({});
     const [selectedFile, setSelectedFile] = useState(null);
@@ -29,7 +33,22 @@ const ChamadosView = () => {
     useEffect(() => {
         loadChamados();
         loadDepartamentos();
+        loadAssuntos();
     }, []);
+
+    const loadAssuntos = async () => {
+        setLoadingAssuntos(true);
+        try {
+            const res = await comunicacaoAPI.listarAssuntos();
+            if (res.success) {
+                setAssuntos(res.data || []);
+            }
+        } catch (err) {
+            console.error('Erro ao buscar assuntos:', err);
+        } finally {
+            setLoadingAssuntos(false);
+        }
+    };
 
     const loadDepartamentos = async () => {
         try {
@@ -168,7 +187,7 @@ const ChamadosView = () => {
                         <SearchInput
                             value={searchTerm}
                             onChange={setSearchTerm}
-                            placeholder="Pesquisar chamados por título, conteúdo ou autor..."
+                            placeholder="Pesquisar chamados por ticket, título, conteúdo ou autor..."
                         />
                     </div>
 
@@ -216,11 +235,15 @@ const ChamadosView = () => {
                             (statusFilter === 'ENCERRADO' ? (c.status_chamado === 'ENCERRADO' || c.status_chamado === 'CONCLUIDO') : c.status_chamado === statusFilter);
 
                         const searchLower = searchTerm.toLowerCase();
+                        const ticketStr = c.ticket_numero ? `ticket ${String(c.ticket_numero).padStart(2, '0')}` : '';
+
                         const matchesSearch = !searchTerm.trim() ||
                             (c.titulo?.toLowerCase().includes(searchLower)) ||
                             (c.conteudo?.toLowerCase().includes(searchLower)) ||
                             (c.criador?.nome_usuario?.toLowerCase().includes(searchLower)) ||
-                            (c.metadata?.responsavel?.toLowerCase().includes(searchLower));
+                            (c.metadata?.responsavel?.toLowerCase().includes(searchLower)) ||
+                            (ticketStr.toLowerCase().includes(searchLower)) ||
+                            (String(c.ticket_numero || '').includes(searchLower));
 
                         return matchesStatus && matchesSearch;
                     }).length === 0 ? (
@@ -234,11 +257,15 @@ const ChamadosView = () => {
                                 (statusFilter === 'ENCERRADO' ? (c.status_chamado === 'ENCERRADO' || c.status_chamado === 'CONCLUIDO') : c.status_chamado === statusFilter);
 
                             const searchLower = searchTerm.toLowerCase();
+                            const ticketStr = c.ticket_numero ? `ticket ${String(c.ticket_numero).padStart(2, '0')}` : '';
+
                             const matchesSearch = !searchTerm.trim() ||
                                 (c.titulo?.toLowerCase().includes(searchLower)) ||
                                 (c.conteudo?.toLowerCase().includes(searchLower)) ||
                                 (c.criador?.nome_usuario?.toLowerCase().includes(searchLower)) ||
-                                (c.metadata?.responsavel?.toLowerCase().includes(searchLower));
+                                (c.metadata?.responsavel?.toLowerCase().includes(searchLower)) ||
+                                (ticketStr.toLowerCase().includes(searchLower)) ||
+                                (String(c.ticket_numero || '').includes(searchLower));
 
                             return matchesStatus && matchesSearch;
                         }).map(chamado => (
@@ -246,9 +273,26 @@ const ChamadosView = () => {
                                 <div className="chamado-status-stripe" style={{ backgroundColor: getStatusColor(chamado.status_chamado) }}></div>
                                 <div className="chamado-body">
                                     <div className="chamado-info">
-                                        <h3 className="chamado-title">{chamado.titulo}</h3>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                            <h3 className="chamado-title">{chamado.titulo}</h3>
+                                            {chamado.ticket_numero && (
+                                                <span style={{
+                                                    background: '#e2e8f0',
+                                                    padding: '2px 8px',
+                                                    borderRadius: '4px',
+                                                    fontSize: '0.75rem',
+                                                    fontWeight: '700',
+                                                    color: '#475569'
+                                                }}>
+                                                    Ticket {String(chamado.ticket_numero).padStart(2, '0')}
+                                                </span>
+                                            )}
+                                        </div>
                                         <span className="chamado-date">
                                             Aberto por: <strong>{chamado.criador?.nome_usuario || 'Usuário'}</strong>
+                                        </span>
+                                        <span className="chamado-date">
+                                            Aberto em: <strong>{formatDateTime(chamado.created_at)}</strong>
                                         </span>
                                         {chamado.metadata?.responsavel ? (
                                             <span className="chamado-category">
@@ -259,9 +303,6 @@ const ChamadosView = () => {
                                                 Departamento: <strong>{departamentos.find(d => String(d.id) === String(chamado.metadata?.departamento_id))?.nome || chamado.categoria?.departamento?.nome || 'Geral'}</strong>
                                             </span>
                                         )}
-                                        <span className="chamado-date">
-                                            Criado em: {formatDate(chamado.created_at)}
-                                        </span>
                                         <span className="chamado-system">
                                             <i className="fas fa-desktop" style={{ marginRight: '8px' }}></i> Sistema: <strong>{chamado.metadata?.sistema || '---'}</strong>
                                         </span>
@@ -313,180 +354,225 @@ const ChamadosView = () => {
                         <div className="modal-content">
                             <h3>Novo Chamado</h3>
                             <form onSubmit={handleCreate}>
-                                <div className="form-group">
-                                    <label>Selecione o departamento desejado *</label>
-                                    <select
-                                        value={newChamado.departamento_id}
-                                        onChange={e => {
-                                            const deptId = e.target.value;
-                                            console.log('Selecionou departamento:', deptId);
-                                            setNewChamado({
-                                                ...newChamado,
-                                                departamento_id: deptId,
-                                                metadata: { ...newChamado.metadata, responsavel_id: '', responsavel: '' }
-                                            });
-                                            setDynamicFields({});
-                                            loadMembrosDepartamento(deptId);
-                                        }}
-                                        required
-                                    >
-                                        <option value="">Selecione o departamento</option>
-                                        {departamentos.map(dept => (
-                                            <option key={dept.id} value={dept.id}>
-                                                {dept.nome}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                {newChamado.departamento_id && (
-                                    <>
-                                        <div className="form-group">
-                                            <label>Assunto</label>
-                                            <input
-                                                type="text"
-                                                value={newChamado.titulo}
-                                                onChange={e => setNewChamado({ ...newChamado, titulo: e.target.value })}
-                                                required
-                                            />
-                                        </div>
-
-                                        <div className="form-group">
-                                            <label>Selecione o responsável (Opcional)</label>
-                                            <select
-                                                value={newChamado.metadata.responsavel_id || ''}
-                                                onChange={e => {
-                                                    const val = e.target.value;
-                                                    const member = membrosDepartamento.find(m => String(m.usuario_id || m.membro_id || m.id) === String(val));
-                                                    setNewChamado({
-                                                        ...newChamado,
-                                                        metadata: {
-                                                            ...newChamado.metadata,
-                                                            responsavel_id: val,
-                                                            responsavel: member ? member.name : ''
-                                                        }
-                                                    });
-                                                }}
-                                            >
-                                                <option value="">Qualquer pessoa do departamento</option>
-                                                {membrosDepartamento.map(m => (
-                                                    <option key={m.usuario_id || m.membro_id || m.id} value={m.usuario_id || m.membro_id || m.id}>
-                                                        {m.name}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-
-                                        <div className="form-group">
-                                            <label>Sistema relacionado</label>
-                                            <select
-                                                value={newChamado.metadata.sistema || ''}
-                                                onChange={e => setNewChamado({
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label>Departamento <span className="required-asterisk">*</span></label>
+                                        <CustomSelect
+                                            value={newChamado.departamento_id}
+                                            onChange={e => {
+                                                const deptId = e.target.value;
+                                                setNewChamado({
                                                     ...newChamado,
-                                                    metadata: { ...newChamado.metadata, sistema: e.target.value }
-                                                })}
-                                            >
-                                                <option value="">---</option>
-                                                <option value="Upmap">Upmap</option>
-                                                <option value="MongoHub">MongoHub</option>
-                                                <option value="ClickUp">ClickUp</option>
-                                                <option value="Teams">Teams</option>
-                                                <option value="Sistema de Pendências">Sistema de Pendências</option>
-                                                <option value="Whatsapp">Whatsapp</option>
-                                                <option value="Omie">Omie</option>
-                                                <option value="Kamino">Kamino</option>
-                                                <option value="Conciliadora">Conciliadora</option>
-                                                <option value="outros">outros</option>
-                                                <option value="não é sistema">não é sistema</option>
-                                            </select>
-                                        </div>
-
-                                        <div className="form-group description-group">
-                                            <label>Descrição do Problema/Solicitação *</label>
-                                            <RichEditor
-                                                initialValue={newChamado.conteudo}
-                                                onContentChange={val => setNewChamado({ ...newChamado, conteudo: val })}
-                                                placeholder="Descreva o problema ou solicitação..."
-                                                minHeight="150px"
-                                                showUploadIcon={false}
-                                                onImageClick={setExpandedImage}
-                                            />
-                                        </div>
-
-                                        <button
-                                            type="button"
-                                            className="attach-file-btn"
-                                            onClick={() => fileInputRef.current?.click()}
-                                        >
-                                            <i className="fas fa-paperclip"></i> Anexar arquivo
-                                        </button>
-
-                                        <input
-                                            type="file"
-                                            ref={fileInputRef}
-                                            style={{ display: 'none' }}
-                                            onChange={handleFileSelect}
-                                            accept="image/*,video/*"
+                                                    departamento_id: deptId,
+                                                    metadata: { ...newChamado.metadata, responsavel_id: '', responsavel: '' }
+                                                });
+                                                setDynamicFields({});
+                                                loadMembrosDepartamento(deptId);
+                                            }}
+                                            options={departamentos.map(dept => ({
+                                                value: dept.id,
+                                                label: dept.nome
+                                            }))}
+                                            placeholder="Selecione o departamento"
+                                            enableSearch={true}
+                                            hideCheckboxes={true}
                                         />
+                                    </div>
 
-                                        {selectedFile && (
-                                            <div className="file-preview-container">
-                                                {selectedFile.type.startsWith('image/') ? (
-                                                    <div className="image-preview-wrapper">
-                                                        <img
-                                                            src={URL.createObjectURL(selectedFile)}
-                                                            alt="Preview"
-                                                            onClick={() => setExpandedImage(URL.createObjectURL(selectedFile))}
-                                                            className="image-preview"
-                                                            title="Clique para ampliar"
-                                                        />
-                                                        <button
-                                                            type="button"
-                                                            onClick={handleRemoveFile}
-                                                            className="remove-image-btn"
-                                                            title="Remover imagem"
-                                                        >
-                                                            <i className="fas fa-times"></i>
-                                                        </button>
-                                                    </div>
-                                                ) : (
-                                                    <div className="file-preview">
-                                                        <span><i className="fas fa-paperclip"></i> {selectedFile.name}</span>
-                                                        <i className="fas fa-times remove-file" onClick={handleRemoveFile} title="Remover anexo"></i>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                    </>
-                                )}
-
-                                <div className="form-group">
-                                    <label>Prioridade</label>
-                                    <select
-                                        value={newChamado.metadata.prioridade}
-                                        onChange={e => setNewChamado({ ...newChamado, metadata: { ...newChamado.metadata, prioridade: e.target.value } })}
-                                    >
-                                        <option value="baixa">Baixa</option>
-                                        <option value="media">Média</option>
-                                        <option value="alta">Alta</option>
-                                    </select>
+                                    <div className="form-group">
+                                        <label>Responsável <span className="optional-flag">(Opcional)</span></label>
+                                        <CustomSelect
+                                            value={newChamado.metadata.responsavel_id || ''}
+                                            onChange={e => {
+                                                const val = e.target.value;
+                                                const member = membrosDepartamento.find(m => String(m.usuario_id || m.membro_id || m.id) === String(val));
+                                                setNewChamado({
+                                                    ...newChamado,
+                                                    metadata: {
+                                                        ...newChamado.metadata,
+                                                        responsavel_id: val,
+                                                        responsavel: member ? member.name : ''
+                                                    }
+                                                });
+                                            }}
+                                            options={membrosDepartamento.map(m => ({
+                                                value: m.usuario_id || m.membro_id || m.id,
+                                                label: m.name
+                                            }))}
+                                            placeholder="Qualquer pessoa do departamento"
+                                            disabled={!newChamado.departamento_id}
+                                            enableSearch={true}
+                                            hideCheckboxes={true}
+                                        />
+                                    </div>
                                 </div>
 
-                                <div className="form-group">
-                                    <label>Prazo Desejado para Conclusão</label>
-                                    <FilterDate
-                                        label=""
-                                        value={newChamado.metadata.prazo_desejado}
-                                        onChange={e => setNewChamado({
-                                            ...newChamado,
-                                            metadata: { ...newChamado.metadata, prazo_desejado: e.target.value }
-                                        })}
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label>Assunto / Tópico <span className="required-asterisk">*</span></label>
+                                        <CustomSelect
+                                            value={newChamado.categoria_id}
+                                            onChange={e => {
+                                                const catId = e.target.value;
+                                                const categoria = assuntos.find(a => String(a.id) === String(catId));
+                                                const updates = { categoria_id: catId };
+
+                                                if (categoria && categoria.departamento_id) {
+                                                    updates.departamento_id = categoria.departamento_id;
+                                                    loadMembrosDepartamento(categoria.departamento_id);
+                                                }
+                                                setNewChamado({ ...newChamado, ...updates });
+                                            }}
+                                            options={assuntos.map(a => ({
+                                                value: a.id,
+                                                label: a.nome
+                                            }))}
+                                            placeholder={loadingAssuntos ? "Carregando..." : "Selecione o assunto"}
+                                            disabled={!newChamado.departamento_id}
+                                            enableSearch={true}
+                                            hideCheckboxes={true}
+                                        />
+                                    </div>
+
+                                    <div className="form-group">
+                                        <label>Sistema <span className="optional-flag">(Opcional)</span></label>
+                                        <CustomSelect
+                                            value={newChamado.metadata.sistema || ''}
+                                            onChange={e => setNewChamado({
+                                                ...newChamado,
+                                                metadata: { ...newChamado.metadata, sistema: e.target.value }
+                                            })}
+                                            options={[
+                                                { value: 'Upmap', label: 'Upmap' },
+                                                { value: 'MongoHub', label: 'MongoHub' },
+                                                { value: 'ClickUp', label: 'ClickUp' },
+                                                { value: 'Teams', label: 'Teams' },
+                                                { value: 'Sistema de Pendências', label: 'Sistema de Pendências' },
+                                                { value: 'Whatsapp', label: 'Whatsapp' },
+                                                { value: 'Omie', label: 'Omie' },
+                                                { value: 'Kamino', label: 'Kamino' },
+                                                { value: 'Conciliadora', label: 'Conciliadora' },
+                                                { value: 'outros', label: 'outros' },
+                                                { value: 'não é sistema', label: 'não é sistema' }
+                                            ]}
+                                            placeholder="---"
+                                            disabled={!newChamado.departamento_id}
+                                            enableSearch={true}
+                                            hideCheckboxes={true}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="form-group" style={{ marginTop: '15px' }}>
+                                    <label>Título <span className="required-asterisk">*</span></label>
+                                    <input
+                                        type="text"
+                                        placeholder="Digite o título do chamado..."
+                                        value={newChamado.titulo}
+                                        onChange={e => setNewChamado({ ...newChamado, titulo: e.target.value })}
+                                        required
+                                        disabled={!newChamado.departamento_id}
                                     />
+                                </div>
+
+                                <div className="form-group description-group" style={{ opacity: newChamado.departamento_id ? 1 : 0.6, pointerEvents: newChamado.departamento_id ? 'auto' : 'none' }}>
+                                    <label>Descrição do Problema/Solicitação <span className="required-asterisk">*</span></label>
+                                    <RichEditor
+                                        initialValue={newChamado.conteudo}
+                                        onContentChange={val => setNewChamado({ ...newChamado, conteudo: val })}
+                                        placeholder="Descreva o problema ou solicitação..."
+                                        minHeight="150px"
+                                        showUploadIcon={false}
+                                        onImageClick={setExpandedImage}
+                                    />
+                                </div>
+
+                                <div style={{ opacity: newChamado.departamento_id ? 1 : 0.6, pointerEvents: newChamado.departamento_id ? 'auto' : 'none' }}>
+                                    <button
+                                        type="button"
+                                        className="attach-file-btn"
+                                        onClick={() => fileInputRef.current?.click()}
+                                    >
+                                        <i className="fas fa-paperclip"></i> Anexar arquivo <span className="optional-flag" style={{ background: 'transparent', marginLeft: '2px', fontWeight: 'normal' }}>(Opcional)</span>
+                                    </button>
+
+                                    <input
+                                        type="file"
+                                        ref={fileInputRef}
+                                        style={{ display: 'none' }}
+                                        onChange={handleFileSelect}
+                                        accept="image/*,video/*"
+                                    />
+
+                                    {selectedFile && (
+                                        <div className="file-preview-container">
+                                            {selectedFile.type.startsWith('image/') ? (
+                                                <div className="image-preview-wrapper">
+                                                    <img
+                                                        src={URL.createObjectURL(selectedFile)}
+                                                        alt="Preview"
+                                                        onClick={() => setExpandedImage(URL.createObjectURL(selectedFile))}
+                                                        className="image-preview"
+                                                        title="Clique para ampliar"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleRemoveFile}
+                                                        className="remove-image-btn"
+                                                        title="Remover imagem"
+                                                    >
+                                                        <i className="fas fa-times"></i>
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div className="file-preview">
+                                                    <span><i className="fas fa-paperclip"></i> {selectedFile.name}</span>
+                                                    <i className="fas fa-times remove-file" onClick={handleRemoveFile} title="Remover anexo"></i>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="form-row" style={{ marginTop: '15px' }}>
+                                    <div className="form-group">
+                                        <label>Prioridade <span className="required-asterisk">*</span></label>
+                                        <CustomSelect
+                                            value={newChamado.metadata.prioridade}
+                                            onChange={e => setNewChamado({ ...newChamado, metadata: { ...newChamado.metadata, prioridade: e.target.value } })}
+                                            options={[
+                                                { value: 'baixa', label: 'Baixa' },
+                                                { value: 'media', label: 'Média' },
+                                                { value: 'alta', label: 'Alta' }
+                                            ]}
+                                            disabled={!newChamado.departamento_id}
+                                            hideCheckboxes={true}
+                                        />
+                                    </div>
+
+                                    <div className="form-group">
+                                        <label>Estimativa desejada <span className="optional-flag">(Opcional)</span></label>
+                                        <FilterDate
+                                            label=""
+                                            value={newChamado.metadata.prazo_desejado}
+                                            onChange={e => setNewChamado({
+                                                ...newChamado,
+                                                metadata: { ...newChamado.metadata, prazo_desejado: e.target.value }
+                                            })}
+                                            className="small-filter-date"
+                                        />
+                                    </div>
                                 </div>
 
                                 <div className="modal-actions">
                                     <button type="button" onClick={() => setShowModal(false)}>Cancelar</button>
-                                    <button type="submit" className="confirm-btn">Abrir Chamado</button>
+                                    <button
+                                        type="submit"
+                                        className="confirm-btn"
+                                        disabled={loading || !newChamado.titulo.trim() || !newChamado.conteudo.trim() || !newChamado.departamento_id || !newChamado.categoria_id}
+                                    >
+                                        {loading ? 'Abrindo...' : 'Abrir Chamado'}
+                                    </button>
                                 </div>
                             </form>
                         </div>
