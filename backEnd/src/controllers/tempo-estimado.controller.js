@@ -1603,12 +1603,25 @@ async function getTempoEstimado(req, res) {
           const responsavelIdsUnicos = [...new Set(todosRegistros.map(r => String(r.responsavel_id)).filter(Boolean))];
 
           if (regraIdsUnicos.length > 0 && datasUnicas.length > 0 && responsavelIdsUnicos.length > 0) {
-            const { data: statusRecords, error: statusError } = await supabase
+            // Tentar buscar com observação, se falhar (ex: coluna não existe), tentar sem
+            let { data: statusRecords, error: statusError } = await supabase
               .from('tempo_estimado_status')
-              .select('regra_id, data, responsavel_id, status')
+              .select('regra_id, data, responsavel_id, status, observacao')
               .in('regra_id', regraIdsUnicos)
               .in('data', datasUnicas)
               .in('responsavel_id', responsavelIdsUnicos);
+
+            if (statusError && (statusError.code === '42703' || statusError.message?.includes('observacao'))) {
+              console.warn('⚠️ [DB] Coluna observacao não encontrada, buscando apenas status');
+              const retry = await supabase
+                .from('tempo_estimado_status')
+                .select('regra_id, data, responsavel_id, status')
+                .in('regra_id', regraIdsUnicos)
+                .in('data', datasUnicas)
+                .in('responsavel_id', responsavelIdsUnicos);
+              statusRecords = retry.data;
+              statusError = retry.error;
+            }
 
             if (!statusError && statusRecords && statusRecords.length > 0) {
               // Criar mapa para lookup rápido: chave = "regraId|data|responsavelId"
@@ -1616,14 +1629,16 @@ async function getTempoEstimado(req, res) {
               statusRecords.forEach(sr => {
                 const dataFormatada = sr.data ? (sr.data.includes('T') ? sr.data.split('T')[0] : sr.data) : sr.data;
                 const chave = `${sr.regra_id}|${dataFormatada}|${sr.responsavel_id}`;
-                statusMap.set(chave, sr.status);
+                statusMap.set(chave, { status: sr.status, observacao: sr.observacao });
               });
 
               // Aplicar status a cada registro virtual
               todosRegistros.forEach(reg => {
                 const dataReg = reg.data ? (reg.data.includes('T') ? reg.data.split('T')[0] : reg.data) : reg.data;
                 const chave = `${reg.regra_id}|${dataReg}|${reg.responsavel_id}`;
-                reg.status = statusMap.get(chave) || 'NAO_INICIADA';
+                const statusData = statusMap.get(chave);
+                reg.status = statusData?.status || 'NAO_INICIADA';
+                reg.observacao = statusData?.observacao || null;
               });
               console.log(`✅ [STATUS] Aplicados ${statusRecords.length} status de ${todosRegistros.length} registros virtuais`);
             } else {
@@ -3237,7 +3252,7 @@ async function getTempoRealizadoComFiltros(req, res) {
 // PUT /api/tempo-estimado/status - Atualizar status de um registro virtual
 async function atualizarStatusTarefa(req, res) {
   try {
-    const { regra_id, data, responsavel_id, status } = req.body;
+    const { regra_id, data, responsavel_id, status, observacao } = req.body;
 
     // LOG DE ENTRADA PARA DEBUG
     console.log(`📡 [STATUS] Recebido body:`, JSON.stringify(req.body));
@@ -3271,20 +3286,23 @@ async function atualizarStatusTarefa(req, res) {
     console.log(`📝 [STATUS] Saneado: regra_id=${regraIdSaneado}, data=${dataFormatada}, responsavel_id=${responsavelIdStr}, status=${status}`);
 
     // UPSERT: Inserir ou atualizar
+    // UPSERT: Inserir ou atualizar. 
+    // Objeto de dados (observacao = campo descrição da tarefa no front)
+    const dataUpsert = {
+      regra_id: regraIdSaneado,
+      data: dataFormatada,
+      responsavel_id: responsavelIdStr,
+      status: status,
+      updated_at: new Date().toISOString()
+    };
+
+    if (observacao !== undefined) {
+      dataUpsert.observacao = observacao || null;
+    }
+
     const { data: resultado, error } = await supabase
       .from('tempo_estimado_status')
-      .upsert(
-        {
-          regra_id: regraIdSaneado,
-          data: dataFormatada,
-          responsavel_id: responsavelIdStr,
-          status: status,
-          updated_at: new Date().toISOString()
-        },
-        {
-          onConflict: 'regra_id,data,responsavel_id'
-        }
-      )
+      .upsert(dataUpsert, { onConflict: 'regra_id,data,responsavel_id' })
       .select();
 
     if (error) {

@@ -1,9 +1,9 @@
 /* PainelUsuario.css
- * Estilos para a tela de Painel do Usu√°rio
+ * Estilos para a tela de Painel do Usu·rio
  * Layout limpo e moderno
  */
 
-/* Se√ß√£o de conte√∫do principal do painel */
+/* SeÁ„o de conte˙do principal do painel */
 .painel-usuario-content-section {
   max-width: 100%;
   margin: 0;
@@ -14,13 +14,13 @@
   box-sizing: border-box;
   overflow-x: hidden;
   /* Previne overflow horizontal */
-  /* Garantir que n√£o ultrapasse os limites do container */
+  /* Garantir que n„o ultrapasse os limites do container */
   min-width: 0;
   /* Garantir que todos os elementos filhos respeitem os limites */
   contain: layout style;
 }
 
-/* Header da P√°gina */
+/* Header da P·gina */
 .painel-usuario-page-header {
   margin-bottom: 30px;
 }
@@ -65,7 +65,7 @@
   line-height: 1.5;
 }
 
-/* Garantir que elementos filhos n√£o ultrapassem os limites */
+/* Garantir que elementos filhos n„o ultrapassem os limites */
 .painel-usuario-content-section>* {
   max-width: 100%;
   box-sizing: border-box;
@@ -75,9 +75,9 @@
 .painel-usuario-tarefas-container {
   width: 100%;
   min-height: 600px;
-  /* Altura m√≠nima ajustada */
+  /* Altura mÌnima ajustada */
   margin-top: 24px;
-  /* Espa√ßamento consistente ap√≥s o header */
+  /* EspaÁamento consistente apÛs o header */
   box-sizing: border-box;
   max-width: 100%;
   overflow-x: hidden;
@@ -177,8 +177,29 @@
   min-width: 0;
   /* Permitir que o card encolha */
   max-width: 100%;
-  /* N√£o expandir al√©m do container */
+  /* Nùo expandir alùm do container */
   box-sizing: border-box;
+}
+
+/* Anotaùùes expandidas: crescer para baixo, nùo para o lado */
+/* Bot„o DescriÁ„o + (abre card ao lado) */
+.painel-usuario-tarefa-footer-descricao:hover {
+  background: #f8fafc !important;
+}
+
+.painel-usuario-tarefa-observacao-expandida {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+.painel-usuario-tarefa-observacao-content {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .painel-usuario-tarefa-top {
@@ -207,9 +228,9 @@
   background: #ef4444;
   /* invertido: fundo vermelho */
   color: #fee2e2;
-  /* √≠cone claro */
+  /* Ìcone claro */
   border-radius: 50%;
-  /* Bot√£o circular */
+  /* Bot„o circular */
   padding: 0;
   width: 21px;
   height: 21px;
@@ -233,7 +254,7 @@
 
 .painel-usuario-play-btn i {
   font-size: 9px;
-  /* Mesmo tamanho do √≠cone do bot√£o de stop do header */
+  /* Mesmo tamanho do Ìcone do bot„o de stop do header */
 }
 
 .painel-usuario-play-btn:disabled,
@@ -260,13 +281,13 @@
 
 .painel-usuario-stop-btn {
   border: 2px solid #ffffff;
-  /* Borda branca para destacar quando est√° ativo */
+  /* Borda branca para destacar quando est· ativo */
   background: #dc2626;
   /* Vermelho mais escuro para diferenciar do play */
   color: #ffffff;
-  /* √≠cone branco */
+  /* Ìcone branco */
   border-radius: 50%;
-  /* Bot√£o circular */
+  /* Bot„o circular */
   padding: 0;
   width: 21px;
   height: 21px;
@@ -294,7 +315,7 @@
 
 .painel-usuario-stop-btn i {
   font-size: 9px;
-  /* Mesmo tamanho do √≠cone do bot√£o de stop do header */
+  /* Mesmo tamanho do Ìcone do bot„o de stop do header */
 }
 
 .painel-usuario-tarefa-tags {
@@ -345,7 +366,7 @@
   transition: all 0.2s ease;
   position: relative;
   margin-top: 2px;
-  /* Alinhar com o texto quando houver descri√ß√£o */
+  /* Alinhar com o texto quando houver descriÁ„o */
 }
 
 .painel-usuario-subtarefa-bolinha:hover {
@@ -359,7 +380,7 @@
 }
 
 .painel-usuario-subtarefa-bolinha.concluida::after {
-  content: '‚úì';
+  content: '?';
   position: absolute;
   top: 50%;
   left: 50%;
@@ -459,7 +480,7 @@
   overflow-x: hidden;
 }
 
-/* Scrollbar customizada para descri√ß√£o */
+/* Scrollbar customizada para descriÁ„o */
 .painel-usuario-subtarefa-descricao::-webkit-scrollbar {
   width: 4px;
 }
@@ -540,7 +561,7 @@
 
 .painel-usuario-estimado-icon-inline {
   color: #0e3b6f;
-  /* Azul padr√£o do sistema */
+  /* Azul padr„o do sistema */
   font-size: 12px;
 }
 
@@ -579,7 +600,7 @@
 
 .painel-usuario-realizado-icon-inline {
   color: #fd7e14;
-  /* Laranja padr√£o do sistema */
+  /* Laranja padr„o do sistema */
   font-size: 12px;
 }
 
@@ -617,7 +638,7 @@
 }
 
 
-/* ---------- Toggle de visualiza√ß√£o ---------- */
+/* ---------- Toggle de visualizaÁ„o ---------- */
 .painel-usuario-toggle-view {
   display: flex;
   align-items: center;
@@ -675,7 +696,7 @@
   white-space: nowrap;
 }
 
-/* ---------- Visualiza√ß√£o em lista ---------- */
+/* ---------- VisualizaÁ„o em lista ---------- */
 .painel-usuario-lista-container {
   display: flex;
   flex-direction: column;
@@ -683,17 +704,17 @@
   padding: 4px 0;
   scroll-behavior: smooth;
   scroll-padding-top: 20px;
-  /* Garantir que o container respeite o fluxo normal e n√£o cause sobreposi√ß√£o */
+  /* Garantir que o container respeite o fluxo normal e n„o cause sobreposiÁ„o */
   position: relative;
   width: 100%;
-  /* Garantir que elementos filhos n√£o saiam do container */
+  /* Garantir que elementos filhos n„o saiam do container */
   contain: layout;
-  /* Garantir que o container tenha altura m√≠nima e permita scroll apenas quando necess√°rio */
+  /* Garantir que o container tenha altura mÌnima e permita scroll apenas quando necess·rio */
   min-height: 500px;
-  /* Altura m√≠nima maior para dar mais espa√ßo */
+  /* Altura mÌnima maior para dar mais espaÁo */
   flex: 1;
   overflow-y: auto;
-  /* Scroll apenas quando necess√°rio (auto) */
+  /* Scroll apenas quando necess·rio (auto) */
   overflow-x: hidden;
 }
 
@@ -703,16 +724,16 @@
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   overflow: visible;
-  /* Mudado de hidden para visible para permitir que os bal√µes apare√ßam completos */
+  /* Mudado de hidden para visible para permitir que os balıes apareÁam completos */
   position: relative;
   z-index: 1;
   margin-bottom: 0;
   /* Garantir que cada card seja um elemento de bloco no fluxo normal */
   display: block;
   width: 100%;
-  /* Garantir que cards n√£o sobreponham uns aos outros */
+  /* Garantir que cards n„o sobreponham uns aos outros */
   isolation: isolate;
-  /* Garantir que o card ocupe espa√ßo no fluxo do documento */
+  /* Garantir que o card ocupe espaÁo no fluxo do documento */
   min-height: fit-content;
 }
 
@@ -750,18 +771,18 @@
   min-width: 120px;
 }
 
-/* Modo quadro: reduzir largura da barra para evitar sobreposi√ß√£o com porcentagem */
+/* Modo quadro: reduzir largura da barra para evitar sobreposiÁ„o com porcentagem */
 .painel-usuario-barra-progresso-wrapper.painel-usuario-barra-progresso-quadro {
   overflow: visible;
-  /* Permitir que o excedente apare√ßa */
+  /* Permitir que o excedente apareÁa */
 }
 
 .painel-usuario-barra-progresso-wrapper.painel-usuario-barra-progresso-quadro .painel-usuario-barra-progresso-base {
   flex: 0 1 calc(100% - 55px);
-  /* Aumentado para 55px para garantir espa√ßo para porcentagem */
+  /* Aumentado para 55px para garantir espaÁo para porcentagem */
   max-width: calc(100% - 55px);
   overflow: visible;
-  /* Mudado para visible para permitir que o excedente apare√ßa */
+  /* Mudado para visible para permitir que o excedente apareÁa */
 }
 
 .painel-usuario-barra-progresso-container {
@@ -776,15 +797,15 @@
   background: #e5e7eb;
   border-radius: 3px;
   overflow: hidden;
-  /* Mudado de visible para hidden para evitar sobreposi√ß√£o */
+  /* Mudado de visible para hidden para evitar sobreposiÁ„o */
   position: relative;
   min-width: 60px;
 }
 
-/* No modo quadro, permitir que o excedente apare√ßa mas limitar seu tamanho */
+/* No modo quadro, permitir que o excedente apareÁa mas limitar seu tamanho */
 .painel-usuario-barra-progresso-base.painel-usuario-barra-progresso-base-quadro {
   overflow: visible;
-  /* Permitir que o excedente apare√ßa */
+  /* Permitir que o excedente apareÁa */
 }
 
 .painel-usuario-barra-progresso-fill {
@@ -804,17 +825,17 @@
   position: absolute;
   top: 0;
   left: 100%;
-  /* Come√ßar do final da barra base */
+  /* ComeÁar do final da barra base */
   z-index: 2;
-  /* N√£o limitar max-width aqui, ser√° controlado pelo JavaScript */
+  /* N„o limitar max-width aqui, ser· controlado pelo JavaScript */
 }
 
-/* No modo quadro, limitar o excedente para n√£o sobrepor a porcentagem */
+/* No modo quadro, limitar o excedente para n„o sobrepor a porcentagem */
 .painel-usuario-barra-progresso-base-quadro .painel-usuario-barra-progresso-fill-excesso {
   max-width: 35px;
-  /* Limitar a aproximadamente 35px para n√£o sobrepor a porcentagem */
+  /* Limitar a aproximadamente 35px para n„o sobrepor a porcentagem */
   min-width: 6px;
-  /* Garantir que seja vis√≠vel mesmo quando pequeno */
+  /* Garantir que seja visÌvel mesmo quando pequeno */
   border-top-right-radius: 3px;
   border-bottom-right-radius: 3px;
 }
@@ -824,7 +845,7 @@
   font-weight: 600;
   white-space: nowrap;
   min-width: 45px;
-  /* Aumentado para garantir espa√ßo suficiente */
+  /* Aumentado para garantir espaÁo suficiente */
   text-align: right;
   flex-shrink: 0;
   /* Garantir que a porcentagem nunca encolha */
@@ -877,7 +898,7 @@
 
 /* ---------- Grupos de cliente na lista (estilo atribuicoes-group) ---------- */
 .painel-usuario-grupo-cliente {
-  /* Removido border-bottom, agora est√° dentro do card */
+  /* Removido border-bottom, agora est· dentro do card */
   display: flex;
   flex-direction: column;
   position: relative;
@@ -885,7 +906,7 @@
   /* Garantir que o grupo esteja no fluxo normal do documento */
   box-sizing: border-box;
   overflow: visible;
-  /* Garantir que os bal√µes n√£o sejam cortados */
+  /* Garantir que os balıes n„o sejam cortados */
 }
 
 .painel-usuario-grupo-cliente-header {
@@ -901,13 +922,13 @@
   z-index: 2;
   /* Reduzido de 10 para 2 - apenas para garantir que fique acima do content */
   pointer-events: auto !important;
-  /* Garantir que o header n√£o saia do fluxo do documento */
+  /* Garantir que o header n„o saia do fluxo do documento */
   width: 100%;
   box-sizing: border-box;
   overflow: visible;
-  /* Garantir que os bal√µes n√£o sejam cortados */
+  /* Garantir que os balıes n„o sejam cortados */
   min-width: 0;
-  /* Permitir que o header encolha se necess√°rio */
+  /* Permitir que o header encolha se necess·rio */
 }
 
 .painel-usuario-grupo-cliente-header:hover {
@@ -922,7 +943,7 @@
   min-width: 0;
   /* Permite que o flex item encolha */
   overflow: visible;
-  /* Garante que os bal√µes n√£o sejam cortados */
+  /* Garante que os balıes n„o sejam cortados */
 }
 
 .painel-usuario-grupo-badge-orange {
@@ -945,7 +966,7 @@
   margin: 0;
   flex: 1;
   min-width: 0;
-  /* Permite que o t√≠tulo encolha se necess√°rio */
+  /* Permite que o tÌtulo encolha se necess·rio */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -963,20 +984,20 @@
   gap: 4px;
   position: relative;
   flex-shrink: 0;
-  /* N√£o permite que o bal√£o encolha */
+  /* N„o permite que o bal„o encolha */
   white-space: nowrap;
-  /* N√£o quebra linha */
+  /* N„o quebra linha */
 }
 
-/* Estilos espec√≠ficos para modo quadro */
+/* Estilos especÌficos para modo quadro */
 .painel-usuario-grupo-tempo-total.painel-usuario-quadro-tempo {
   font-size: 11px;
   padding: 2px 4px;
   gap: 0;
   white-space: nowrap;
-  /* N√£o quebrar linha */
+  /* N„o quebrar linha */
   flex-shrink: 0;
-  /* N√£o encolher */
+  /* N„o encolher */
 }
 
 .painel-usuario-grupo-tempo-topainel-usuarioaborador-quadro-tempo i {
@@ -985,7 +1006,7 @@
 
 .painel-usuario-grupo-tempo-total i {
   color: #0e3b6f;
-  /* Azul padr√£o do sistema */
+  /* Azul padr„o do sistema */
   font-size: 12px;
 }
 
@@ -1056,20 +1077,20 @@
   gap: 4px;
   position: relative;
   flex-shrink: 0;
-  /* N√£o permite que o bal√£o encolha */
+  /* N„o permite que o bal„o encolha */
   white-space: nowrap;
-  /* N√£o quebra linha */
+  /* N„o quebra linha */
 }
 
-/* Estilos espec√≠ficos para modo quadro */
+/* Estilos especÌficos para modo quadro */
 .painel-usuario-grupo-tempo-realizado.painel-usuario-quadro-tempo {
   font-size: 11px;
   padding: 2px 4px;
   gap: 0;
   white-space: nowrap;
-  /* N√£o quebrar linha */
+  /* N„o quebrar linha */
   flex-shrink: 0;
-  /* N√£o encolher */
+  /* N„o encolher */
 }
 
 .painel-usuario-grupo-tempo-realizpainel-usuarioaborador-quadro-tempo i {
@@ -1078,7 +1099,7 @@
 
 .painel-usuario-grupo-tempo-realizado i {
   color: #fd7e14;
-  /* Laranja padr√£o do sistema */
+  /* Laranja padr„o do sistema */
   font-size: 12px;
 }
 
@@ -1093,19 +1114,19 @@
   font-size: 12px;
   font-weight: 500;
   flex-shrink: 0;
-  /* N√£o permite que o bal√£o encolha */
+  /* N„o permite que o bal„o encolha */
   white-space: nowrap;
-  /* N√£o quebra linha */
+  /* N„o quebra linha */
 }
 
-/* Estilos espec√≠ficos para modo quadro */
+/* Estilos especÌficos para modo quadro */
 .painel-usuario-grupo-count.painel-usuario-quadro-count {
   font-size: 11px;
   padding: 2px 6px;
   white-space: nowrap;
-  /* N√£o quebrar linha */
+  /* N„o quebrar linha */
   flex-shrink: 0;
-  /* N√£o encolher */
+  /* N„o encolher */
 }
 
 .painel-usuario-grupo-cliente-content {
@@ -1116,9 +1137,9 @@
   flex-direction: column;
 }
 
-/* Quando h√° mais de 6 tarefas, adicionar scroll interno */
-/* Cada item tem aproximadamente: padding 12px + margin 8px = ~20px vertical + conte√∫do (~80-100px) = ~100-120px por item */
-/* 6 itens = ~600-720px, vamos usar 650px como altura m√°xima */
+/* Quando h· mais de 6 tarefas, adicionar scroll interno */
+/* Cada item tem aproximadamente: padding 12px + margin 8px = ~20px vertical + conte˙do (~80-100px) = ~100-120px por item */
+/* 6 itens = ~600-720px, vamos usar 650px como altura m·xima */
 .painel-usuario-grupo-cliente-content-scroll {
   max-height: 650px;
   overflow-y: auto;
@@ -1178,7 +1199,7 @@
   font-weight: 500;
 }
 
-/* Estilo para bot√µes de play bloqueados (outras datas) */
+/* Estilo para botıes de play bloqueados (outras datas) */
 .painel-usuario-play-btn.painel-usuario-btn-disabled:disabled {
   pointer-events: auto !important;
   cursor: not-allowed !important;
@@ -1344,7 +1365,7 @@
   color: #8b5cf6;
 }
 
-/* Especial: Borda sutil para n√£o iniciada */
+/* Especial: Borda sutil para n„o iniciada */
 .status-icon-trigger.status-nao-iniciada {
   border: 2px dashed #cbd5e1;
 }
@@ -1386,4 +1407,57 @@
   align-items: flex-start;
   /* Alinhado ao topo para nomes longos */
   gap: 10px;
+}
+/* Popup de Descriùùo da Tarefa */
+.painel-usuario-desc-popup {
+  font-family: inherit;
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.painel-usuario-tarefa-desc-btn {
+  transition: color 0.2s, transform 0.2s !important;
+}
+
+.painel-usuario-tarefa-desc-btn:hover {
+  color: #3b82f6 !important;
+  transform: scale(1.1);
+}
+
+/* Snippet de Observaùùo da Tarefa */
+.painel-usuario-tarefa-observacao-snippet {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 4px;
+  margin-bottom: 2px;
+  padding: 6px 10px;
+  background: #f1f5f9;
+  border-radius: 6px;
+  color: #475569;
+  font-size: 11px;
+  line-height: 1.4;
+  max-width: 100%;
+  border-left: 2px solid #3b82f6;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.painel-usuario-tarefa-observacao-snippet:hover {
+  background: #e2e8f0;
+}
+
+.painel-usuario-tarefa-observacao-snippet i {
+  color: #3b82f6;
+  margin-top: 2px;
+  font-size: 10px;
 }

@@ -462,6 +462,13 @@ const PainelUsuario = () => {
   const [descricoesSubtarefasExpandidas, setDescricoesSubtarefasExpandidas] = useState(new Set());
   const descricoesSubtarefasExpandidasRef = useRef(new Set()); // Ref para acesso síncrono
 
+  // --- ESTADOS PARA DESCRIÇÃO DA TAREFA ---
+  const [tarefaParaDescricao, setTarefaParaDescricao] = useState(null); // { reg: Object, rect: DOMRect, texto: String }
+  const [salvandoDescricao, setSalvandoDescricao] = useState(false);
+  const [descricoesTarefasExpandidas, setDescricoesTarefasExpandidas] = useState(new Set());
+  const popupDescricaoRef = useRef(null);
+  const textareaDescricaoRef = useRef(null);
+
   const toggleTarefa = useCallback((agrupadorId, tarefaId) => {
     setTarefasExpandidas((prev) => {
       const key = `${agrupadorId}_${tarefaId}`;
@@ -474,6 +481,121 @@ const PainelUsuario = () => {
       return novo;
     });
   }, []);
+
+  // Funções para gerenciamento da descrição da tarefa
+  const abrirPopupDescricao = useCallback((e, reg) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setTarefaParaDescricao({
+      reg,
+      rect,
+      texto: reg.observacao || ''
+    });
+  }, []);
+
+  const fecharPopupDescricao = useCallback(() => {
+    setTarefaParaDescricao(null);
+  }, []);
+
+  const toggleDescricaoTarefa = useCallback((e, tarefaUnicaId) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+    setDescricoesTarefasExpandidas(prev => {
+      const novo = new Set(prev);
+      if (novo.has(tarefaUnicaId)) {
+        novo.delete(tarefaUnicaId);
+      } else {
+        novo.add(tarefaUnicaId);
+      }
+      return novo;
+    });
+  }, []);
+
+  const handleSalvarDescricao = async () => {
+    if (!tarefaParaDescricao) return;
+    setSalvandoDescricao(true);
+    try {
+      const { reg, texto } = tarefaParaDescricao;
+      // Normalizar datas para comparação e envio
+      const dataEnvio = reg.data ? (reg.data.includes('T') ? reg.data.split('T')[0] : reg.data) : reg.data;
+
+      const response = await fetch(`${API_BASE_URL}/tempo-estimado/status`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          regra_id: reg.regra_id,
+          data: dataEnvio,
+          responsavel_id: reg.responsavel_id,
+          status: reg.status || 'NAO_INICIADA',
+          observacao: texto
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          // Atualizar o registro no estado local e na ref para a UI refletir na hora
+          const updatedRegistros = tarefasRegistrosRef.current.map(t => {
+            const dataT = t.data ? (t.data.includes('T') ? t.data.split('T')[0] : t.data) : t.data;
+            if (t.regra_id === reg.regra_id && dataT === dataEnvio && String(t.responsavel_id) === String(reg.responsavel_id)) {
+              return { ...t, observacao: texto };
+            }
+            return t;
+          });
+          tarefasRegistrosRef.current = updatedRegistros;
+          setTarefasRegistros(updatedRegistros);
+
+          showToast('Descrição salva com sucesso!', 'Descrição salva com sucesso!');
+          fecharPopupDescricao();
+
+          // Re-renderizar os cards na hora para mostrar a descrição atualizada sem recarregar a página
+          const card = tarefasContainerRef.current;
+          if (card) {
+            const wrapper = card.querySelector('div[style*="flex-direction: column"]');
+            if (wrapper) {
+              const registrosFiltrados = clienteSelecionadoId
+                ? updatedRegistros.filter(t => String(t.cliente_id || '').trim() === String(clienteSelecionadoId).trim())
+                : updatedRegistros;
+              const dataParaRenderizar = dataTarefasSelecionada || new Date();
+              const modo = obterModoVisualizacao();
+              if (modo === 'lista') {
+                renderTarefasEmLista(registrosFiltrados, wrapper, dataParaRenderizar);
+              } else {
+                renderTarefasEmQuadro(registrosFiltrados, wrapper, dataParaRenderizar);
+              }
+            } else {
+              renderTarefasNoCard(updatedRegistros, card, dataTarefasSelecionada);
+            }
+          }
+        } else {
+          showToast(result.error || 'Erro ao salvar descrição', 'error');
+        }
+      } else {
+        showToast('Erro ao salvar descrição no servidor', 'error');
+      }
+    } catch (error) {
+      console.error('Erro ao salvar descrição:', error);
+      showToast('Erro ao salvar descrição', 'error');
+    } finally {
+      setSalvandoDescricao(false);
+    }
+  };
+
+  // Efeito para fechar o popup ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (popupDescricaoRef.current && !popupDescricaoRef.current.contains(event.target)) {
+        fecharPopupDescricao();
+      }
+    };
+
+    if (tarefaParaDescricao) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [tarefaParaDescricao, fecharPopupDescricao]);
 
   const formatarData = (dataInput) => {
     if (!dataInput) return '—';
@@ -3557,6 +3679,7 @@ const PainelUsuario = () => {
           items.forEach((reg, index) => {
             const item = document.createElement('div');
             item.className = 'painel-usuario-tarefa-item-lista';
+            item.style.position = 'relative';
             item.style.border = '1px solid rgb(238, 242, 247)';
             item.style.borderRadius = '12px';
             item.style.padding = '12px';
@@ -3600,6 +3723,9 @@ const PainelUsuario = () => {
 
             const btnDisabledAttr = '';
 
+            const tarefaUnicaId = `${reg.regra_id}_${reg.data ? (reg.data.includes('T') ? reg.data.split('T')[0] : reg.data) : ''}_${reg.responsavel_id}`;
+            const isDescricaoExpandida = descricoesTarefasExpandidas.has(tarefaUnicaId);
+
             item.innerHTML = `
               <div class="painel-usuario-tarefa-item-lista-content">
                 <div class="painel-usuario-tarefa-item-lista-main">
@@ -3608,6 +3734,7 @@ const PainelUsuario = () => {
                       ${renderizarStatusBadge(reg)}
                       <span class="painel-usuario-tarefa-text">
                         ${getNomeTarefa(reg.tarefa_id, reg)}
+                        ${reg.id_tarefa_auxiliar ? `<span style="color: #94a3b8; font-size: 10px; margin-left: 4px;">#${reg.id_tarefa_auxiliar}</span>` : ''}
                         ${reg.produto_id ? `<span class="painel-usuario-tarefa-produto"> - ${getNomeProduto(reg.produto_id)}</span>` : ''}
                       </span>
                       ${reg.is_plug_rapido ? `<span style="background-color: #ecfdf5; color: #059669; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; border: 1px solid #a7f3d0; margin-left: 8px; display: inline-block; vertical-align: middle;" title="Tarefa criada via Plug Rápido">Plug Rápido</span>` : ''}
@@ -3683,6 +3810,17 @@ const PainelUsuario = () => {
               })()}
             </div>
             <div class="painel-usuario-subtarefas-wrapper" data-chave-subtarefas="${criarChaveSubtarefas(reg)}" data-tarefa-id="${reg.tarefa_id}" style="display: none;">
+            </div>
+            
+            <div 
+              class="painel-usuario-tarefa-footer-descricao"
+              data-tarefa-unica-id="${tarefaUnicaId}"
+              title="${reg.observacao ? 'Editar descrição' : 'Adicionar descrição'}"
+              style="display: flex; justify-content: center; align-items: center; gap: 6px; border-top: 1px solid #f1f5f9; margin-top: 8px; cursor: pointer; padding: 6px 0; background: white; border-radius: 0 0 12px 12px; transition: background 0.2s;"
+            >
+              <i class="fas fa-sticky-note" style="font-size: 11px; color: ${reg.observacao ? '#3b82f6' : '#cbd5e1'};"></i>
+              <span style="font-size: 10px; font-weight: 600; color: ${reg.observacao ? '#3b82f6' : '#94a3b8'}; text-transform: uppercase; letter-spacing: 0.5px;">Descrição</span>
+              <i class="fas fa-plus" style="font-size: 10px; color: ${reg.observacao ? '#3b82f6' : '#94a3b8'}; margin-left: 2px;"></i>
             </div>
               </div>
             `;
@@ -4005,6 +4143,12 @@ const PainelUsuario = () => {
               });
             }
 
+            // Clique em "Descrição +" abre o cardzinho ao lado para adicionar/editar descrição
+            const footerDescricao = item.querySelector('.painel-usuario-tarefa-footer-descricao');
+            if (footerDescricao) {
+              footerDescricao.addEventListener('click', (e) => abrirPopupDescricao(e, reg));
+            }
+
             // Adicionar event listener à setinha de expandir timetrack
             const expandArrow = item.querySelector('.painel-usuario-timetrack-arrow');
             if (expandArrow) {
@@ -4254,6 +4398,8 @@ const PainelUsuario = () => {
         items.forEach((reg) => {
           const item = document.createElement('div');
           item.className = 'painel-usuario-tarefa-card';
+          item.style.position = 'relative';
+          item.style.minHeight = '100px'; // Garantir espaço para o botão se o card for muito pequeno
           // CRÍTICO: Cada tempo estimado é totalmente independente
           // Usar o ID do tempo estimado como identificador único
           const tempoEstimadoId = reg.id || reg.tempo_estimado_id;
@@ -4293,12 +4439,16 @@ const PainelUsuario = () => {
           const chaveTimetrack = criarChaveTempo(reg);
           const isTimetrackExpanded = timetracksExpandidos.has(chaveTimetrack);
 
+          const tarefaUnicaId = `${reg.regra_id}_${reg.data ? (reg.data.includes('T') ? reg.data.split('T')[0] : reg.data) : ''}_${reg.responsavel_id}`;
+          const isDescricaoExpandida = descricoesTarefasExpandidas.has(tarefaUnicaId);
+
           item.innerHTML = `
             <div class="painel-usuario-tarefa-top">
               <div class="painel-usuario-tarefa-nome">
                 ${renderizarStatusBadge(reg)}
                 <span class="painel-usuario-tarefa-text">
                   ${getNomeTarefa(reg.tarefa_id, reg)}
+                  ${reg.id_tarefa_auxiliar ? `<span style="color: #94a3b8; font-size: 10px; margin-left: 4px;">#${reg.id_tarefa_auxiliar}</span>` : ''}
                   ${reg.produto_id ? `<span class="painel-usuario-tarefa-produto"> - ${getNomeProduto(reg.produto_id)}</span>` : ''}
                 </span>
                 ${reg.is_plug_rapido ? `<span style="background-color: #ecfdf5; color: #059669; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; border: 1px solid #a7f3d0; margin-left: 8px; display: inline-block; vertical-align: middle;" title="Tarefa criada via Plug Rápido">Plug Rápido</span>` : ''}
@@ -4363,6 +4513,16 @@ const PainelUsuario = () => {
               ${isTimetrackExpanded ? renderizarTimetracksIndividuais(reg) : ''}
             </div>
             <div class="painel-usuario-subtarefas-wrapper" data-chave-subtarefas="${criarChaveSubtarefas(reg)}" data-tarefa-id="${reg.tarefa_id}" style="display: none;">
+            </div>
+            <div 
+              class="painel-usuario-tarefa-footer-descricao"
+              data-tarefa-unica-id="${tarefaUnicaId}"
+              title="${reg.observacao ? 'Editar descrição' : 'Adicionar descrição'}"
+              style="display: flex; justify-content: center; align-items: center; gap: 6px; border-top: 1px solid #f1f5f9; margin-top: 8px; cursor: pointer; padding: 6px 0; background: white; border-radius: 0 0 12px 12px; transition: background 0.2s;"
+            >
+              <i class="fas fa-sticky-note" style="font-size: 11px; color: ${reg.observacao ? '#3b82f6' : '#cbd5e1'};"></i>
+              <span style="font-size: 10px; font-weight: 600; color: ${reg.observacao ? '#3b82f6' : '#94a3b8'}; text-transform: uppercase; letter-spacing: 0.5px;">Descrição</span>
+              <i class="fas fa-plus" style="font-size: 10px; color: ${reg.observacao ? '#3b82f6' : '#94a3b8'}; margin-left: 2px;"></i>
             </div>
           `;
 
@@ -4491,6 +4651,12 @@ const PainelUsuario = () => {
               adicionarListenersBolinhasQuadro(subtarefasWrapper, reg.tarefa_id, chaveSubtarefas, subtarefas);
             }
           })();
+
+          // Clique em "Descrição +" abre o cardzinho ao lado para adicionar/editar descrição (quadro)
+          const footerDescricaoQuadro = item.querySelector('.painel-usuario-tarefa-footer-descricao');
+          if (footerDescricaoQuadro) {
+            footerDescricaoQuadro.addEventListener('click', (e) => abrirPopupDescricao(e, reg));
+          }
 
           // Adicionar event listener à setinha de subtarefas
           const subtarefasArrow = item.querySelector('.painel-usuario-subtarefas-arrow');
@@ -5485,7 +5651,7 @@ const PainelUsuario = () => {
         renderTarefasNoCard(tarefasRegistrosRef.current, tarefasContainerRef.current, dataTarefasSelecionada);
       }
     }
-  }, [clientesExpandidosLista, statusOptions]);
+  }, [clientesExpandidosLista, statusOptions, descricoesTarefasExpandidas]);
 
   // Re-renderizar tarefas quando clientes selecionados mudarem (apenas filtro, sem recarregar dados)
   useEffect(() => {
@@ -5588,7 +5754,7 @@ const PainelUsuario = () => {
 
     return () => clearTimeout(timeoutId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clienteSelecionadoId, statusOptions]);
+  }, [clienteSelecionadoId, statusOptions, descricoesTarefasExpandidas]);
 
 
   return (
@@ -5883,6 +6049,97 @@ const PainelUsuario = () => {
           onClose={handleCloseDetailCliente}
           position={detailCardClientePosition}
         />
+      )}
+      {/* Popup de Descrição da Tarefa */}
+      {tarefaParaDescricao && createPortal(
+        <div
+          ref={popupDescricaoRef}
+          className="painel-usuario-desc-popup"
+          style={{
+            position: 'fixed',
+            top: Math.min(tarefaParaDescricao.rect.top, window.innerHeight - 280),
+            left: (tarefaParaDescricao.rect.right + 270 <= window.innerWidth)
+              ? tarefaParaDescricao.rect.right + 10
+              : Math.max(20, tarefaParaDescricao.rect.left - 270),
+            width: '260px',
+            backgroundColor: '#fff',
+            borderRadius: '12px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            border: '1px solid #e2e8f0',
+            padding: '16px',
+            zIndex: 10000,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+            animation: 'fadeInScale 0.2s ease-out'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: '#1e293b' }}>Descrição da Tarefa</h4>
+            <button
+              onClick={fecharPopupDescricao}
+              style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px' }}
+            >
+              <i className="fas fa-times"></i>
+            </button>
+          </div>
+          <textarea
+            ref={textareaDescricaoRef}
+            value={tarefaParaDescricao.texto}
+            onChange={(e) => setTarefaParaDescricao({ ...tarefaParaDescricao, texto: e.target.value })}
+            placeholder="Adicione uma descrição para esta instância da tarefa..."
+            style={{
+              width: '100%',
+              minHeight: '120px',
+              padding: '10px',
+              borderRadius: '8px',
+              border: '1px solid #e2e8f0',
+              fontSize: '13px',
+              resize: 'none',
+              outline: 'none',
+              fontFamily: 'inherit',
+              lineHeight: '1.5',
+              backgroundColor: '#f8fafc'
+            }}
+            autoFocus
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+            <button
+              onClick={fecharPopupDescricao}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '8px',
+                border: '1px solid #e2e8f0',
+                backgroundColor: '#fff',
+                fontSize: '12px',
+                fontWeight: '600',
+                color: '#64748b',
+                cursor: 'pointer'
+              }}
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleSalvarDescricao}
+              disabled={salvandoDescricao}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '8px',
+                border: 'none',
+                backgroundColor: '#0e3b6f',
+                color: '#fff',
+                fontSize: '12px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                opacity: salvandoDescricao ? 0.7 : 1,
+                boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+              }}
+            >
+              {salvandoDescricao ? 'Salvando...' : 'Salvar'}
+            </button>
+          </div>
+        </div>,
+        document.body
       )}
     </Layout>
   );
