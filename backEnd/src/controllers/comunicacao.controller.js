@@ -589,6 +589,8 @@ async function listarChamados(req, res) {
             .is('mensagem_pai_id', null)
             .order('created_at', { ascending: false });
 
+        // IDs dos assuntos dos departamentos do usuário (para filtro em memória)
+        let idsAssuntosDepto = [];
         // Regra de Visualização:
         // 1. Admin/Gestor vê tudo
         // 2. Colaborador vê o que criou OU o que é do seu departamento
@@ -604,18 +606,11 @@ async function listarChamados(req, res) {
                     .select('id')
                     .in('departamento_id', meusDeptos);
 
-                const ids = (catIds || []).map(c => c.id);
-                if (ids.length > 0) {
-                    orConditions += `,assunto_id.in.(${ids.join(',')})`;
+                idsAssuntosDepto = (catIds || []).map(c => c.id);
+                if (idsAssuntosDepto.length > 0) {
+                    orConditions += `,assunto_id.in.(${idsAssuntosDepto.join(',')})`;
                 }
-
-                // 2. Chamados que foram direcionados a esses departamentos via metadata (novo fluxo)
-                // Usamos a sintaxe PostgREST para campos JSONB no or()
-                meusDeptos.forEach(dId => {
-                    // Nota: dId pode ser string ou número, o metadata extrai como texto.
-                    // Adicionamos a condição ao or
-                    orConditions += `,metadata->>departamento_id.eq.${dId}`;
-                });
+                // 2. Filtro por metadata.departamento_id é aplicado em memória abaixo (evita sintaxe JSONB no .or do PostgREST)
             }
 
             query = query.or(orConditions);
@@ -624,13 +619,28 @@ async function listarChamados(req, res) {
         const { data, error, count } = await query;
         if (error) throw error;
 
-        if (!data || data.length === 0) {
+        let dataFiltered = data || [];
+        // Para não-gestor: filtrar em memória chamados cujo metadata.departamento_id está em meusDeptos
+        if (!isGestorOuAdmin && meusDeptos.length > 0 && dataFiltered.length > 0) {
+            const deptoSet = new Set(meusDeptos.map(Number));
+            const idsAssuntosSet = new Set(idsAssuntosDepto.map(Number));
+            dataFiltered = dataFiltered.filter((ch) => {
+                if (Number(ch.criador_id) === Number(usuario_id)) return true;
+                const catId = ch.assunto_id || ch.categoria_id;
+                if (catId && idsAssuntosSet.has(Number(catId))) return true;
+                const metaDepto = ch.metadata && (ch.metadata.departamento_id ?? ch.metadata.departamento);
+                if (metaDepto != null && deptoSet.has(Number(metaDepto))) return true;
+                return false;
+            });
+        }
+
+        if (!dataFiltered || dataFiltered.length === 0) {
             return sendSuccess(res, 200, []);
         }
 
         // --- ENRIQUECIMENTO MANUAL ---
-        const criadorIds = [...new Set(data.map(m => m.criador_id).filter(Boolean))];
-        const catIds = [...new Set(data.map(m => m.categoria_id).filter(Boolean))];
+        const criadorIds = [...new Set(dataFiltered.map(m => m.criador_id).filter(Boolean))];
+        const catIds = [...new Set(dataFiltered.map(m => m.categoria_id).filter(Boolean))];
 
         // Buscar criadores
         const { data: criadores } = await supabase
@@ -655,14 +665,14 @@ async function listarChamados(req, res) {
             departamento: departamentos?.find(d => d.id === cat.departamento_id) || null
         }));
 
-        const chamadosBase = data.map(ch => ({
+        const chamadosBase = dataFiltered.map(ch => ({
             ...ch,
             criador: criadores?.find(c => c.id === ch.criador_id) || null,
             categoria: categoriasComDepto?.find(c => c.id === ch.categoria_id) || null
         }));
 
         // --- ENRIQUECIMENTO: Buscar quem respondeu por último ---
-        const chamadosIds = data.map(c => c.id);
+        const chamadosIds = dataFiltered.map(c => c.id);
         const responderMap = {};
 
         if (chamadosIds.length > 0) {
@@ -677,7 +687,7 @@ async function listarChamados(req, res) {
                 replies.forEach(r => {
                     // Se ainda não temos um respondedor para este chamado (como está ordenado DESC, o primeiro é o último)
                     if (!responderMap[r.mensagem_pai_id]) {
-                        const chamOriginal = data.find(c => c.id === r.mensagem_pai_id);
+                        const chamOriginal = dataFiltered.find(c => c.id === r.mensagem_pai_id);
                         // Atribui se o criador da resposta for diferente do criador do chamado (suporte/gestor)
                         if (chamOriginal && Number(r.criador_id) !== Number(chamOriginal.criador_id)) {
                             responderMap[r.mensagem_pai_id] = r.criador?.nome_usuario;
@@ -696,10 +706,11 @@ async function listarChamados(req, res) {
             };
         });
 
-        return sendSuccess(res, 200, enrichedData, null, { total: count || enrichedData.length });
+        return sendSuccess(res, 200, enrichedData, null, { total: count ?? enrichedData.length });
     } catch (error) {
         console.error('Erro ao listar chamados:', error);
-        return sendError(res, 500, 'Erro ao listar chamados.', error.message);
+        // Inclui a mensagem real do erro para facilitar debug em VPS/produção
+        return sendError(res, 500, 'Erro ao listar chamados.', error?.message || String(error));
     }
 }
 
